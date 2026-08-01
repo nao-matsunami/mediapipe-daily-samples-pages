@@ -9,15 +9,6 @@ const sourceDir = path.resolve(scriptDir, "..");
 const targetDir = "/Users/nao/Documents/Codex/mediapipe-daily-samples-pages";
 const repo = "nao-matsunami/mediapipe-daily-samples-pages";
 
-async function pathExists(targetPath) {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function run(command, args, cwd, stdio = "inherit") {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, stdio });
@@ -42,23 +33,15 @@ function runCapture(command, args, cwd) {
   });
 }
 
-async function ensureClone() {
-  const hasGit = await pathExists(path.join(targetDir, ".git"));
-  if (hasGit) return;
-  await fs.rm(targetDir, { recursive: true, force: true });
-  await fs.mkdir(path.dirname(targetDir), { recursive: true });
-  await run("gh", ["repo", "clone", repo, targetDir], sourceDir);
-}
-
 async function copyProject() {
   await fs.rm(targetDir, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(targetDir), { recursive: true });
   await run("gh", ["repo", "clone", repo, targetDir], sourceDir);
   await run("rsync", ["-a", "--delete", "--exclude", ".git", "--exclude", "node_modules", `${sourceDir}/`, `${targetDir}/`], sourceDir);
 }
 
 async function main() {
   await run("node", ["scripts/build-gallery.mjs"], sourceDir);
-  await ensureClone();
   await copyProject();
   await run("git", ["add", "."], targetDir);
   try {
