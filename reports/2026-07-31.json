@@ -1,0 +1,113 @@
+{
+  "date": "2026-07-31",
+  "headline": "Hand Landmarker を遅延読み込みと合成手で試す",
+  "headlineEn": "Testing Hand Landmarker with lazy loading and a synthetic hand",
+  "summary": "MediaPipe Solutions、Hand Landmarker for Web、Tasks Vision API、MediaPipe Studio、legacy Hands pipeline を確認し、カメラとモデルが使える時は実 MediaPipe、使えない時は合成 21 ランドマークで latency / smoothing / gesture hint を触れる自作 HTML サンプルを作成しました。",
+  "summaryEn": "After reviewing MediaPipe Solutions, Hand Landmarker for Web, the Tasks Vision API, MediaPipe Studio, and the legacy Hands pipeline, today's original HTML sample uses real MediaPipe when camera and model loading work, while falling back to a synthetic 21-landmark hand for latency, smoothing, and gesture-hint experiments.",
+  "keyTopics": [
+    "MediaPipe Solutions は Google AI Edge の一部として整理され、Web では `@mediapipe/tasks-vision` 経由で Hand / Pose / Face / Gesture などの Vision Tasks を利用できる。",
+    "Hand Landmarker は静止画像、動画フレーム、ライブ映像を入力にでき、image coordinates の landmarks、world coordinates の landmarks、handedness を出力する。",
+    "Web 実装では `FilesetResolver.forVisionTasks()` で Wasm fileset を解決し、`HandLandmarker.createFromOptions()` で model asset、running mode、confidence threshold を設定する。",
+    "Video / live stream では `detectForVideo()` と timestamp を使い、tracking confidence が低い時は再検出に戻るため、latency と安定性の UI 表示が重要になる。",
+    "Legacy Hands は 2023-03-01 以降、新しい MediaPipe Solutions に移行済みだが、palm detector と hand landmark model の 2 段 pipeline 理解にはまだ参考になる。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe Solutions are organized under Google AI Edge, and web apps can use Vision Tasks such as Hand, Pose, Face, and Gesture through `@mediapipe/tasks-vision`.",
+    "Hand Landmarker accepts still images, video frames, and live video, and outputs image-coordinate landmarks, world-coordinate landmarks, and handedness.",
+    "On the web, `FilesetResolver.forVisionTasks()` resolves the Wasm fileset, while `HandLandmarker.createFromOptions()` configures the model asset, running mode, and confidence thresholds.",
+    "For video and live streams, `detectForVideo()` uses timestamps, and low tracking confidence can cause the task to fall back to detection, making latency and stability UI important.",
+    "Legacy Hands moved to the newer MediaPipe Solutions after 2023-03-01, but its two-stage palm detector plus hand landmark model overview remains useful for understanding the pipeline."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Hand Landmark Latency Probe",
+      "url": "../outputs/2026-07-31_html_hand_landmark_latency_probe.html"
+    },
+    {
+      "label": "Google AI Edge: MediaPipe Solutions guide",
+      "url": "https://mediapipe.dev/"
+    },
+    {
+      "label": "Google AI Edge: Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Hand landmarks detection guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker"
+    },
+    {
+      "label": "Google AI Edge: tasks-vision package",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "MediaPipe Studio",
+      "url": "https://mediapipe-studio.webapps.google.com/"
+    },
+    {
+      "label": "Google AI Edge GitHub: MediaPipe",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Hand Landmarker for Web の導入フローです。`@mediapipe/tasks-vision`、Wasm fileset、`.task` model asset、`VIDEO` running mode、`detectForVideo()` という最小構成で、ブラウザー内のライブ映像に手の 21 点ランドマークを重ねられます。面白いのは、モデル自体よりも「モデルロード」「カメラ権限」「tracking が効いている時の軽いフレーム」「再検出に戻る重いフレーム」を UI 側で見せる必要がある点です。",
+      "bodyEn": "Today's notable reference is the Hand Landmarker for Web setup flow. With `@mediapipe/tasks-vision`, a Wasm fileset, a `.task` model asset, `VIDEO` running mode, and `detectForVideo()`, a browser can overlay 21 hand landmarks on live video. The interesting part is not only the model itself, but the UI need to expose model loading, camera permission, lighter tracking frames, and heavier re-detection frames.",
+      "links": [
+        {
+          "label": "Hand landmarks detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "初回サンプルは、MediaPipe の実行有無をアプリの中心にせず、常に 21 点の手が見える latency probe にしました。`Try Camera` は CDN から Tasks Vision と hand landmarker model を読み込み、許可されれば実 `detectForVideo()` を使います。失敗時は deterministic な合成手に戻り、Open / Pinch / Fist / Point、detection confidence、tracking confidence、smoothing、frame budget を触って pipeline 判定と jitter を観察できます。",
+      "bodyEn": "The first sample is a latency probe that always shows a 21-point hand instead of making real MediaPipe availability the entire experience. `Try Camera` loads Tasks Vision and the hand landmarker model from the CDN and uses real `detectForVideo()` when permitted. On failure it falls back to a deterministic synthetic hand, where Open / Pinch / Fist / Point, detection confidence, tracking confidence, smoothing, and frame budget can be adjusted to observe pipeline state and jitter."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Web の Hand Landmarker は `runningMode: \"VIDEO\"` の時に `detectForVideo(video, timestamp)` を使います。実運用では `video.currentTime` が前回と同じなら推論を飛ばす、モデルロードは user gesture の後に開始する、`minHandDetectionConfidence` と `minTrackingConfidence` を UI の品質表示に接続する、`worldLandmarks` がある時だけ 3D 表現へ昇格する、という分岐が扱いやすいです。カメラが無い環境でも UI を確認できるよう、合成ランドマーク fallback を持つと開発速度が上がります。",
+      "bodyEn": "With `runningMode: \"VIDEO\"`, the web Hand Landmarker uses `detectForVideo(video, timestamp)`. In production, skip inference when `video.currentTime` has not changed, start model loading after a user gesture, connect `minHandDetectionConfidence` and `minTrackingConfidence` to visible quality states, and only promote to 3D rendering when `worldLandmarks` are available. A synthetic landmark fallback keeps UI development moving even without camera access."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Gesture Recognizer、Pose Landmarker、Face Landmarker、Image Segmenter、MediaPipe Studio の計測画面、Tasks Vision の Wasm / GPU delegate まわりを見ます。特に Hand Landmarker から Gesture Recognizer へ進むと、ランドマークそのものではなく、pinch / open palm / pointing の action binding と誤認識対策を扱えるようになります。",
+      "bodyEn": "Next, watch Gesture Recognizer, Pose Landmarker, Face Landmarker, Image Segmenter, MediaPipe Studio benchmarking views, and Tasks Vision Wasm / GPU delegate behavior. Moving from Hand Landmarker to Gesture Recognizer will shift the focus from landmarks themselves to action binding and false-positive control for pinch, open palm, and pointing."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "サンプルを開き、まず Simulate のまま Open / Pinch / Fist / Point を切り替えて gesture hint が変わることを確認します。次に Tracking confidence を下げると jitter と quality が悪化し、Smoothing を上げると点は安定する一方で反応が鈍くなることを見ます。カメラを使える環境では `Try Camera` を押し、実モデルロードが成功するかと、失敗した場合の fallback log を確認してください。",
+      "bodyEn": "Open the sample and first switch Open / Pinch / Fist / Point in Simulate mode to confirm the gesture hint changes. Then lower Tracking confidence to increase jitter and reduce quality, and raise Smoothing to stabilize points while making response feel slower. In a camera-capable environment, press `Try Camera` and check whether the real model loads, or inspect the fallback log if it fails.",
+      "links": [
+        {
+          "label": "Open Hand Landmark Latency Probe",
+          "url": "../outputs/2026-07-31_html_hand_landmark_latency_probe.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: MediaPipe Solutions guide、Hand Landmarker Web guide、Hand Landmarker overview、tasks-vision API、MediaPipe Studio、GitHub repository を確認。アイデア: 初回は実カメラ依存の demo ではなく、開発と公開確認が常にできる合成 landmark probe にする。実装: 新規プロジェクト、report template、gallery build script、upsert script、初回 HTML sample、初回 JSON report を追加。検証: JSON parse、HTML module script 構文、gallery 再生成、生成 index / day page のリンク確認を行う。",
+      "bodyEn": "Research: reviewed the MediaPipe Solutions guide, Hand Landmarker web guide, Hand Landmarker overview, tasks-vision API, MediaPipe Studio, and GitHub repository. Idea: make the first sample a synthetic landmark probe that always supports development and publishing checks, rather than a camera-only demo. Implementation: added a new project, report template, gallery build script, upsert script, first HTML sample, and first JSON report. Validation: run JSON parsing, HTML module script syntax checks, gallery regeneration, and generated index/day link checks."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "MediaPipe の日次サンプルは、XR よりも「入力メディア」「モデルロード」「推論結果」「可視化」「アクション化」の順に積むのがよさそうです。初回の Hand Landmarker はその土台として、camera permission と model fetch が失敗してもランドマーク UI の開発が止まらない構成にしました。今後はこの 21 点を gesture、pose、segmentation、AR 的な overlay へ接続していけます。",
+      "bodyEn": "The MediaPipe daily sequence should probably build in the order of input media, model loading, inference result, visualization, and action mapping. The first Hand Landmarker sample establishes that base by keeping landmark UI development alive even when camera permission or model fetch fails. Future samples can connect these 21 points to gestures, pose, segmentation, and AR-style overlays."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Hand Landmark Latency Probe` です。カメラと MediaPipe model が使える時は実 Hand Landmarker を試し、使えない時は合成 21 点で同じ UI を動かします。次に足すなら、Gesture Recognizer の実 import、pinch の hold / release hysteresis、worldLandmarks を使った奥行き表示、MediaPipe Studio 風の FPS / delegate / memory meter を追加します。",
+      "bodyEn": "The selected prototype is `Hand Landmark Latency Probe`. It tries the real Hand Landmarker when camera and model loading work, and otherwise runs the same UI with synthetic 21-point landmarks. Next additions should include real Gesture Recognizer import, pinch hold/release hysteresis, depth visualization from worldLandmarks, and MediaPipe Studio-style FPS / delegate / memory meters."
+    }
+  ]
+}

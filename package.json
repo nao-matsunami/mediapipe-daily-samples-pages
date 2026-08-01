@@ -1,0 +1,10 @@
+{
+  "name": "mediapipe-daily-samples",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-gallery.mjs",
+    "upsert": "node scripts/upsert-report.mjs"
+  }
+}
