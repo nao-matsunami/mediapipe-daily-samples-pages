@@ -1,0 +1,109 @@
+{
+  "date": "2026-08-01",
+  "headline": "Gesture Recognizer の結果を action gate で安定化する",
+  "headlineEn": "Stabilizing Gesture Recognizer results with an action gate",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、GestureRecognizer JS API、公式 samples を確認し、認識スコアをそのまま UI action にせず、enter / exit threshold、hold frames、cooldown で安定化する自作 HTML サンプルを追加しました。",
+  "summaryEn": "After reviewing the Google AI Edge Gesture Recognizer web guide, GestureRecognizer JS API, and official samples, today's original HTML sample stabilizes recognition scores into UI actions with enter/exit thresholds, hold frames, and cooldown instead of firing actions directly from raw predictions.",
+  "keyTopics": [
+    "Gesture Recognizer は手の gesture category、handedness、image landmarks、world landmarks を返し、ジェスチャーからアプリ機能を呼び出す用途に向いている。",
+    "Web 版は `@mediapipe/tasks-vision` の `GestureRecognizer` を使い、静止画では `recognize()`、動画では `recognizeForVideo(videoFrame, timestamp)` を使う。",
+    "公式 API は `setOptions()` で一部 option を更新でき、score threshold、label allowlist / denylist、running mode などを設計要素として扱える。",
+    "動画フレームでの recognition は同期的に UI thread をブロックし得るため、action 側では hold / cooldown / frame skipping を前提にしたほうが安全。",
+    "生の gesture winner を action に直結すると誤発火しやすいので、enter threshold と exit threshold を分ける hysteresis が小さな UI でも効く。"
+  ],
+  "keyTopicsEn": [
+    "Gesture Recognizer returns gesture categories, handedness, image landmarks, and world landmarks, making it suitable for invoking application features from hand gestures.",
+    "On the web, `GestureRecognizer` from `@mediapipe/tasks-vision` uses `recognize()` for still images and `recognizeForVideo(videoFrame, timestamp)` for video.",
+    "The official API supports partial option updates through `setOptions()`, making score threshold, label allowlist / denylist, and running mode part of the design surface.",
+    "Recognition on video frames can synchronously block the UI thread, so hold, cooldown, and frame skipping should be considered in the action layer.",
+    "Mapping the raw gesture winner directly to actions causes false triggers; hysteresis with separate enter and exit thresholds helps even in small UI prototypes."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Gesture Action Hysteresis Gate",
+      "url": "../outputs/2026-08-01_html_gesture_action_hysteresis_gate.html"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer"
+    },
+    {
+      "label": "Google AI Edge API: GestureRecognizer class",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.gesturerecognizer"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Gesture Recognizer が landmarks と gesture category を同時に返す点です。Hand Landmarker は 21 点の形を扱う土台でしたが、Gesture Recognizer は Thumb_Up や Victory のような意味ラベルを返すため、UI command やモード切り替えへ接続しやすくなります。ただし、スコアが一瞬上がっただけで action を発火すると誤操作になるので、認識結果からアクションまでの gate が重要です。",
+      "bodyEn": "Today's notable point is that Gesture Recognizer returns both landmarks and gesture categories. Hand Landmarker gives the 21-point foundation, while Gesture Recognizer adds semantic labels such as Thumb_Up or Victory, making it easier to connect to UI commands or mode switches. However, firing an action when a score spikes for one frame causes false operations, so the gate between recognition result and action is important.",
+      "links": [
+        {
+          "label": "Gesture recognition guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "サンプルは Open_Palm、Closed_Fist、Pointing_Up、Thumb_Up、Victory、ILoveYou の synthetic score stream を生成し、棒グラフで生スコアと平滑化後の状態を見せます。Enter threshold、Exit threshold、Hold frames、Cooldown frames を調整すると、同じ認識スコアでも action が発火したり保留されたりします。公式モデルをロードできる環境では `Load GestureRecognizer` で task / model のロード確認だけ行い、UI の検証は合成ストリームで継続できます。",
+      "bodyEn": "The sample generates a synthetic score stream for Open_Palm, Closed_Fist, Pointing_Up, Thumb_Up, Victory, and ILoveYou, then visualizes raw and smoothed scores as bars. Adjusting enter threshold, exit threshold, hold frames, and cooldown frames changes whether the same recognition score fires or waits. In environments that can load the official model, `Load GestureRecognizer` checks task/model loading while the UI continues to use the synthetic stream."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Gesture Recognizer の出力は `gestures`、`handedness`、`landmarks`、`worldLandmarks` の配列として扱います。UI action へ使う時は winner category だけでなく score、handedness、前回状態、hold 時間を一緒に見るのが実用的です。`recognizeForVideo()` は同期処理なので、毎フレーム必ず呼ぶより、video timestamp の更新確認、低頻度推論、UI 側の補間、Web Worker 化を組み合わせる設計にした方が安定します。",
+      "bodyEn": "Gesture Recognizer output should be treated as arrays of `gestures`, `handedness`, `landmarks`, and `worldLandmarks`. For UI actions, use not only the winning category but also score, handedness, previous state, and hold duration. Because `recognizeForVideo()` is synchronous, a stable design should combine video timestamp checks, lower-frequency inference, UI interpolation, and possibly Web Worker execution rather than calling it unconditionally every frame."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Image Segmenter と Interactive Segmenter を見て、ランドマーク型の入力とマスク型の入力を比較します。Gesture 側では label allowlist / denylist、custom gesture recognizer、handedness ごとの action map、両手入力の衝突解決を継続して追います。特に両手ジェスチャーは action gate を片手単位から session 単位へ拡張する必要があります。",
+      "bodyEn": "Next, watch Image Segmenter and Interactive Segmenter to compare landmark-based and mask-based inputs. For gestures, continue tracking label allowlist / denylist, custom gesture recognizers, handedness-specific action maps, and conflict resolution for two-hand input. Two-hand gestures especially require extending the action gate from per-hand logic to session-level arbitration."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "サンプルを開き、Noisy User に切り替えて Noise を上げてください。Enter threshold を低くすると誤発火が増え、Hold frames と Cooldown を上げると発火は遅くなる代わりに安定します。次に Exit threshold を Enter より低く保ったまま動かすと、action が一度 armed された後にすぐ解除されにくい hysteresis の効果を確認できます。",
+      "bodyEn": "Open the sample, switch to Noisy User, and raise Noise. Lowering the enter threshold increases false triggers, while increasing hold frames and cooldown makes firing slower but more stable. Then move the exit threshold while keeping it below enter to see how hysteresis prevents an armed action from immediately releasing.",
+      "links": [
+        {
+          "label": "Open Gesture Action Hysteresis Gate",
+          "url": "../outputs/2026-08-01_html_gesture_action_hysteresis_gate.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、Gesture recognition overview、GestureRecognizer JS API、公式 samples web、google-ai-edge/mediapipe-samples-web を確認。アイデア: Hand Landmarker の次として、認識カテゴリを action へ変換する gate を作る。実装: synthetic gesture score stream、score smoothing、enter / exit threshold、hold frames、cooldown、accepted action log、任意の GestureRecognizer load probe を 1 ファイル HTML にまとめる。検証: JSON parse、HTML script 構文、gallery 再生成、publish を行う。",
+      "bodyEn": "Research: reviewed the Gesture Recognizer web guide, gesture recognition overview, GestureRecognizer JS API, official samples web, and google-ai-edge/mediapipe-samples-web. Idea: follow Hand Landmarker by building the gate that converts recognition categories into actions. Implementation: package a synthetic gesture score stream, score smoothing, enter/exit thresholds, hold frames, cooldown, accepted-action log, and optional GestureRecognizer load probe into one HTML file. Validation: parse JSON, check HTML script syntax, regenerate the gallery, and publish."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "MediaPipe daily の流れは、7/31 の Hand Landmarker で landmark 表示、8/1 の Gesture Recognizer で action 化へ進めました。ここで重要なのは、ML の出力をそのまま UI に接続せず、confidence、時間、前回状態を挟むことです。この層があると、今後の Pose、Face、Segmenter でも同じ考え方で誤発火やちらつきを抑えられます。",
+      "bodyEn": "The MediaPipe daily sequence moves from landmark display with Hand Landmarker on July 31 to action mapping with Gesture Recognizer on August 1. The important pattern is to avoid wiring ML output directly into UI; confidence, time, and previous state should sit in between. This layer will also help reduce false triggers and flicker in future Pose, Face, and Segmenter samples."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Gesture Action Hysteresis Gate` です。実際に動く部分は synthetic gesture score stream、平滑化、enter / exit threshold、hold frames、cooldown、accepted action log です。次に足すなら、実カメラの `recognizeForVideo()` 接続、handedness ごとの action map、両手 gesture の conflict resolver、custom gesture recognizer の model 差し替え UI を追加します。",
+      "bodyEn": "The selected prototype is `Gesture Action Hysteresis Gate`. The working parts are the synthetic gesture score stream, smoothing, enter/exit thresholds, hold frames, cooldown, and accepted-action log. Next additions should include real camera `recognizeForVideo()` integration, handedness-specific action maps, two-hand gesture conflict resolution, and a model-switching UI for custom gesture recognizers."
+    }
+  ]
+}

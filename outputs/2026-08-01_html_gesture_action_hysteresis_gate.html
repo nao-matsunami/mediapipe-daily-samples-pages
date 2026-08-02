@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Action Hysteresis Gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #071014;
+      color: #f5fffb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(120, 245, 198, 0.07) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(120, 245, 198, 0.05) 1px, transparent 1px),
+        linear-gradient(135deg, #071014 0%, #080b13 52%, #16110b 100%);
+      background-size: 40px 40px, 40px 40px, auto;
+    }
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(120, 245, 198, 0.22);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.7rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0;
+      color: #b9c9c2;
+      line-height: 1.56;
+    }
+    .lede {
+      max-width: 790px;
+      margin-top: 10px;
+    }
+    .badge {
+      border: 1px solid rgba(120, 245, 198, 0.36);
+      background: rgba(120, 245, 198, 0.09);
+      color: #78f5c6;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(120, 245, 198, 0.2);
+      background: #05080b;
+      overflow: hidden;
+      box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 660px;
+      touch-action: none;
+    }
+    .hud {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    .metric, section {
+      border: 1px solid rgba(245, 255, 251, 0.13);
+      background: rgba(8, 14, 18, 0.82);
+      backdrop-filter: blur(12px);
+    }
+    .metric {
+      min-height: 58px;
+      padding: 9px 10px;
+    }
+    .metric span {
+      display: block;
+      color: #90a8a0;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      color: #f5fffb;
+      font-size: 0.96rem;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+    aside {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    section {
+      padding: 14px;
+    }
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 12px 0;
+      color: #b9c9c2;
+      font-size: 0.86rem;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #78f5c6;
+    }
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(120, 245, 198, 0.32);
+      background: rgba(120, 245, 198, 0.08);
+      color: #f5fffb;
+      cursor: pointer;
+      font: inherit;
+    }
+    button.active {
+      background: #78f5c6;
+      border-color: #78f5c6;
+      color: #061611;
+    }
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .log {
+      display: grid;
+      gap: 7px;
+      margin-top: 8px;
+    }
+    .entry {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 8px;
+      align-items: center;
+      min-height: 30px;
+      color: #b9c9c2;
+      font-size: 0.8rem;
+    }
+    .entry b {
+      color: #ffbf6a;
+      text-transform: uppercase;
+    }
+    footer {
+      grid-column: 1 / -1;
+      color: #90a8a0;
+      font-size: 0.84rem;
+      padding-bottom: 8px;
+    }
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .stage, canvas { min-height: 560px; }
+    }
+    @media (max-width: 620px) {
+      .hud { grid-template-columns: 1fr 1fr; }
+      .stage, canvas { min-height: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Gesture Action Hysteresis Gate</h1>
+        <p class="lede">A MediaPipe Gesture Recognizer planning sample that turns noisy gesture scores into deliberate actions with enter/exit thresholds, hold frames, cooldown, and fallback simulation.</p>
+      </div>
+      <div class="badge">2026-08-01 original sample</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="stage" width="1400" height="900" aria-label="Gesture action hysteresis visualization"></canvas>
+      <div class="hud">
+        <div class="metric"><span>raw winner</span><strong id="rawReadout">Open_Palm</strong></div>
+        <div class="metric"><span>armed action</span><strong id="armedReadout">none</strong></div>
+        <div class="metric"><span>held frames</span><strong id="holdReadout">0</strong></div>
+        <div class="metric"><span>runtime</span><strong id="runtimeReadout">synthetic</strong></div>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Gesture Stream</h2>
+        <div class="seg">
+          <button type="button" data-mode="demo" class="active">Demo Loop</button>
+          <button type="button" data-mode="noisy">Noisy User</button>
+          <button type="button" data-mode="pinch">Pinch Bias</button>
+          <button type="button" data-mode="thumb">Thumb Up</button>
+        </div>
+        <label>Noise
+          <input id="noise" type="range" min="0" max="100" value="34">
+        </label>
+        <label>Score smoothing
+          <input id="smooth" type="range" min="0" max="100" value="48">
+        </label>
+      </section>
+
+      <section>
+        <h2>Action Gate</h2>
+        <label>Enter threshold
+          <input id="enter" type="range" min="30" max="95" value="70">
+        </label>
+        <label>Exit threshold
+          <input id="exit" type="range" min="10" max="80" value="46">
+        </label>
+        <label>Hold frames
+          <input id="hold" type="range" min="1" max="24" value="8">
+        </label>
+        <label>Cooldown frames
+          <input id="cooldown" type="range" min="0" max="48" value="18">
+        </label>
+      </section>
+
+      <section>
+        <h2>Runtime Probe</h2>
+        <button id="loadTask" type="button">Load GestureRecognizer</button>
+        <div class="log" id="log"></div>
+      </section>
+    </aside>
+
+    <footer>
+      References: Google AI Edge Gesture Recognizer guide for Web, GestureRecognizer JS API, MediaPipe Tasks Web demo, and google-ai-edge/mediapipe-samples-web.
+    </footer>
+  </main>
+
+  <script type="module">
+    const TASKS_VISION_VERSION = "1.0.1";
+    const TASKS_VISION_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}`;
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      noise: document.getElementById("noise"),
+      smooth: document.getElementById("smooth"),
+      enter: document.getElementById("enter"),
+      exit: document.getElementById("exit"),
+      hold: document.getElementById("hold"),
+      cooldown: document.getElementById("cooldown")
+    };
+    const readouts = {
+      raw: document.getElementById("rawReadout"),
+      armed: document.getElementById("armedReadout"),
+      hold: document.getElementById("holdReadout"),
+      runtime: document.getElementById("runtimeReadout")
+    };
+    const logEl = document.getElementById("log");
+    const gestures = ["Open_Palm", "Closed_Fist", "Pointing_Up", "Thumb_Up", "Victory", "ILoveYou"];
+    const colors = {
+      Open_Palm: "#78f5c6",
+      Closed_Fist: "#ffbf6a",
+      Pointing_Up: "#78a8ff",
+      Thumb_Up: "#ffd95d",
+      Victory: "#ff7ad9",
+      ILoveYou: "#ff786a"
+    };
+    const state = {
+      mode: "demo",
+      filtered: Object.fromEntries(gestures.map((g) => [g, 0])),
+      candidate: null,
+      heldFrames: 0,
+      armed: null,
+      cooldown: 0,
+      events: [],
+      runtime: "synthetic",
+      logs: [["ready", "synthetic gesture stream initialized"]]
+    };
+
+    function value(id) {
+      return Number(controls[id].value);
+    }
+
+    function addLog(kind, text) {
+      state.logs.unshift([kind, text]);
+      state.logs = state.logs.slice(0, 5);
+      logEl.innerHTML = state.logs.map(([k, t]) => `<div class="entry"><b>${k}</b><span>${t}</span></div>`).join("");
+    }
+
+    function seededNoise(t, i) {
+      return Math.sin(t * 0.013 + i * 11.71) * Math.cos(t * 0.007 + i * 3.3);
+    }
+
+    function syntheticScores(t) {
+      const base = Object.fromEntries(gestures.map((g) => [g, 0.05]));
+      const cycle = (t * 0.00016) % 1;
+      let active = "Open_Palm";
+      if (state.mode === "pinch") active = cycle < 0.48 ? "Closed_Fist" : "Pointing_Up";
+      else if (state.mode === "thumb") active = "Thumb_Up";
+      else if (state.mode === "noisy") active = gestures[Math.floor((t * 0.0012) % gestures.length)];
+      else if (cycle > 0.2 && cycle <= 0.38) active = "Pointing_Up";
+      else if (cycle > 0.38 && cycle <= 0.55) active = "Closed_Fist";
+      else if (cycle > 0.55 && cycle <= 0.72) active = "Thumb_Up";
+      else if (cycle > 0.72 && cycle <= 0.88) active = "Victory";
+      const noise = value("noise") / 100;
+      gestures.forEach((g, i) => {
+        const boost = g === active ? 0.74 : 0.08 * Math.max(0, seededNoise(t, i));
+        base[g] = Math.max(0, Math.min(1, boost + seededNoise(t, i + 4) * noise * 0.23));
+      });
+      return base;
+    }
+
+    function updateGate(scores) {
+      const smooth = value("smooth") / 100;
+      gestures.forEach((g) => {
+        state.filtered[g] = state.filtered[g] * smooth + scores[g] * (1 - smooth);
+      });
+      const sorted = gestures.map((g) => [g, state.filtered[g]]).sort((a, b) => b[1] - a[1]);
+      const [winner, score] = sorted[0];
+      const enter = value("enter") / 100;
+      const exit = value("exit") / 100;
+      if (state.cooldown > 0) state.cooldown -= 1;
+      if (state.armed) {
+        if (state.filtered[state.armed] < exit) {
+          addLog("release", `${state.armed} fell below exit threshold`);
+          state.armed = null;
+          state.heldFrames = 0;
+          state.cooldown = value("cooldown");
+        }
+      } else if (state.cooldown <= 0 && score >= enter) {
+        if (state.candidate === winner) state.heldFrames += 1;
+        else {
+          state.candidate = winner;
+          state.heldFrames = 1;
+        }
+        if (state.heldFrames >= value("hold")) {
+          state.armed = winner;
+          state.events.unshift({ gesture: winner, time: performance.now() });
+          state.events = state.events.slice(0, 6);
+          addLog("action", `${winner} accepted after ${state.heldFrames} frames`);
+        }
+      } else {
+        state.candidate = winner;
+        state.heldFrames = 0;
+      }
+      return { winner, score, sorted };
+    }
+
+    function drawGrid(w, h) {
+      ctx.fillStyle = "#05080b";
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = "rgba(120,245,198,0.07)";
+      for (let x = 0; x < w; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+    }
+
+    function drawText(text, x, y, size = 16, color = "#f5fffb", align = "left") {
+      ctx.fillStyle = color;
+      ctx.font = `700 ${size}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = align;
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x, y);
+    }
+
+    function drawBars(sorted, w, h) {
+      const x = w * 0.12;
+      const y0 = h * 0.22;
+      const barW = w * 0.44;
+      const gap = 58;
+      sorted.forEach(([g, score], i) => {
+        const y = y0 + i * gap;
+        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        ctx.fillRect(x, y, barW, 30);
+        ctx.fillStyle = colors[g];
+        ctx.fillRect(x, y, barW * score, 30);
+        ctx.strokeStyle = "rgba(245,255,251,0.14)";
+        ctx.strokeRect(x, y, barW, 30);
+        drawText(g, x + 8, y - 14, 14, "#b9c9c2");
+        drawText(`${Math.round(score * 100)}%`, x + barW + 16, y + 15, 15, colors[g]);
+      });
+      const enterX = x + barW * (value("enter") / 100);
+      const exitX = x + barW * (value("exit") / 100);
+      ctx.strokeStyle = "rgba(255,191,106,0.85)";
+      ctx.beginPath(); ctx.moveTo(enterX, y0 - 16); ctx.lineTo(enterX, y0 + gap * gestures.length - 8); ctx.stroke();
+      ctx.strokeStyle = "rgba(120,168,255,0.85)";
+      ctx.beginPath(); ctx.moveTo(exitX, y0 - 16); ctx.lineTo(exitX, y0 + gap * gestures.length - 8); ctx.stroke();
+      drawText("enter", enterX, y0 + gap * gestures.length + 10, 12, "#ffbf6a", "center");
+      drawText("exit", exitX, y0 + gap * gestures.length + 28, 12, "#78a8ff", "center");
+    }
+
+    function drawActionPanel(w, h) {
+      const x = w * 0.64;
+      const y = h * 0.25;
+      const r = Math.min(w, h) * 0.15;
+      ctx.strokeStyle = state.armed ? colors[state.armed] : "rgba(245,255,251,0.22)";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, state.heldFrames / value("hold")));
+      ctx.stroke();
+      drawText(state.armed || "arming", x, y - 10, 26, state.armed ? colors[state.armed] : "#f5fffb", "center");
+      drawText(`cooldown ${state.cooldown}`, x, y + 28, 14, "#b9c9c2", "center");
+      drawText("accepted actions", x - r, y + r + 62, 16, "#ffbf6a");
+      state.events.forEach((event, i) => {
+        drawText(`${i + 1}. ${event.gesture}`, x - r, y + r + 94 + i * 28, 15, colors[event.gesture]);
+      });
+    }
+
+    function draw(now = 0) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(320, Math.floor(rect.width * dpr));
+      const h = Math.max(420, Math.floor(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      drawGrid(w, h);
+      const result = updateGate(syntheticScores(now));
+      drawBars(result.sorted, w, h);
+      drawActionPanel(w, h);
+      drawText("Gesture scores are not actions until they cross enter threshold, hold long enough, and avoid cooldown.", w * 0.1, h * 0.86, 17, "#b9c9c2");
+      readouts.raw.textContent = `${result.winner} ${Math.round(result.score * 100)}%`;
+      readouts.armed.textContent = state.armed || "none";
+      readouts.hold.textContent = `${state.heldFrames} / ${value("hold")}`;
+      readouts.runtime.textContent = state.runtime;
+      requestAnimationFrame(draw);
+    }
+
+    document.querySelectorAll("[data-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.mode = button.dataset.mode;
+        state.candidate = null;
+        state.heldFrames = 0;
+        document.querySelectorAll("[data-mode]").forEach((item) => item.classList.toggle("active", item === button));
+        addLog("mode", `${state.mode} stream selected`);
+      });
+    });
+
+    document.getElementById("loadTask").addEventListener("click", async () => {
+      addLog("load", `loading tasks-vision ${TASKS_VISION_VERSION}`);
+      try {
+        const mod = await import(`${TASKS_VISION_BASE}/vision_bundle.mjs`);
+        const vision = await mod.FilesetResolver.forVisionTasks(`${TASKS_VISION_BASE}/wasm`);
+        await mod.GestureRecognizer.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task"
+          },
+          runningMode: "VIDEO",
+          numHands: 1
+        });
+        state.runtime = "GestureRecognizer loaded";
+        addLog("task", "model loaded; synthetic stream remains active");
+      } catch (error) {
+        state.runtime = "synthetic";
+        addLog("fallback", error.message || error.name || "load failed");
+      }
+    });
+
+    addLog("start", "hysteresis gate ready");
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
