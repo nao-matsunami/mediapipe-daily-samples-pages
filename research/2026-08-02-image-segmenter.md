@@ -1,0 +1,7 @@
+# 2026-08-02 Image Segmenter research
+
+- Google AI Edge Image segmentation guide: Image Segmenter divides images into predefined category regions and can output category masks or confidence masks. Models include Selfie Segmenter variants and DeepLab-V3. Source: https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter
+- Web guide: the web task is available through `@mediapipe/tasks-vision`; `segment()` handles images and `segmentForVideo()` handles video. The guide notes synchronous calls can block the UI thread and suggests workers for video workloads. Source: https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js
+- API reference: `ImageSegmenter.createFromOptions()`, `getLabels()`, `segment()`, `segmentForVideo()`, and `setOptions()` are the main web API surface. Source: https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imagesegmenter
+- Interactive Segmenter web guide: click/keypoint driven segmentation is a separate interaction pattern worth exploring after category masks. Source: https://developers.google.com/edge/mediapipe/solutions/vision/interactive_segmenter/web_js
+- Official demo / GitHub: the official samples web app demonstrates many Tasks, including Image Segmenter and Interactive Segmenter. This archive should reference it but keep original local samples as public cards. Sources: https://google-ai-edge.github.io/mediapipe-samples-web/ and https://github.com/google-ai-edge/mediapipe-samples-web

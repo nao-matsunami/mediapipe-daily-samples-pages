@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Segmenter Matte Studio</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #10100d;
+      color: #fffaf0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(255, 250, 240, 0.05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 250, 240, 0.04) 1px, transparent 1px),
+        linear-gradient(135deg, #11100d 0%, #151b1c 48%, #221615 100%);
+      background-size: 36px 36px, 36px 36px, auto;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 250, 240, 0.16);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.7rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.95rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: #cfc7b9;
+      line-height: 1.56;
+    }
+
+    .lede {
+      max-width: 780px;
+      margin-top: 10px;
+    }
+
+    .badge {
+      border: 1px solid rgba(255, 204, 102, 0.38);
+      background: rgba(255, 204, 102, 0.1);
+      color: #ffd77a;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(255, 250, 240, 0.15);
+      background: #0b0c0d;
+      overflow: hidden;
+      box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 660px;
+      touch-action: none;
+    }
+
+    .hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .metric, section {
+      border: 1px solid rgba(255, 250, 240, 0.13);
+      background: rgba(17, 18, 18, 0.82);
+      backdrop-filter: blur(12px);
+    }
+
+    .metric {
+      min-height: 58px;
+      padding: 9px 10px;
+    }
+
+    .metric span {
+      display: block;
+      color: #9fb7ba;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      color: #fffaf0;
+      font-size: 0.96rem;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    section {
+      padding: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 12px 0;
+      color: #cfc7b9;
+      font-size: 0.86rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #54d6c0;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(84, 214, 192, 0.34);
+      background: rgba(84, 214, 192, 0.09);
+      color: #fffaf0;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button.active {
+      background: #54d6c0;
+      border-color: #54d6c0;
+      color: #071413;
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .swatch {
+      min-height: 34px;
+      border: 1px solid rgba(255, 250, 240, 0.18);
+    }
+
+    .readout {
+      display: grid;
+      gap: 8px;
+      color: #cfc7b9;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .readout b {
+      color: #ffbd8a;
+      font-weight: 700;
+    }
+
+    footer {
+      grid-column: 1 / -1;
+      color: #9fb7ba;
+      font-size: 0.84rem;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .stage, canvas {
+        min-height: 560px;
+      }
+
+      .hud {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .seg, .swatches {
+        grid-template-columns: 1fr;
+      }
+
+      .hud {
+        position: static;
+        margin: 10px;
+      }
+
+      canvas {
+        min-height: 460px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Image Segmenter Matte Studio</h1>
+        <p class="lede">A compact, original matte-compositing workbench for tuning segmentation thresholds, feathering, edge hints, and frame budgets before wiring the UI to a live MediaPipe Image Segmenter stream.</p>
+      </div>
+      <div class="badge" id="modeBadge">Synthetic mask</div>
+    </header>
+
+    <section class="stage">
+      <canvas id="stage" width="960" height="620" aria-label="Segmentation matte preview"></canvas>
+      <div class="hud">
+        <div class="metric"><span>Mask coverage</span><strong id="coverage">0%</strong></div>
+        <div class="metric"><span>Edge pixels</span><strong id="edgePixels">0</strong></div>
+        <div class="metric"><span>Frame cost</span><strong id="cost">0.0 ms</strong></div>
+        <div class="metric"><span>Pipeline</span><strong id="pipeline">SIM</strong></div>
+      </div>
+    </section>
+
+    <aside>
+      <section>
+        <h2>Matte Controls</h2>
+        <label>Threshold <input id="threshold" type="range" min="0.18" max="0.82" value="0.48" step="0.01"></label>
+        <label>Feather <input id="feather" type="range" min="0" max="18" value="8" step="1"></label>
+        <label>Mask drift <input id="drift" type="range" min="0" max="1" value="0.38" step="0.01"></label>
+        <label>Edge gain <input id="edge" type="range" min="0" max="1" value="0.7" step="0.01"></label>
+      </section>
+
+      <section>
+        <h2>Composite</h2>
+        <div class="seg" id="viewButtons">
+          <button data-view="composite" class="active">Composite</button>
+          <button data-view="mask">Mask</button>
+          <button data-view="edges">Edges</button>
+          <button data-view="source">Source</button>
+        </div>
+        <label>Backdrop tone <input id="tone" type="range" min="0" max="1" value="0.54" step="0.01"></label>
+        <div class="swatches" aria-label="Color palette">
+          <div class="swatch" style="background:#54d6c0"></div>
+          <div class="swatch" style="background:#ff8f70"></div>
+          <div class="swatch" style="background:#ffd166"></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>MediaPipe Probe</h2>
+        <div class="seg">
+          <button id="probe">Load Task</button>
+          <button id="freeze">Freeze</button>
+        </div>
+        <div class="readout" id="log">
+          <span><b>state</b> synthetic confidence mask active</span>
+          <span><b>next</b> connect a camera frame to segmentForVideo()</span>
+        </div>
+      </section>
+    </aside>
+
+    <footer>References: Google AI Edge Image Segmenter, tasks-vision ImageSegmenter API, MediaPipe samples web. This page keeps a deterministic synthetic matte so the sample remains inspectable without camera or model access.</footer>
+  </main>
+
+  <script type="module">
+    const canvas = document.querySelector("#stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const controls = {
+      threshold: document.querySelector("#threshold"),
+      feather: document.querySelector("#feather"),
+      drift: document.querySelector("#drift"),
+      edge: document.querySelector("#edge"),
+      tone: document.querySelector("#tone")
+    };
+    const els = {
+      coverage: document.querySelector("#coverage"),
+      edgePixels: document.querySelector("#edgePixels"),
+      cost: document.querySelector("#cost"),
+      pipeline: document.querySelector("#pipeline"),
+      modeBadge: document.querySelector("#modeBadge"),
+      log: document.querySelector("#log"),
+      probe: document.querySelector("#probe"),
+      freeze: document.querySelector("#freeze")
+    };
+    const maskCanvas = document.createElement("canvas");
+    const sourceCanvas = document.createElement("canvas");
+    const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
+    const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    const lowW = 180;
+    const lowH = 116;
+    let view = "composite";
+    let frozen = false;
+    let t = 0;
+
+    function fit() {
+      const box = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const nextW = Math.max(420, Math.floor(box.width * dpr));
+      const nextH = Math.max(420, Math.floor(box.height * dpr));
+      if (canvas.width !== nextW || canvas.height !== nextH) {
+        canvas.width = nextW;
+        canvas.height = nextH;
+      }
+      if (maskCanvas.width !== lowW) {
+        maskCanvas.width = lowW;
+        maskCanvas.height = lowH;
+        sourceCanvas.width = lowW;
+        sourceCanvas.height = lowH;
+      }
+    }
+
+    function drawSource(time) {
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      const g = sourceCtx.createLinearGradient(0, 0, w, h);
+      g.addColorStop(0, "#28251c");
+      g.addColorStop(0.46, "#153133");
+      g.addColorStop(1, "#35201d");
+      sourceCtx.fillStyle = g;
+      sourceCtx.fillRect(0, 0, w, h);
+
+      sourceCtx.fillStyle = "rgba(255, 209, 102, 0.2)";
+      for (let i = 0; i < 7; i += 1) {
+        const x = (i * 31 + time * 16) % (w + 34) - 17;
+        sourceCtx.fillRect(x, 10 + i * 13, 18, h);
+      }
+
+      const sway = Math.sin(time * 1.4) * 4;
+      sourceCtx.fillStyle = "#54d6c0";
+      sourceCtx.beginPath();
+      sourceCtx.ellipse(w * 0.5 + sway, h * 0.35, 22, 26, 0, 0, Math.PI * 2);
+      sourceCtx.fill();
+      sourceCtx.fillStyle = "#ff8f70";
+      sourceCtx.beginPath();
+      sourceCtx.moveTo(w * 0.5 + sway, h * 0.47);
+      sourceCtx.bezierCurveTo(w * 0.34 + sway, h * 0.53, w * 0.29, h * 0.86, w * 0.42, h * 0.96);
+      sourceCtx.lineTo(w * 0.62 + sway, h * 0.96);
+      sourceCtx.bezierCurveTo(w * 0.74 + sway, h * 0.83, w * 0.68 + sway, h * 0.53, w * 0.5 + sway, h * 0.47);
+      sourceCtx.fill();
+      sourceCtx.strokeStyle = "rgba(255, 250, 240, 0.45)";
+      sourceCtx.lineWidth = 1.5;
+      sourceCtx.beginPath();
+      sourceCtx.moveTo(w * 0.41 + sway, h * 0.43);
+      sourceCtx.lineTo(w * 0.31 + sway, h * 0.3);
+      sourceCtx.moveTo(w * 0.6 + sway, h * 0.43);
+      sourceCtx.lineTo(w * 0.73 + sway, h * 0.31);
+      sourceCtx.stroke();
+    }
+
+    function maskValue(x, y, time) {
+      const cx = 0.5 + Math.sin(time * 1.3) * 0.03 * Number(controls.drift.value);
+      const head = Math.hypot((x - cx) / 0.16, (y - 0.34) / 0.2);
+      const body = Math.hypot((x - cx) / 0.24, (y - 0.72) / 0.34);
+      const arms = Math.min(
+        Math.abs(y - (0.41 - (x - cx) * 0.7)) + Math.abs(x - (cx - 0.27)) * 0.16,
+        Math.abs(y - (0.42 + (x - cx) * 0.58)) + Math.abs(x - (cx + 0.27)) * 0.16
+      );
+      const person = Math.max(1 - head, 1 - body, 0.62 - arms * 3.2);
+      const ripple = Math.sin((x * 18 + y * 7 + time * 2.2)) * 0.035 + Math.cos((y * 20 - time * 1.7)) * 0.025;
+      return Math.max(0, Math.min(1, person + 0.18 + ripple));
+    }
+
+    function drawMask(time) {
+      const image = maskCtx.createImageData(lowW, lowH);
+      let covered = 0;
+      let edges = 0;
+      const threshold = Number(controls.threshold.value);
+      const feather = Number(controls.feather.value) / 100;
+      for (let y = 0; y < lowH; y += 1) {
+        for (let x = 0; x < lowW; x += 1) {
+          const nx = x / (lowW - 1);
+          const ny = y / (lowH - 1);
+          const v = maskValue(nx, ny, time);
+          const soft = Math.max(0, Math.min(1, (v - threshold + feather) / Math.max(0.01, feather * 2)));
+          const idx = (y * lowW + x) * 4;
+          const alpha = Math.round(soft * 255);
+          image.data[idx] = alpha;
+          image.data[idx + 1] = alpha;
+          image.data[idx + 2] = alpha;
+          image.data[idx + 3] = 255;
+          if (soft > 0.5) covered += 1;
+          const dx = Math.abs(v - maskValue(Math.min(1, nx + 1 / lowW), ny, time));
+          const dy = Math.abs(v - maskValue(nx, Math.min(1, ny + 1 / lowH), time));
+          if ((dx + dy) * Number(controls.edge.value) > 0.025) edges += 1;
+        }
+      }
+      maskCtx.putImageData(image, 0, 0);
+      return { covered, edges };
+    }
+
+    function paint(time) {
+      const start = performance.now();
+      fit();
+      drawSource(time);
+      const stats = drawMask(time);
+      const w = canvas.width;
+      const h = canvas.height;
+      const tone = Number(controls.tone.value);
+
+      ctx.clearRect(0, 0, w, h);
+      const bg = ctx.createLinearGradient(0, 0, w, h);
+      bg.addColorStop(0, `rgb(${28 + tone * 18}, ${38 + tone * 22}, ${42 + tone * 20})`);
+      bg.addColorStop(0.56, `rgb(${70 + tone * 52}, ${38 + tone * 18}, ${35 + tone * 10})`);
+      bg.addColorStop(1, `rgb(${72 + tone * 80}, ${66 + tone * 36}, ${25 + tone * 8})`);
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      if (view === "source") {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+      } else if (view === "mask") {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(maskCanvas, 0, 0, w, h);
+      } else {
+        ctx.save();
+        ctx.filter = `blur(${Number(controls.feather.value) * 0.35}px) saturate(0.86)`;
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+        ctx.restore();
+        ctx.save();
+        ctx.drawImage(maskCanvas, 0, 0, w, h);
+        ctx.globalCompositeOperation = "source-in";
+        ctx.filter = "saturate(1.24) contrast(1.05)";
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+        ctx.restore();
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = `rgba(84, 214, 192, ${0.14 + Number(controls.edge.value) * 0.18})`;
+        ctx.drawImage(maskCanvas, -4, 0, w + 8, h);
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = "source-over";
+        if (view === "edges") {
+          ctx.globalCompositeOperation = "difference";
+          ctx.fillStyle = "#ffd166";
+          ctx.drawImage(maskCanvas, 0, 0, w, h);
+          ctx.fillRect(0, 0, w, h);
+          ctx.globalCompositeOperation = "source-over";
+        }
+      }
+
+      const elapsed = performance.now() - start;
+      els.coverage.textContent = `${Math.round(stats.covered / (lowW * lowH) * 100)}%`;
+      els.edgePixels.textContent = String(stats.edges);
+      els.cost.textContent = `${elapsed.toFixed(1)} ms`;
+    }
+
+    function loop() {
+      if (!frozen) t += 1 / 60;
+      paint(t);
+      requestAnimationFrame(loop);
+    }
+
+    document.querySelector("#viewButtons").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-view]");
+      if (!button) return;
+      view = button.dataset.view;
+      document.querySelectorAll("button[data-view]").forEach((item) => item.classList.toggle("active", item === button));
+    });
+
+    els.freeze.addEventListener("click", () => {
+      frozen = !frozen;
+      els.freeze.classList.toggle("active", frozen);
+      els.freeze.textContent = frozen ? "Resume" : "Freeze";
+    });
+
+    els.probe.addEventListener("click", async () => {
+      els.probe.disabled = true;
+      els.modeBadge.textContent = "Loading task";
+      els.pipeline.textContent = "WASM";
+      els.log.innerHTML = "<span><b>state</b> loading @mediapipe/tasks-vision</span>";
+      try {
+        const visionModule = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs");
+        const vision = await visionModule.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+        const segmenter = await visionModule.ImageSegmenter.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-assets/deeplabv3.tflite?generation=1661875711618421"
+          },
+          outputCategoryMask: true,
+          outputConfidenceMasks: false,
+          runningMode: "IMAGE"
+        });
+        const labels = segmenter.getLabels();
+        segmenter.segment(sourceCanvas, () => {
+          els.modeBadge.textContent = "MediaPipe ready";
+          els.pipeline.textContent = "TASK";
+          els.log.innerHTML = `<span><b>state</b> ImageSegmenter loaded and ran on the generated source frame</span><span><b>labels</b> ${labels.slice(0, 8).join(", ") || "model returned no label map"}</span>`;
+        });
+      } catch (error) {
+        els.modeBadge.textContent = "Synthetic mask";
+        els.pipeline.textContent = "SIM";
+        els.log.innerHTML = `<span><b>state</b> task load skipped; synthetic matte remains active</span><span><b>error</b> ${String(error.message || error).slice(0, 120)}</span>`;
+        els.probe.disabled = false;
+      }
+    });
+
+    Object.values(controls).forEach((control) => control.addEventListener("input", () => paint(t)));
+    loop();
+  </script>
+</body>
+</html>
