@@ -357,7 +357,9 @@
       landmarker: null,
       lastVideoTime: -1,
       liveLandmarks: null,
+      liveMisses: 0,
       filtered: null,
+      lastPointSource: "sim",
       logs: [
         ["ready", "simulated 21-point hand initialized"],
         ["note", "camera mode loads tasks-vision on demand"]
@@ -410,10 +412,11 @@
       });
     }
 
-    function blendLandmarks(next) {
+    function blendLandmarks(next, source) {
       const alpha = 1 - value("smoothing") / 100;
-      if (!state.filtered || state.filtered.length !== next.length) {
+      if (!state.filtered || state.filtered.length !== next.length || state.lastPointSource !== source) {
         state.filtered = next.map((p) => ({ ...p }));
+        state.lastPointSource = source;
         return state.filtered;
       }
       state.filtered = next.map((p, i) => ({
@@ -436,6 +439,11 @@
 
     async function startLive() {
       state.mode = "live";
+      state.filtered = null;
+      state.liveLandmarks = null;
+      state.liveMisses = 0;
+      state.lastVideoTime = -1;
+      state.lastPointSource = "live";
       document.getElementById("liveBtn").classList.add("active");
       document.getElementById("simBtn").classList.remove("active");
       addLog("load", `loading tasks-vision ${TASKS_VISION_VERSION}`);
@@ -531,13 +539,28 @@
     }
 
     function updateLiveLandmarks(now) {
-      if (!state.landmarker || !video.videoWidth || video.currentTime === state.lastVideoTime) return null;
+      if (!state.landmarker || !video.videoWidth) {
+        return { points: null, source: "waiting" };
+      }
+      if (video.currentTime === state.lastVideoTime) {
+        return {
+          points: state.liveLandmarks,
+          source: state.liveLandmarks ? "held live frame" : "waiting"
+        };
+      }
       state.lastVideoTime = video.currentTime;
       const result = state.landmarker.detectForVideo(video, now);
       const landmarks = result.landmarks?.[0];
-      if (!landmarks) return null;
+      if (!landmarks) {
+        state.liveMisses += 1;
+        if (state.liveLandmarks && state.liveMisses < 18) {
+          return { points: state.liveLandmarks, source: "held live frame" };
+        }
+        return { points: null, source: "searching hand" };
+      }
+      state.liveMisses = 0;
       state.liveLandmarks = landmarks.map((p) => ({ x: 1 - p.x, y: p.y, z: p.z || 0 }));
-      return state.liveLandmarks;
+      return { points: state.liveLandmarks, source: "live hand" };
     }
 
     function draw(now = 0) {
@@ -551,9 +574,29 @@
       }
       drawGrid(w, h);
       let raw = null;
-      if (state.mode === "live") raw = updateLiveLandmarks(now);
-      if (!raw) raw = presetLandmarks(now);
-      const points = blendLandmarks(raw);
+      let pointSource = "sim";
+      if (state.mode === "live") {
+        const liveFrame = updateLiveLandmarks(now);
+        raw = liveFrame.points;
+        pointSource = liveFrame.source;
+      } else {
+        raw = presetLandmarks(now);
+      }
+      if (!raw) {
+        state.filtered = null;
+        drawText("Waiting for a detected hand", w * 0.5, h * 0.48, 28, "#84f4bd", "center");
+        drawText("Live mode keeps synthetic landmarks off so the camera hand cannot overlap with the fallback hand.", w * 0.5, h * 0.54, 15, "#b8c8c0", "center");
+        readouts.runtime.textContent = state.mode === "live" ? pointSource : "simulated landmarks";
+        readouts.landmarks.textContent = "0 points";
+        readouts.gesture.textContent = "searching";
+        readouts.latency.textContent = "0.0";
+        readouts.jitter.textContent = "0.0";
+        readouts.pipeline.textContent = "detect";
+        readouts.quality.textContent = "waiting";
+        requestAnimationFrame(draw);
+        return;
+      }
+      const points = blendLandmarks(raw, pointSource);
       const gesture = inferGesture(points);
       const detection = value("detection");
       const tracking = value("tracking");
@@ -564,7 +607,7 @@
       drawHand(points, w, h);
       drawText("MediaPipe Tasks Vision", w * 0.08, h * 0.86, 22, "#84f4bd");
       drawText(`${pipeline} / ${quality} / ${Math.round(value("budget"))} ms frame budget`, w * 0.08, h * 0.9, 15, "#b8c8c0");
-      readouts.runtime.textContent = state.mode === "live" ? state.liveStatus : "simulated landmarks";
+      readouts.runtime.textContent = state.mode === "live" ? pointSource : "simulated landmarks";
       readouts.landmarks.textContent = `${points.length} points`;
       readouts.gesture.textContent = gesture;
       readouts.latency.textContent = inference.toFixed(1);
@@ -576,6 +619,8 @@
 
     document.getElementById("simBtn").addEventListener("click", () => {
       state.mode = "sim";
+      state.filtered = null;
+      state.lastPointSource = "sim";
       document.getElementById("simBtn").classList.add("active");
       document.getElementById("liveBtn").classList.remove("active");
       addLog("sim", "using deterministic landmark generator");
