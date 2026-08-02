@@ -94,6 +94,13 @@
       min-height: 660px;
       touch-action: none;
     }
+    video {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
 
     .hud {
       position: absolute;
@@ -249,12 +256,13 @@
     <header>
       <div>
         <h1>Image Segmenter Matte Studio</h1>
-        <p class="lede">A compact, original matte-compositing workbench for tuning segmentation thresholds, feathering, edge hints, and frame budgets before wiring the UI to a live MediaPipe Image Segmenter stream.</p>
+        <p class="lede">A compact, original matte-compositing workbench for tuning segmentation thresholds, feathering, edge hints, and frame budgets with either a live MediaPipe Image Segmenter webcam stream or a deterministic synthetic fallback.</p>
       </div>
       <div class="badge" id="modeBadge">Synthetic mask</div>
     </header>
 
     <section class="stage">
+      <video id="video" playsinline muted></video>
       <canvas id="stage" width="960" height="620" aria-label="Segmentation matte preview"></canvas>
       <div class="hud">
         <div class="metric"><span>Mask coverage</span><strong id="coverage">0%</strong></div>
@@ -292,22 +300,23 @@
       <section>
         <h2>MediaPipe Probe</h2>
         <div class="seg">
-          <button id="probe">Load Task</button>
+          <button id="probe">Start Camera</button>
           <button id="freeze">Freeze</button>
         </div>
         <div class="readout" id="log">
           <span><b>state</b> synthetic confidence mask active</span>
-          <span><b>next</b> connect a camera frame to segmentForVideo()</span>
+          <span><b>next</b> press Start Camera for live segmentForVideo()</span>
         </div>
       </section>
     </aside>
 
-    <footer>References: Google AI Edge Image Segmenter, tasks-vision ImageSegmenter API, MediaPipe samples web. This page keeps a deterministic synthetic matte so the sample remains inspectable without camera or model access.</footer>
+    <footer>References: Google AI Edge Image Segmenter, tasks-vision ImageSegmenter API, MediaPipe samples web. The live camera path uses segmentForVideo(), while the synthetic matte remains available without camera or model access.</footer>
   </main>
 
   <script type="module">
     const canvas = document.querySelector("#stage");
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const video = document.querySelector("video");
     const controls = {
       threshold: document.querySelector("#threshold"),
       feather: document.querySelector("#feather"),
@@ -334,6 +343,17 @@
     let view = "composite";
     let frozen = false;
     let t = 0;
+    const TASKS_VISION_VERSION = "1.0.1";
+    const TASKS_VISION_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}`;
+    const state = {
+      segmenter: null,
+      stream: null,
+      live: false,
+      lastVideoTime: -1,
+      liveMask: null,
+      liveLabels: [],
+      liveMisses: 0
+    };
 
     function fit() {
       const box = canvas.getBoundingClientRect();
@@ -355,6 +375,14 @@
     function drawSource(time) {
       const w = sourceCanvas.width;
       const h = sourceCanvas.height;
+      if (state.live && video.videoWidth) {
+        sourceCtx.save();
+        sourceCtx.translate(w, 0);
+        sourceCtx.scale(-1, 1);
+        sourceCtx.drawImage(video, 0, 0, w, h);
+        sourceCtx.restore();
+        return;
+      }
       const g = sourceCtx.createLinearGradient(0, 0, w, h);
       g.addColorStop(0, "#28251c");
       g.addColorStop(0.46, "#153133");
@@ -404,6 +432,40 @@
     }
 
     function drawMask(time) {
+      if (state.liveMask) {
+        const image = maskCtx.createImageData(lowW, lowH);
+        let covered = 0;
+        let edges = 0;
+        const threshold = Number(controls.threshold.value);
+        const src = state.liveMask.data;
+        const srcW = state.liveMask.width;
+        const srcH = state.liveMask.height;
+        for (let y = 0; y < lowH; y += 1) {
+          for (let x = 0; x < lowW; x += 1) {
+            const sx = Math.min(srcW - 1, Math.floor(x / lowW * srcW));
+            const sy = Math.min(srcH - 1, Math.floor(y / lowH * srcH));
+            const sample = src[sy * srcW + sx];
+            const raw = state.liveMask.kind === "uint8" ? sample / 255 : sample;
+            const v = Math.max(0, Math.min(1, raw));
+            const feather = Number(controls.feather.value) / 100;
+            const soft = Math.max(0, Math.min(1, (v - threshold + feather) / Math.max(0.01, feather * 2)));
+            const idx = (y * lowW + x) * 4;
+            const alpha = Math.round(soft * 255);
+            image.data[idx] = alpha;
+            image.data[idx + 1] = alpha;
+            image.data[idx + 2] = alpha;
+            image.data[idx + 3] = 255;
+            if (soft > 0.5) covered += 1;
+            const right = src[sy * srcW + Math.min(srcW - 1, sx + 1)];
+            const down = src[Math.min(srcH - 1, sy + 1) * srcW + sx];
+            const dx = Math.abs(v - (state.liveMask.kind === "uint8" ? right / 255 : right));
+            const dy = Math.abs(v - (state.liveMask.kind === "uint8" ? down / 255 : down));
+            if ((dx + dy) * Number(controls.edge.value) > 0.025) edges += 1;
+          }
+        }
+        maskCtx.putImageData(image, 0, 0);
+        return { covered, edges };
+      }
       const image = maskCtx.createImageData(lowW, lowH);
       let covered = 0;
       let edges = 0;
@@ -483,6 +545,7 @@
       els.coverage.textContent = `${Math.round(stats.covered / (lowW * lowH) * 100)}%`;
       els.edgePixels.textContent = String(stats.edges);
       els.cost.textContent = `${elapsed.toFixed(1)} ms`;
+      els.pipeline.textContent = state.live && state.liveMask ? "LIVE" : state.live ? "CAM" : "SIM";
     }
 
     function loop() {
@@ -504,37 +567,100 @@
       els.freeze.textContent = frozen ? "Resume" : "Freeze";
     });
 
-    els.probe.addEventListener("click", async () => {
+    function extractMask(mask) {
+      if (!mask) return null;
+      const width = mask.width || mask.canvas?.width || mask.getWidth?.() || video.videoWidth || lowW;
+      const height = mask.height || mask.canvas?.height || mask.getHeight?.() || video.videoHeight || lowH;
+      if (typeof mask.getAsFloat32Array === "function") {
+        return { data: mask.getAsFloat32Array(), width, height, kind: "float" };
+      }
+      if (typeof mask.getAsUint8Array === "function") {
+        return { data: mask.getAsUint8Array(), width, height, kind: "uint8" };
+      }
+      return null;
+    }
+
+    function captureLiveMask(result) {
+      const confidence = result.confidenceMasks?.[1] || result.confidenceMasks?.[0];
+      const category = result.categoryMask;
+      const mask = extractMask(confidence || category);
+      if (mask?.data?.length) {
+        state.liveMask = mask;
+        state.liveMisses = 0;
+        return;
+      }
+      state.liveMisses += 1;
+      if (state.liveMisses > 18) state.liveMask = null;
+    }
+
+    async function startCamera() {
       els.probe.disabled = true;
-      els.modeBadge.textContent = "Loading task";
+      els.modeBadge.textContent = "Loading camera";
       els.pipeline.textContent = "WASM";
       els.log.innerHTML = "<span><b>state</b> loading @mediapipe/tasks-vision</span>";
       try {
-        const visionModule = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs");
-        const vision = await visionModule.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
-        const segmenter = await visionModule.ImageSegmenter.createFromOptions(vision, {
+        if (!window.isSecureContext) throw new Error("camera requires HTTPS or localhost secure context");
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("getUserMedia is not available");
+        const visionModule = await import(`${TASKS_VISION_BASE}/vision_bundle.mjs`);
+        const vision = await visionModule.FilesetResolver.forVisionTasks(`${TASKS_VISION_BASE}/wasm`);
+        state.segmenter = await visionModule.ImageSegmenter.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: "https://storage.googleapis.com/mediapipe-assets/deeplabv3.tflite?generation=1661875711618421"
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite"
           },
-          outputCategoryMask: true,
-          outputConfidenceMasks: false,
-          runningMode: "IMAGE"
+          outputCategoryMask: false,
+          outputConfidenceMasks: true,
+          runningMode: "VIDEO"
         });
-        const labels = segmenter.getLabels();
-        segmenter.segment(sourceCanvas, () => {
-          els.modeBadge.textContent = "MediaPipe ready";
-          els.pipeline.textContent = "TASK";
-          els.log.innerHTML = `<span><b>state</b> ImageSegmenter loaded and ran on the generated source frame</span><span><b>labels</b> ${labels.slice(0, 8).join(", ") || "model returned no label map"}</span>`;
-        });
+        state.liveLabels = state.segmenter.getLabels?.() || [];
+        state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        video.srcObject = state.stream;
+        await video.play();
+        state.live = true;
+        state.lastVideoTime = -1;
+        state.liveMask = null;
+        els.modeBadge.textContent = "Live camera";
+        els.pipeline.textContent = "CAM";
+        els.probe.textContent = "Stop Camera";
+        els.probe.disabled = false;
+        els.log.innerHTML = `<span><b>state</b> live segmentForVideo() active</span><span><b>labels</b> ${state.liveLabels.slice(0, 8).join(", ") || "selfie confidence mask"}</span>`;
       } catch (error) {
         els.modeBadge.textContent = "Synthetic mask";
         els.pipeline.textContent = "SIM";
         els.log.innerHTML = `<span><b>state</b> task load skipped; synthetic matte remains active</span><span><b>error</b> ${String(error.message || error).slice(0, 120)}</span>`;
         els.probe.disabled = false;
       }
+    }
+
+    function stopCamera() {
+      state.stream?.getTracks().forEach((track) => track.stop());
+      state.stream = null;
+      state.live = false;
+      state.liveMask = null;
+      state.lastVideoTime = -1;
+      video.srcObject = null;
+      els.modeBadge.textContent = "Synthetic mask";
+      els.pipeline.textContent = "SIM";
+      els.probe.textContent = "Start Camera";
+      els.log.innerHTML = "<span><b>state</b> synthetic confidence mask active</span><span><b>next</b> press Start Camera for live segmentForVideo()</span>";
+    }
+
+    function updateLiveSegmentation() {
+      if (!state.live || !state.segmenter || !video.videoWidth || video.currentTime === state.lastVideoTime) return;
+      state.lastVideoTime = video.currentTime;
+      try {
+        state.segmenter.segmentForVideo(video, performance.now(), captureLiveMask);
+      } catch (error) {
+        els.log.innerHTML = `<span><b>state</b> live segmentation paused; synthetic matte available</span><span><b>error</b> ${String(error.message || error).slice(0, 120)}</span>`;
+      }
+    }
+
+    els.probe.addEventListener("click", () => {
+      if (state.live) stopCamera();
+      else startCamera();
     });
 
     Object.values(controls).forEach((control) => control.addEventListener("input", () => paint(t)));
+    setInterval(updateLiveSegmentation, 90);
     loop();
   </script>
 </body>

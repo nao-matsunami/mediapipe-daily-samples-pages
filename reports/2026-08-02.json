@@ -2,8 +2,8 @@
   "date": "2026-08-02",
   "headline": "Image Segmenter のマスク合成を自作 UI で触る",
   "headlineEn": "Exploring Image Segmenter matte compositing with an original UI",
-  "summary": "Google AI Edge の Image Segmenter / Interactive Segmenter / tasks-vision API / 公式 Web デモを確認し、実モデル接続前でも threshold、feather、edge、composite を検証できる自作の segmentation matte ワークベンチを作成しました。",
-  "summaryEn": "After reviewing Google AI Edge Image Segmenter, Interactive Segmenter, the tasks-vision API, and the official web demo, today's original sample is a segmentation matte workbench for testing threshold, feather, edge, and compositing behavior even before a live model is connected.",
+  "summary": "Google AI Edge の Image Segmenter / Interactive Segmenter / tasks-vision API / 公式 Web デモを確認し、webcam `segmentForVideo()` と synthetic matte の両方で threshold、feather、edge、composite を検証できる自作の segmentation matte ワークベンチを作成しました。",
+  "summaryEn": "After reviewing Google AI Edge Image Segmenter, Interactive Segmenter, the tasks-vision API, and the official web demo, today's original sample is a segmentation matte workbench for testing threshold, feather, edge, and compositing behavior with both webcam `segmentForVideo()` and a synthetic matte.",
   "keyTopics": [
     "Image Segmenter は画像を定義済みカテゴリの領域へ分割し、背景ぼかしや人物だけの切り出しなどの視覚効果に使える。",
     "Web 版は `@mediapipe/tasks-vision` の `ImageSegmenter` を使い、`segment()` と `segmentForVideo()` で image / video 入力を処理する。",
@@ -72,8 +72,8 @@
     {
       "title": "表現・インタラクションのアイデア",
       "titleEn": "Expression and interaction idea",
-      "body": "今日のサンプルは、人物風の合成ソース画像と confidence mask 風の生成マスクを同時に作り、Composite / Mask / Edges / Source を切り替えられるようにしました。Threshold を上げると切り抜きが細り、Feather を上げると境界が柔らかくなり、Edge gain で輪郭の見え方を調整できます。実際の MediaPipe 結果がなくても、マスク UI の触り心地を先に決められるのが狙いです。",
-      "bodyEn": "Today's sample generates both a portrait-like source frame and a confidence-mask-like synthetic matte, then lets the user switch between Composite, Mask, Edges, and Source views. Raising Threshold narrows the cutout, increasing Feather softens the boundary, and Edge gain adjusts contour visibility. The goal is to tune the feel of mask UI before requiring real MediaPipe output."
+      "body": "今日のサンプルは、人物風の合成ソース画像と confidence mask 風の生成マスクを fallback として持ちつつ、`Start Camera` で selfie segmenter model と webcam を起動し、`segmentForVideo()` の confidence mask を同じ Composite / Mask / Edges / Source UI に流し込めるようにしました。Threshold を上げると切り抜きが細り、Feather を上げると境界が柔らかくなり、Edge gain で輪郭の見え方を調整できます。",
+      "bodyEn": "Today's sample keeps a portrait-like synthetic source and confidence-mask fallback, while `Start Camera` loads the selfie segmenter model and webcam and feeds `segmentForVideo()` confidence masks into the same Composite / Mask / Edges / Source UI. Raising Threshold narrows the cutout, increasing Feather softens the boundary, and Edge gain adjusts contour visibility."
     },
     {
       "title": "制作に使えそうな技術メモ",
@@ -96,8 +96,8 @@
     {
       "title": "試すならこれ",
       "titleEn": "If you try one thing",
-      "body": "サンプルを開いて Composite のまま Threshold と Feather を動かし、Mask coverage と Edge pixels の変化を見てください。次に Edges 表示へ切り替えると、しきい値境界がどの程度ちらつきやすいかを観察できます。`Load Task` は CDN と公式 DeepLab-V3 model へ接続できる環境なら `ImageSegmenter` のロード確認を行い、失敗しても synthetic matte で検証を継続します。",
-      "bodyEn": "Open the sample in Composite view and move Threshold and Feather while watching Mask coverage and Edge pixels. Then switch to Edges to inspect how likely the threshold boundary is to shimmer. `Load Task` checks `ImageSegmenter` loading against the CDN and the official DeepLab-V3 model when available, while preserving the synthetic matte fallback if loading fails.",
+      "body": "サンプルを開いてまず Composite のまま Threshold と Feather を動かし、synthetic mask の Mask coverage と Edge pixels の変化を見てください。次に `Start Camera` を押してカメラ許可を与え、live segmentForVideo() の人物マスクが同じ UI で合成されることを確認します。Edges 表示へ切り替えると、実カメラのしきい値境界がどの程度ちらつきやすいかを観察できます。",
+      "bodyEn": "Open the sample in Composite view and first move Threshold and Feather while watching Mask coverage and Edge pixels on the synthetic mask. Then press `Start Camera`, grant camera permission, and confirm the live `segmentForVideo()` person mask is composited through the same UI. Switching to Edges reveals how much the real camera threshold boundary may shimmer.",
       "links": [
         {
           "label": "Open Image Segmenter Matte Studio",
@@ -108,8 +108,8 @@
     {
       "title": "進行マップ",
       "titleEn": "Progress map",
-      "body": "調査: Image segmentation overview、Web guide、ImageSegmenter API、Interactive Segmenter Web guide、公式 samples web、google-ai-edge/mediapipe と mediapipe-samples-web を確認。アイデア: 実カメラやモデル fetch の成否に左右されない matte UI を作る。実装: 低解像度 synthetic confidence mask、source / mask / edge / composite 表示、threshold / feather / drift / edge controls、任意の MediaPipe task load probe を 1 ファイル HTML にまとめる。検証: JSON parse、HTML 構文、gallery 再生成、公開スクリプト実行を行う。",
-      "bodyEn": "Research: reviewed the Image segmentation overview, web guide, ImageSegmenter API, Interactive Segmenter web guide, official samples web, google-ai-edge/mediapipe, and mediapipe-samples-web. Idea: build a matte UI that does not depend on camera or model fetch success. Implementation: package a low-resolution synthetic confidence mask, source / mask / edge / composite views, threshold / feather / drift / edge controls, and an optional MediaPipe task load probe into one HTML file. Validation: parse JSON, check HTML syntax, regenerate the gallery, and run the publish script."
+      "body": "調査: Image segmentation overview、Web guide、ImageSegmenter API、Interactive Segmenter Web guide、公式 samples web、google-ai-edge/mediapipe と mediapipe-samples-web を確認。アイデア: 実カメラと synthetic fallback の両方で使える matte UI を作る。実装: 低解像度 synthetic confidence mask、webcam `segmentForVideo()`、source / mask / edge / composite 表示、threshold / feather / drift / edge controls を 1 ファイル HTML にまとめる。検証: JSON parse、HTML 構文、gallery 再生成、公開スクリプト実行を行う。",
+      "bodyEn": "Research: reviewed the Image segmentation overview, web guide, ImageSegmenter API, Interactive Segmenter web guide, official samples web, google-ai-edge/mediapipe, and mediapipe-samples-web. Idea: build a matte UI that works with both real camera and synthetic fallback. Implementation: package a low-resolution synthetic confidence mask, webcam `segmentForVideo()`, source / mask / edge / composite views, and threshold / feather / drift / edge controls into one HTML file. Validation: parse JSON, check HTML syntax, regenerate the gallery, and run the publish script."
     },
     {
       "title": "俯瞰メモ",
@@ -120,8 +120,8 @@
     {
       "title": "今日のミニ試作候補",
       "titleEn": "Today's mini prototype candidate",
-      "body": "採用した候補は `Image Segmenter Matte Studio` です。実際に動く部分は synthetic confidence mask の生成、threshold / feather による matte 調整、source / mask / edge / composite 表示、coverage と edge count のリアルタイム計測です。次に足すなら、Web Worker 内 `segmentForVideo()`、実カメラ frame の optional 入力、confidence mask からの temporal smoothing、クリック点を使う Interactive Segmenter 版を追加します。",
-      "bodyEn": "The selected prototype is `Image Segmenter Matte Studio`. The working parts are synthetic confidence-mask generation, matte tuning through threshold / feather, source / mask / edge / composite views, and real-time coverage plus edge-count metrics. Next additions should include `segmentForVideo()` in a Web Worker, optional live camera frames, temporal smoothing for confidence masks, and an Interactive Segmenter version driven by click points."
+      "body": "採用した候補は `Image Segmenter Matte Studio` です。実際に動く部分は synthetic confidence mask の生成、webcam `segmentForVideo()`、threshold / feather による matte 調整、source / mask / edge / composite 表示、coverage と edge count のリアルタイム計測です。次に足すなら、Web Worker 内 `segmentForVideo()`、confidence mask の temporal smoothing、クリック点を使う Interactive Segmenter 版を追加します。",
+      "bodyEn": "The selected prototype is `Image Segmenter Matte Studio`. The working parts are synthetic confidence-mask generation, webcam `segmentForVideo()`, matte tuning through threshold / feather, source / mask / edge / composite views, and real-time coverage plus edge-count metrics. Next additions should include `segmentForVideo()` in a Web Worker, temporal smoothing for confidence masks, and an Interactive Segmenter version driven by click points."
     }
   ]
 }

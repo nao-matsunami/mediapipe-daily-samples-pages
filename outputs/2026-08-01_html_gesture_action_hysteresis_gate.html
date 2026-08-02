@@ -83,6 +83,13 @@
       min-height: 660px;
       touch-action: none;
     }
+    video {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
     .hud {
       position: absolute;
       left: 14px;
@@ -199,6 +206,7 @@
     </header>
 
     <div class="stage">
+      <video id="video" playsinline muted></video>
       <canvas id="stage" width="1400" height="900" aria-label="Gesture action hysteresis visualization"></canvas>
       <div class="hud">
         <div class="metric"><span>raw winner</span><strong id="rawReadout">Open_Palm</strong></div>
@@ -242,8 +250,11 @@
       </section>
 
       <section>
-        <h2>Runtime Probe</h2>
-        <button id="loadTask" type="button">Load GestureRecognizer</button>
+        <h2>Runtime</h2>
+        <div class="seg">
+          <button id="startCamera" type="button">Start Camera</button>
+          <button id="stopCamera" type="button">Stop Camera</button>
+        </div>
         <div class="log" id="log"></div>
       </section>
     </aside>
@@ -258,6 +269,7 @@
     const TASKS_VISION_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}`;
     const canvas = document.getElementById("stage");
     const ctx = canvas.getContext("2d");
+    const video = document.getElementById("video");
     const controls = {
       noise: document.getElementById("noise"),
       smooth: document.getElementById("smooth"),
@@ -290,6 +302,11 @@
       armed: null,
       cooldown: 0,
       events: [],
+      recognizer: null,
+      stream: null,
+      lastVideoTime: -1,
+      liveScores: null,
+      liveLandmarks: null,
       runtime: "synthetic",
       logs: [["ready", "synthetic gesture stream initialized"]]
     };
@@ -325,6 +342,25 @@
         base[g] = Math.max(0, Math.min(1, boost + seededNoise(t, i + 4) * noise * 0.23));
       });
       return base;
+    }
+
+    function normalizeGestureName(name) {
+      return gestures.includes(name) ? name : "Open_Palm";
+    }
+
+    function liveScoresFromRecognizer(now) {
+      if (!state.recognizer || !video.videoWidth || video.currentTime === state.lastVideoTime) return null;
+      state.lastVideoTime = video.currentTime;
+      const result = state.recognizer.recognizeForVideo(video, now);
+      const scores = Object.fromEntries(gestures.map((g) => [g, 0.02]));
+      const gestureList = result.gestures?.[0] || [];
+      gestureList.forEach((item) => {
+        const name = normalizeGestureName(item.categoryName || item.displayName || "");
+        scores[name] = Math.max(scores[name], item.score || 0);
+      });
+      state.liveLandmarks = result.landmarks?.[0] || null;
+      state.liveScores = scores;
+      return scores;
     }
 
     function updateGate(scores) {
@@ -426,6 +462,33 @@
       });
     }
 
+    function drawLivePreview(w, h) {
+      if (!video.videoWidth) return;
+      const px = w * 0.62;
+      const py = h * 0.56;
+      const pw = w * 0.28;
+      const ph = pw * 0.62;
+      ctx.save();
+      ctx.globalAlpha = 0.86;
+      ctx.translate(px + pw, py);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, pw, ph);
+      ctx.restore();
+      ctx.strokeStyle = "rgba(120,245,198,0.5)";
+      ctx.strokeRect(px, py, pw, ph);
+      if (state.liveLandmarks?.length) {
+        ctx.fillStyle = "#78f5c6";
+        state.liveLandmarks.forEach((p, index) => {
+          const x = px + (1 - p.x) * pw;
+          const y = py + p.y * ph;
+          ctx.beginPath();
+          ctx.arc(x, y, [4, 8, 12, 16, 20].includes(index) ? 4.5 : 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+      drawText("live camera", px, py - 18, 13, "#b9c9c2");
+    }
+
     function draw(now = 0) {
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
@@ -436,10 +499,12 @@
         canvas.height = h;
       }
       drawGrid(w, h);
-      const result = updateGate(syntheticScores(now));
+      const live = state.runtime === "live camera" ? liveScoresFromRecognizer(now) : null;
+      const result = updateGate(live || state.liveScores || syntheticScores(now));
       drawBars(result.sorted, w, h);
       drawActionPanel(w, h);
-      drawText("Gesture scores are not actions until they cross enter threshold, hold long enough, and avoid cooldown.", w * 0.1, h * 0.86, 17, "#b9c9c2");
+      drawLivePreview(w, h);
+      drawText("Gesture scores are not actions until they cross enter threshold, hold long enough, and avoid cooldown.", w * 0.1, h * 0.9, 17, "#b9c9c2");
       readouts.raw.textContent = `${result.winner} ${Math.round(result.score * 100)}%`;
       readouts.armed.textContent = state.armed || "none";
       readouts.hold.textContent = `${state.heldFrames} / ${value("hold")}`;
@@ -457,25 +522,46 @@
       });
     });
 
-    document.getElementById("loadTask").addEventListener("click", async () => {
+    async function stopCamera() {
+      state.stream?.getTracks().forEach((track) => track.stop());
+      state.stream = null;
+      state.runtime = "synthetic";
+      state.liveScores = null;
+      state.liveLandmarks = null;
+      state.lastVideoTime = -1;
+      document.getElementById("startCamera").classList.remove("active");
+      addLog("stop", "camera stopped; synthetic stream active");
+    }
+
+    document.getElementById("startCamera").addEventListener("click", async () => {
       addLog("load", `loading tasks-vision ${TASKS_VISION_VERSION}`);
       try {
+        if (!window.isSecureContext) throw new Error("camera requires HTTPS or localhost secure context");
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("getUserMedia is not available");
         const mod = await import(`${TASKS_VISION_BASE}/vision_bundle.mjs`);
         const vision = await mod.FilesetResolver.forVisionTasks(`${TASKS_VISION_BASE}/wasm`);
-        await mod.GestureRecognizer.createFromOptions(vision, {
+        state.recognizer = await mod.GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task"
           },
           runningMode: "VIDEO",
           numHands: 1
         });
-        state.runtime = "GestureRecognizer loaded";
-        addLog("task", "model loaded; synthetic stream remains active");
+        state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        video.srcObject = state.stream;
+        await video.play();
+        state.runtime = "live camera";
+        state.liveScores = null;
+        state.liveLandmarks = null;
+        state.lastVideoTime = -1;
+        document.getElementById("startCamera").classList.add("active");
+        addLog("live", "GestureRecognizer camera stream active");
       } catch (error) {
         state.runtime = "synthetic";
         addLog("fallback", error.message || error.name || "load failed");
       }
     });
+    document.getElementById("stopCamera").addEventListener("click", stopCamera);
 
     addLog("start", "hysteresis gate ready");
     requestAnimationFrame(draw);

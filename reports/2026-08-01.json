@@ -2,8 +2,8 @@
   "date": "2026-08-01",
   "headline": "Gesture Recognizer の結果を action gate で安定化する",
   "headlineEn": "Stabilizing Gesture Recognizer results with an action gate",
-  "summary": "Google AI Edge の Gesture Recognizer Web guide、GestureRecognizer JS API、公式 samples を確認し、認識スコアをそのまま UI action にせず、enter / exit threshold、hold frames、cooldown で安定化する自作 HTML サンプルを追加しました。",
-  "summaryEn": "After reviewing the Google AI Edge Gesture Recognizer web guide, GestureRecognizer JS API, and official samples, today's original HTML sample stabilizes recognition scores into UI actions with enter/exit thresholds, hold frames, and cooldown instead of firing actions directly from raw predictions.",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、GestureRecognizer JS API、公式 samples を確認し、カメラ入力の `recognizeForVideo()` と synthetic stream の両方で、enter / exit threshold、hold frames、cooldown による action gate を試せる自作 HTML サンプルを追加しました。",
+  "summaryEn": "After reviewing the Google AI Edge Gesture Recognizer web guide, GestureRecognizer JS API, and official samples, today's original HTML sample tests an action gate with enter/exit thresholds, hold frames, and cooldown using both live camera `recognizeForVideo()` and a synthetic stream.",
   "keyTopics": [
     "Gesture Recognizer は手の gesture category、handedness、image landmarks、world landmarks を返し、ジェスチャーからアプリ機能を呼び出す用途に向いている。",
     "Web 版は `@mediapipe/tasks-vision` の `GestureRecognizer` を使い、静止画では `recognize()`、動画では `recognizeForVideo(videoFrame, timestamp)` を使う。",
@@ -60,8 +60,8 @@
     {
       "title": "表現・インタラクションのアイデア",
       "titleEn": "Expression and interaction idea",
-      "body": "サンプルは Open_Palm、Closed_Fist、Pointing_Up、Thumb_Up、Victory、ILoveYou の synthetic score stream を生成し、棒グラフで生スコアと平滑化後の状態を見せます。Enter threshold、Exit threshold、Hold frames、Cooldown frames を調整すると、同じ認識スコアでも action が発火したり保留されたりします。公式モデルをロードできる環境では `Load GestureRecognizer` で task / model のロード確認だけ行い、UI の検証は合成ストリームで継続できます。",
-      "bodyEn": "The sample generates a synthetic score stream for Open_Palm, Closed_Fist, Pointing_Up, Thumb_Up, Victory, and ILoveYou, then visualizes raw and smoothed scores as bars. Adjusting enter threshold, exit threshold, hold frames, and cooldown frames changes whether the same recognition score fires or waits. In environments that can load the official model, `Load GestureRecognizer` checks task/model loading while the UI continues to use the synthetic stream."
+      "body": "サンプルは Open_Palm、Closed_Fist、Pointing_Up、Thumb_Up、Victory、ILoveYou の synthetic score stream を生成し、棒グラフで生スコアと平滑化後の状態を見せます。さらに `Start Camera` で GestureRecognizer model と webcam を起動し、`recognizeForVideo()` の実スコアを同じ action gate に流し込めます。Enter threshold、Exit threshold、Hold frames、Cooldown frames を調整すると、同じ認識スコアでも action が発火したり保留されたりします。",
+      "bodyEn": "The sample generates a synthetic score stream for Open_Palm, Closed_Fist, Pointing_Up, Thumb_Up, Victory, and ILoveYou, then visualizes raw and smoothed scores as bars. `Start Camera` also loads the GestureRecognizer model and webcam, feeding real `recognizeForVideo()` scores into the same action gate. Adjusting enter threshold, exit threshold, hold frames, and cooldown frames changes whether the same recognition score fires or waits."
     },
     {
       "title": "制作に使えそうな技術メモ",
@@ -78,8 +78,8 @@
     {
       "title": "試すならこれ",
       "titleEn": "If you try one thing",
-      "body": "サンプルを開き、Noisy User に切り替えて Noise を上げてください。Enter threshold を低くすると誤発火が増え、Hold frames と Cooldown を上げると発火は遅くなる代わりに安定します。次に Exit threshold を Enter より低く保ったまま動かすと、action が一度 armed された後にすぐ解除されにくい hysteresis の効果を確認できます。",
-      "bodyEn": "Open the sample, switch to Noisy User, and raise Noise. Lowering the enter threshold increases false triggers, while increasing hold frames and cooldown makes firing slower but more stable. Then move the exit threshold while keeping it below enter to see how hysteresis prevents an armed action from immediately releasing.",
+      "body": "まず Noisy User に切り替えて Noise を上げ、gate の動きを合成ストリームで確認してください。次に `Start Camera` を押してカメラ許可を与え、実手の gesture score が raw winner に入ることを見ます。Enter threshold を低くすると誤発火が増え、Hold frames と Cooldown を上げると発火は遅くなる代わりに安定します。",
+      "bodyEn": "First switch to Noisy User and raise Noise to inspect the gate with a synthetic stream. Then press `Start Camera`, grant camera permission, and confirm real hand gesture scores enter the raw winner. Lowering the enter threshold increases false triggers, while increasing hold frames and cooldown makes firing slower but more stable.",
       "links": [
         {
           "label": "Open Gesture Action Hysteresis Gate",
@@ -90,8 +90,8 @@
     {
       "title": "進行マップ",
       "titleEn": "Progress map",
-      "body": "調査: Gesture Recognizer Web guide、Gesture recognition overview、GestureRecognizer JS API、公式 samples web、google-ai-edge/mediapipe-samples-web を確認。アイデア: Hand Landmarker の次として、認識カテゴリを action へ変換する gate を作る。実装: synthetic gesture score stream、score smoothing、enter / exit threshold、hold frames、cooldown、accepted action log、任意の GestureRecognizer load probe を 1 ファイル HTML にまとめる。検証: JSON parse、HTML script 構文、gallery 再生成、publish を行う。",
-      "bodyEn": "Research: reviewed the Gesture Recognizer web guide, gesture recognition overview, GestureRecognizer JS API, official samples web, and google-ai-edge/mediapipe-samples-web. Idea: follow Hand Landmarker by building the gate that converts recognition categories into actions. Implementation: package a synthetic gesture score stream, score smoothing, enter/exit thresholds, hold frames, cooldown, accepted-action log, and optional GestureRecognizer load probe into one HTML file. Validation: parse JSON, check HTML script syntax, regenerate the gallery, and publish."
+      "body": "調査: Gesture Recognizer Web guide、Gesture recognition overview、GestureRecognizer JS API、公式 samples web、google-ai-edge/mediapipe-samples-web を確認。アイデア: Hand Landmarker の次として、認識カテゴリを action へ変換する gate を作る。実装: synthetic gesture score stream、webcam `recognizeForVideo()`、score smoothing、enter / exit threshold、hold frames、cooldown、accepted action log、live preview を 1 ファイル HTML にまとめる。検証: JSON parse、HTML script 構文、gallery 再生成、publish を行う。",
+      "bodyEn": "Research: reviewed the Gesture Recognizer web guide, gesture recognition overview, GestureRecognizer JS API, official samples web, and google-ai-edge/mediapipe-samples-web. Idea: follow Hand Landmarker by building the gate that converts recognition categories into actions. Implementation: package a synthetic gesture score stream, webcam `recognizeForVideo()`, score smoothing, enter/exit thresholds, hold frames, cooldown, accepted-action log, and live preview into one HTML file. Validation: parse JSON, check HTML script syntax, regenerate the gallery, and publish."
     },
     {
       "title": "俯瞰メモ",
@@ -102,8 +102,8 @@
     {
       "title": "今日のミニ試作候補",
       "titleEn": "Today's mini prototype candidate",
-      "body": "採用した候補は `Gesture Action Hysteresis Gate` です。実際に動く部分は synthetic gesture score stream、平滑化、enter / exit threshold、hold frames、cooldown、accepted action log です。次に足すなら、実カメラの `recognizeForVideo()` 接続、handedness ごとの action map、両手 gesture の conflict resolver、custom gesture recognizer の model 差し替え UI を追加します。",
-      "bodyEn": "The selected prototype is `Gesture Action Hysteresis Gate`. The working parts are the synthetic gesture score stream, smoothing, enter/exit thresholds, hold frames, cooldown, and accepted-action log. Next additions should include real camera `recognizeForVideo()` integration, handedness-specific action maps, two-hand gesture conflict resolution, and a model-switching UI for custom gesture recognizers."
+      "body": "採用した候補は `Gesture Action Hysteresis Gate` です。実際に動く部分は synthetic gesture score stream、実カメラ `recognizeForVideo()`、平滑化、enter / exit threshold、hold frames、cooldown、accepted action log です。次に足すなら、handedness ごとの action map、両手 gesture の conflict resolver、custom gesture recognizer の model 差し替え UI を追加します。",
+      "bodyEn": "The selected prototype is `Gesture Action Hysteresis Gate`. The working parts are the synthetic gesture score stream, live camera `recognizeForVideo()`, smoothing, enter/exit thresholds, hold frames, cooldown, and accepted-action log. Next additions should include handedness-specific action maps, two-hand gesture conflict resolution, and a model-switching UI for custom gesture recognizers."
     }
   ]
 }
