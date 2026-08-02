@@ -376,11 +376,7 @@
       const w = sourceCanvas.width;
       const h = sourceCanvas.height;
       if (state.live && video.videoWidth) {
-        sourceCtx.save();
-        sourceCtx.translate(w, 0);
-        sourceCtx.scale(-1, 1);
         sourceCtx.drawImage(video, 0, 0, w, h);
-        sourceCtx.restore();
         return;
       }
       const g = sourceCtx.createLinearGradient(0, 0, w, h);
