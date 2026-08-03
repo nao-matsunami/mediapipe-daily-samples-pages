@@ -40,6 +40,12 @@
       "bodyEn": "English body."
     },
     {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "このサンプルで蓄積される入力、推論結果、ランドマーク、マスク、ログ、UI 状態などを使うと何ができるか。どの MediaPipe Task、Web API、可視化、音、XR、LLM、センサー、保存形式、分析基盤などと組み合わせると面白くなるかを具体的に書く。",
+      "bodyEn": "Describe what becomes possible with the sample's accumulated inputs, inference outputs, landmarks, masks, logs, and UI state. Include concrete combinations with MediaPipe Tasks, Web APIs, visualization, audio, XR, LLMs, sensors, storage formats, or analytics tools."
+    },
+    {
       "title": "制作に使えそうな技術メモ",
       "titleEn": "Production note",
       "body": "日本語本文。",

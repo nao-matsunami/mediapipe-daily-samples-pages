@@ -1,0 +1,131 @@
+{
+  "date": "2026-08-03",
+  "headline": "Interactive Segmenter でクリック対象を切り出す",
+  "headlineEn": "Click-target extraction with Interactive Segmenter",
+  "summary": "MediaPipe Interactive Image Segmenter の Web API を使い、画像上のクリック点を ROI として渡して対象物マスクを作る自作 HTML ワークベンチを追加しました。合成画像、アップロード画像、カメラのフリーズフレームを扱い、マスク面積、推論時間、オーバーレイ強度を観察できます。",
+  "summaryEn": "Added an original HTML workbench for MediaPipe Interactive Image Segmenter on the web. It passes the clicked point as an ROI to create an object mask from a synthetic image, uploaded still, or frozen camera frame, while showing mask coverage, inference time, and overlay strength.",
+  "keyTopics": [
+    "Interactive Image Segmenter は画像上の 1 点を手がかりに、その点を含む対象物と背景を分ける MediaPipe Tasks の Vision タスク。",
+    "Web 実装では `@mediapipe/tasks-vision`、`FilesetResolver.forVisionTasks()`、`InteractiveSegmenter.createFromOptions()`、MagicTouch モデルを組み合わせる。",
+    "出力は `CATEGORY_MASK` または `CONFIDENCE_MASK` を選べ、今日の試作では uint8 の category mask を半透明オーバーレイにした。",
+    "公式 Web ガイドは `segment()` / `segmentForVideo()` が同期実行で UI スレッドをブロックし得る点を明示しており、動画化するなら Worker 分離が次の論点。",
+    "モデルや CDN が使えない環境でも UI と観察軸を確認できるよう、クリック点ベースの radial fallback mask を入れた。"
+  ],
+  "keyTopicsEn": [
+    "Interactive Image Segmenter is a MediaPipe Tasks vision task that separates an object from the background using a point in the image as a hint.",
+    "The web implementation combines `@mediapipe/tasks-vision`, `FilesetResolver.forVisionTasks()`, `InteractiveSegmenter.createFromOptions()`, and the MagicTouch model.",
+    "The output can be `CATEGORY_MASK` or `CONFIDENCE_MASK`; today's prototype renders the uint8 category mask as a translucent overlay.",
+    "The official web guide notes that `segment()` and `segmentForVideo()` run synchronously and can block the UI thread, making Worker isolation the next concern for video.",
+    "A point-based radial fallback mask keeps the UI and observation flow usable when the model or CDN is unavailable."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Interactive Segmenter Click Studio",
+      "url": "../outputs/2026-08-03_interactive_segmenter_click_studio.html"
+    },
+    {
+      "label": "Interactive image segmentation task guide",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/interactive_segmenter/index"
+    },
+    {
+      "label": "Interactive image segmentation guide for web",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/interactive_segmenter/web_js"
+    },
+    {
+      "label": "InteractiveSegmenter JS API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.interactivesegmenter"
+    },
+    {
+      "label": "MediaPipe Tasks web examples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は MediaPipe Interactive Image Segmenter です。通常の Image Segmenter がモデル側のカテゴリや人物領域を一括で返すのに対し、Interactive Segmenter はユーザーが指定した点を ROI として使い、その点に対応する対象物だけを切り出します。写真編集、注釈付け、教材、EC の商品切り抜きなど、ユーザーの意図を 1 点で渡せるところが面白いです。",
+      "bodyEn": "Today's focus is MediaPipe Interactive Image Segmenter. Unlike a regular Image Segmenter that returns model-defined categories or person regions, Interactive Segmenter uses a user-selected point as an ROI and cuts out the object associated with that point. That makes it interesting for photo editing, annotation, learning tools, and product cutouts where intent can be expressed with one click.",
+      "links": [
+        {
+          "label": "Interactive image segmentation task guide",
+          "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/interactive_segmenter/index"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "自作サンプルでは、合成された卓上オブジェクトを最初から表示し、クリックした点を黄色のクロスヘアで残しつつ、対象マスクを緑の半透明オーバーレイで重ねます。アップロードした静止画やカメラのフリーズフレームにも同じ操作を使えるので、クリック位置とマスクの関係を短い実験として見られます。",
+      "bodyEn": "The original sample starts with a synthetic tabletop image, keeps the clicked point as a yellow crosshair, and overlays the target mask in translucent green. The same interaction works for uploaded stills and frozen camera frames, making the relationship between click position and mask output easy to inspect."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "このサンプルで蓄積できるクリック座標、推論時間、マスク面積、入力種別、しきい値、オーバーレイ設定は、選択操作の品質ログとして使えます。Image Segmenter と組み合わせて人物マスクとの差分を見たり、Object Detector の bounding box 内でクリック候補を提示したり、WebGL でマスク境界にエフェクトをかけたりできます。LLM に画像編集指示を作らせる場合も、クリック点とマスクを編集対象の構造化入力にできます。",
+      "bodyEn": "The sample can accumulate click coordinates, inference time, mask coverage, input type, threshold, and overlay settings as quality logs for selection interactions. It can be combined with Image Segmenter to compare against person masks, with Object Detector to suggest click candidates inside boxes, or with WebGL to apply effects on mask boundaries. When pairing with an LLM for image-edit instructions, the click point and mask become structured edit targets."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Web 版は `FilesetResolver.forVisionTasks()` で WASM を解決し、`InteractiveSegmenter.createFromOptions()` に MagicTouch の `modelAssetPath` と `outputCategoryMask: true` を渡します。クリック座標は表示矩形から 0-1 に正規化して `{ keypoint: { x, y } }` として `segment()` へ渡しました。category mask は `DrawingUtils.drawCategoryMask()` で別 Canvas に描き、coverage を alpha 値から数えています。",
+      "bodyEn": "The web version resolves the Wasm files with `FilesetResolver.forVisionTasks()` and passes the MagicTouch `modelAssetPath` plus `outputCategoryMask: true` to `InteractiveSegmenter.createFromOptions()`. Click coordinates are normalized to 0-1 from the display rectangle and passed to `segment()` as `{ keypoint: { x, y } }`. The category mask is drawn to another Canvas with `DrawingUtils.drawCategoryMask()`, and coverage is counted from alpha values.",
+      "links": [
+        {
+          "label": "Interactive image segmentation guide for web",
+          "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/interactive_segmenter/web_js"
+        },
+        {
+          "label": "InteractiveSegmenter JS API",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.interactivesegmenter"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Web Worker / OffscreenCanvas 化、confidence mask 表示、マスク境界の輪郭抽出、Image Segmenter との比較、Object Detector でのクリック候補提示を見ます。公式サンプルの worker 実装では category mask を Worker 側で描画して ImageBitmap として返しており、主スレッドの停止を抑える方向で参考になります。",
+      "bodyEn": "Next, watch Worker / OffscreenCanvas execution, confidence-mask visualization, mask-boundary extraction, comparison with Image Segmenter, and click-candidate suggestions from Object Detector. The official sample renders the category mask in a Worker and returns an ImageBitmap, which is a useful direction for reducing main-thread stalls.",
+      "links": [
+        {
+          "label": "Official interactive segmenter sample source",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/interactive-segmenter.ts"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず合成画像の中央のカップ、左下の楕円、右側の黄色い葉を順番にクリックし、Mask coverage と推論時間の変化を見てください。次に Upload still で手元の物体写真を入れ、クリック点を少しずつずらすと、1 点の ROI が選択結果にどれだけ効くか観察できます。",
+      "bodyEn": "First click the central cup, lower-left oval, and right yellow leaf in the synthetic image, then compare mask coverage and inference time. Next upload a still photo of a nearby object and move the click point slightly to see how much the one-point ROI controls the selection.",
+      "links": [
+        {
+          "label": "Open Interactive Segmenter Click Studio",
+          "url": "../outputs/2026-08-03_interactive_segmenter_click_studio.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI Edge の Interactive Segmenter 概要、Web ガイド、JS API、公式 Tasks Web サンプルを確認。設計: 公式デモ一覧ではなく、クリック選択の観察に絞った 1 ファイルの自作サンプルにした。実装: 合成画像、アップロード画像、カメラフリーズ、クリック ROI、category mask overlay、coverage、推論時間、fallback mask を追加。検証: JSON 構文確認、gallery 再生成、publish スクリプト実行、公開ページ更新を行う。",
+      "bodyEn": "Research: reviewed the Google AI Edge Interactive Segmenter overview, web guide, JS API, and official Tasks web sample. Design: built a one-file original sample focused on inspecting click-based selection rather than listing external demos. Implementation: added synthetic image, uploaded image, frozen camera frame, click ROI, category-mask overlay, coverage, inference timing, and fallback mask. Validation: parse JSON, regenerate the gallery, run the publish script, and update the public page."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "このテーマは、モデル推論を「自動認識」ではなく「人が指示して切り出す道具」として扱える点が良いです。日次アーカイブの流れでは、Hand Landmarker や Image Segmenter のような連続検出系に加えて、クリック、ブラシ、修正といった編集 UI へ進む足場になります。",
+      "bodyEn": "This topic is useful because model inference behaves less like automatic recognition and more like a user-directed cutout tool. In the daily archive, it adds a bridge from continuous detection tasks like Hand Landmarker and Image Segmenter toward editing interfaces with clicks, brushes, and corrections."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Interactive Segmenter Click Studio` です。実際に動く部分は、クリック点の正規化、MediaPipe Tasks Vision の Interactive Segmenter 呼び出し、category mask の Canvas オーバーレイ、合成画像 / アップロード画像 / カメラフリーズ入力、推論時間とマスク面積の表示です。次に足すなら Worker 化、confidence mask のしきい値表示、マスク境界の編集、複数クリックによる選択改善を加えます。",
+      "bodyEn": "The selected prototype is `Interactive Segmenter Click Studio`. The working parts are normalized click points, MediaPipe Tasks Vision Interactive Segmenter calls, Canvas overlay rendering for the category mask, synthetic / uploaded / frozen-camera inputs, and inference-time plus mask-coverage readouts. Next additions should include Worker execution, confidence-mask threshold visualization, editable mask boundaries, and multi-click refinement."
+    }
+  ]
+}

@@ -31,6 +31,16 @@ function dateFromFile(fileName) {
   return fileName.match(/^(\d{4}-\d{2}-\d{2})_/)?.[1] || null;
 }
 
+function fileNameFromUrl(url = "") {
+  const match = String(url).match(/outputs\/([^/?#]+\.html)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function primarySample(day) {
+  const linkedFile = day.report?.links?.map((link) => fileNameFromUrl(link.url)).find(Boolean);
+  return day.samples.find((sample) => sample.fileName === linkedFile) || day.samples[0];
+}
+
 async function readJson(file) {
   try {
     return JSON.parse(await fs.readFile(file, "utf8"));
@@ -83,7 +93,7 @@ function pageShell(title, body, basePath = "") {
 
 function renderIndex(days, basePath = "") {
   const cards = days.map((day) => {
-    const sample = day.samples[0];
+    const sample = primarySample(day);
     return `<article class="card">
       <p class="date">${escapeHtml(day.date)}</p>
       <h2>${escapeHtml(day.report?.headline || sample.title)}</h2>
@@ -99,7 +109,7 @@ function renderIndex(days, basePath = "") {
 }
 
 function renderDay(day) {
-  const sample = day.samples[0];
+  const sample = primarySample(day);
   const topics = day.report?.keyTopics?.map((topic, index) => `<li>${escapeHtml(topic)}${day.report.keyTopicsEn?.[index] ? `<p class="en">${escapeHtml(day.report.keyTopicsEn[index])}</p>` : ""}</li>`).join("") || "";
   const sections = day.report?.sections?.map((section) => `<section class="block"><h2>${escapeHtml(section.title)}</h2>${section.titleEn ? `<p class="en">${escapeHtml(section.titleEn)}</p>` : ""}${section.body ? `<p>${escapeHtml(section.body)}</p>` : ""}${section.bodyEn ? `<p class="en">${escapeHtml(section.bodyEn)}</p>` : ""}${renderLinks(section.links)}</section>`).join("") || "";
   return pageShell(`${day.report?.headline || sample.title} | ${day.date}`, `<header><div><p class="date">${escapeHtml(day.date)}</p><h1>${escapeHtml(day.report?.headline || sample.title)}</h1>${day.report?.headlineEn ? `<p class="en">${escapeHtml(day.report.headlineEn)}</p>` : ""}<p>${escapeHtml(day.report?.summary || sample.description)}</p></div><div class="actions"><a href="../index.html">一覧</a><a href="../outputs/${encodeURIComponent(sample.fileName)}">代表サンプルを開く</a></div></header><section class="sample-frame"><iframe src="../outputs/${encodeURIComponent(sample.fileName)}" title="${escapeHtml(sample.title)}"></iframe></section><section class="block"><h2>今日の重要トピック</h2><ol>${topics}</ol>${renderLinks(day.report?.links)}</section>${sections}`, "../");

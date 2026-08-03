@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenCV Edge Threshold Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #07100f;
+      color: #f5fff9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(128, 235, 199, 0.07) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(128, 235, 199, 0.05) 1px, transparent 1px),
+        linear-gradient(135deg, #06110f 0%, #111315 48%, #181109 100%);
+      background-size: 38px 38px, 38px 38px, auto;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(128, 235, 199, 0.2);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.75rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: #b8c9c1;
+      line-height: 1.56;
+    }
+
+    .lede {
+      max-width: 790px;
+      margin-top: 10px;
+    }
+
+    .badge {
+      min-width: 138px;
+      border: 1px solid rgba(128, 235, 199, 0.36);
+      background: rgba(128, 235, 199, 0.1);
+      color: #80ebc7;
+      padding: 8px 10px;
+      text-align: center;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(245, 255, 249, 0.14);
+      background: #050807;
+      overflow: hidden;
+      box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 660px;
+      touch-action: none;
+    }
+
+    video {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .metric, section {
+      border: 1px solid rgba(245, 255, 249, 0.13);
+      background: rgba(6, 14, 15, 0.82);
+      backdrop-filter: blur(12px);
+    }
+
+    .metric {
+      min-height: 58px;
+      padding: 9px 10px;
+    }
+
+    .metric span {
+      display: block;
+      color: #88a69b;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      color: #f5fff9;
+      font-size: 0.96rem;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    section { padding: 14px; }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 12px 0;
+      color: #b8c9c1;
+      font-size: 0.86rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #80ebc7;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(128, 235, 199, 0.34);
+      background: rgba(128, 235, 199, 0.09);
+      color: #f5fff9;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button.active {
+      background: #80ebc7;
+      border-color: #80ebc7;
+      color: #041411;
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .readout {
+      display: grid;
+      gap: 8px;
+      color: #b8c9c1;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .readout b {
+      color: #f3c96a;
+      font-weight: 700;
+    }
+
+    footer {
+      grid-column: 1 / -1;
+      color: #8aa49b;
+      font-size: 0.84rem;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .stage, canvas { min-height: 560px; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 560px) {
+      .seg { grid-template-columns: 1fr; }
+      .hud {
+        position: static;
+        margin: 10px;
+      }
+      canvas { min-height: 460px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>OpenCV Edge Threshold Lab</h1>
+        <p class="lede">A compact OpenCV.js workbench for comparing grayscale, blur, threshold, Canny edge, and contour-like overlays from either a live camera feed or a deterministic synthetic image.</p>
+      </div>
+      <div class="badge" id="runtime">Loading OpenCV</div>
+    </header>
+
+    <section class="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="stage" width="960" height="620" aria-label="OpenCV edge and threshold preview"></canvas>
+      <div class="hud">
+        <div class="metric"><span>Edge density</span><strong id="edgeDensity">0%</strong></div>
+        <div class="metric"><span>White pixels</span><strong id="whitePixels">0%</strong></div>
+        <div class="metric"><span>Frame cost</span><strong id="frameCost">0.0 ms</strong></div>
+        <div class="metric"><span>Source</span><strong id="sourceName">Synthetic</strong></div>
+      </div>
+    </section>
+
+    <aside>
+      <section>
+        <h2>Pipeline</h2>
+        <div class="seg" id="viewButtons">
+          <button data-view="source">Source</button>
+          <button data-view="gray">Gray</button>
+          <button data-view="threshold">Threshold</button>
+          <button data-view="edges" class="active">Edges</button>
+        </div>
+        <label>Blur radius <input id="blur" type="range" min="1" max="19" value="5" step="2"></label>
+        <label>Threshold <input id="threshold" type="range" min="0" max="255" value="120" step="1"></label>
+      </section>
+
+      <section>
+        <h2>Canny</h2>
+        <label>Low threshold <input id="cannyLow" type="range" min="0" max="255" value="48" step="1"></label>
+        <label>High threshold <input id="cannyHigh" type="range" min="0" max="255" value="142" step="1"></label>
+        <label>Overlay gain <input id="overlay" type="range" min="0" max="1" value="0.72" step="0.01"></label>
+      </section>
+
+      <section>
+        <h2>Input</h2>
+        <div class="seg">
+          <button id="camera">Start Camera</button>
+          <button id="synthetic" class="active">Synthetic</button>
+        </div>
+        <label>Motion <input id="motion" type="range" min="0" max="1" value="0.46" step="0.01"></label>
+        <div class="readout" id="log">
+          <span><b>state</b> waiting for OpenCV.js, fallback renderer is ready</span>
+          <span><b>next</b> tune thresholds, then try the camera on localhost</span>
+        </div>
+      </section>
+    </aside>
+
+    <footer>References: OpenCV.js tutorials and OpenCV image processing primitives. This original sample keeps a Canvas fallback so the controls remain inspectable while the OpenCV WASM runtime is loading or unavailable.</footer>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const video = document.querySelector("#video");
+    const sourceCanvas = document.createElement("canvas");
+    const workCanvas = document.createElement("canvas");
+    const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
+    const controls = {
+      blur: document.querySelector("#blur"),
+      threshold: document.querySelector("#threshold"),
+      cannyLow: document.querySelector("#cannyLow"),
+      cannyHigh: document.querySelector("#cannyHigh"),
+      overlay: document.querySelector("#overlay"),
+      motion: document.querySelector("#motion")
+    };
+    const els = {
+      runtime: document.querySelector("#runtime"),
+      edgeDensity: document.querySelector("#edgeDensity"),
+      whitePixels: document.querySelector("#whitePixels"),
+      frameCost: document.querySelector("#frameCost"),
+      sourceName: document.querySelector("#sourceName"),
+      camera: document.querySelector("#camera"),
+      synthetic: document.querySelector("#synthetic"),
+      log: document.querySelector("#log")
+    };
+    const lowW = 320;
+    const lowH = 206;
+    let view = "edges";
+    let cvReady = false;
+    let useCamera = false;
+    let stream = null;
+
+    function fit() {
+      const box = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const nextW = Math.max(420, Math.floor(box.width * dpr));
+      const nextH = Math.max(420, Math.floor(box.height * dpr));
+      if (canvas.width !== nextW || canvas.height !== nextH) {
+        canvas.width = nextW;
+        canvas.height = nextH;
+      }
+      if (sourceCanvas.width !== lowW) {
+        sourceCanvas.width = lowW;
+        sourceCanvas.height = lowH;
+        workCanvas.width = lowW;
+        workCanvas.height = lowH;
+      }
+    }
+
+    function writeLog(state, next) {
+      els.log.innerHTML = `<span><b>state</b> ${state}</span><span><b>next</b> ${next}</span>`;
+    }
+
+    function drawSynthetic(time) {
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      const motion = Number(controls.motion.value);
+      const drift = Math.sin(time * 1.3) * 24 * motion;
+      const grad = sourceCtx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#142521");
+      grad.addColorStop(0.5, "#263036");
+      grad.addColorStop(1, "#3a2314");
+      sourceCtx.fillStyle = grad;
+      sourceCtx.fillRect(0, 0, w, h);
+
+      sourceCtx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+      sourceCtx.lineWidth = 1;
+      for (let x = -w; x < w * 2; x += 18) {
+        sourceCtx.beginPath();
+        sourceCtx.moveTo(x + drift, 0);
+        sourceCtx.lineTo(x + drift + h * 0.7, h);
+        sourceCtx.stroke();
+      }
+
+      sourceCtx.fillStyle = "#80ebc7";
+      sourceCtx.fillRect(32 + drift * 0.25, 42, 92, 64);
+      sourceCtx.fillStyle = "#f3c96a";
+      sourceCtx.beginPath();
+      sourceCtx.arc(204 - drift * 0.18, 76 + Math.sin(time * 2) * 8 * motion, 38, 0, Math.PI * 2);
+      sourceCtx.fill();
+      sourceCtx.fillStyle = "#ef7d62";
+      sourceCtx.beginPath();
+      sourceCtx.moveTo(88, 170);
+      sourceCtx.lineTo(170 + drift * 0.36, 112);
+      sourceCtx.lineTo(260, 178);
+      sourceCtx.closePath();
+      sourceCtx.fill();
+
+      sourceCtx.strokeStyle = "#f5fff9";
+      sourceCtx.lineWidth = 5;
+      sourceCtx.beginPath();
+      sourceCtx.moveTo(34, 150);
+      sourceCtx.bezierCurveTo(92, 116 + drift * 0.2, 150, 198 - drift * 0.1, 290, 132);
+      sourceCtx.stroke();
+    }
+
+    function drawSource(time) {
+      if (useCamera && video.videoWidth) {
+        sourceCtx.save();
+        sourceCtx.translate(lowW, 0);
+        sourceCtx.scale(-1, 1);
+        sourceCtx.drawImage(video, 0, 0, lowW, lowH);
+        sourceCtx.restore();
+        return;
+      }
+      drawSynthetic(time);
+    }
+
+    function fallbackProcess() {
+      const src = sourceCtx.getImageData(0, 0, lowW, lowH);
+      const gray = new Uint8ClampedArray(lowW * lowH);
+      const threshold = Number(controls.threshold.value);
+      let white = 0;
+      for (let i = 0; i < gray.length; i += 1) {
+        const j = i * 4;
+        gray[i] = Math.round(src.data[j] * 0.299 + src.data[j + 1] * 0.587 + src.data[j + 2] * 0.114);
+      }
+      const out = workCtx.createImageData(lowW, lowH);
+      let edges = 0;
+      for (let y = 1; y < lowH - 1; y += 1) {
+        for (let x = 1; x < lowW - 1; x += 1) {
+          const i = y * lowW + x;
+          const gx = gray[i + 1] - gray[i - 1];
+          const gy = gray[i + lowW] - gray[i - lowW];
+          const mag = Math.min(255, Math.abs(gx) + Math.abs(gy));
+          const t = gray[i] > threshold ? 255 : 0;
+          const e = mag > Number(controls.cannyLow.value) ? 255 : 0;
+          if (t) white += 1;
+          if (e) edges += 1;
+          const value = view === "gray" ? gray[i] : view === "threshold" ? t : e;
+          const j = i * 4;
+          out.data[j] = value;
+          out.data[j + 1] = value;
+          out.data[j + 2] = value;
+          out.data[j + 3] = 255;
+        }
+      }
+      workCtx.putImageData(out, 0, 0);
+      return { edges, white, mode: "Canvas" };
+    }
+
+    function opencvProcess() {
+      const src = cv.imread(sourceCanvas);
+      const gray = new cv.Mat();
+      const blurred = new cv.Mat();
+      const thresholded = new cv.Mat();
+      const edges = new cv.Mat();
+      const k = Number(controls.blur.value);
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      cv.GaussianBlur(gray, blurred, new cv.Size(k, k), 0, 0, cv.BORDER_DEFAULT);
+      cv.threshold(blurred, thresholded, Number(controls.threshold.value), 255, cv.THRESH_BINARY);
+      cv.Canny(blurred, edges, Number(controls.cannyLow.value), Number(controls.cannyHigh.value));
+      const selected = view === "gray" ? blurred : view === "threshold" ? thresholded : edges;
+      cv.imshow(workCanvas, selected);
+      const edgeCount = cv.countNonZero(edges);
+      const whiteCount = cv.countNonZero(thresholded);
+      src.delete();
+      gray.delete();
+      blurred.delete();
+      thresholded.delete();
+      edges.delete();
+      return { edges: edgeCount, white: whiteCount, mode: "OpenCV" };
+    }
+
+    function drawOutput(stats) {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      if (view === "source") {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+        return;
+      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(workCanvas, 0, 0, w, h);
+      if (view === "edges") {
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = Number(controls.overlay.value);
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+        ctx.restore();
+      }
+      ctx.fillStyle = "rgba(4, 8, 7, 0.18)";
+      const gap = Math.max(22, Math.floor(w / 14));
+      for (let x = 0; x < w; x += gap) ctx.fillRect(x, 0, 1, h);
+      for (let y = 0; y < h; y += gap) ctx.fillRect(0, y, w, 1);
+    }
+
+    function frame(now) {
+      const start = performance.now();
+      fit();
+      drawSource(now / 1000);
+      let stats = { edges: 0, white: 0, mode: "Canvas" };
+      if (view === "source") {
+        fallbackProcess();
+      } else if (cvReady) {
+        stats = opencvProcess();
+      } else {
+        stats = fallbackProcess();
+      }
+      drawOutput(stats);
+      const total = lowW * lowH;
+      els.edgeDensity.textContent = `${(stats.edges / total * 100).toFixed(1)}%`;
+      els.whitePixels.textContent = `${(stats.white / total * 100).toFixed(1)}%`;
+      els.frameCost.textContent = `${(performance.now() - start).toFixed(1)} ms`;
+      els.sourceName.textContent = useCamera && video.videoWidth ? "Camera" : "Synthetic";
+      els.runtime.textContent = stats.mode;
+      requestAnimationFrame(frame);
+    }
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 620 }, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        useCamera = true;
+        els.camera.classList.add("active");
+        els.synthetic.classList.remove("active");
+        writeLog("camera source active", "adjust Canny thresholds against real edges");
+      } catch (error) {
+        useCamera = false;
+        writeLog("camera unavailable, synthetic source active", error.message);
+      }
+    }
+
+    function stopCamera() {
+      stream?.getTracks().forEach((track) => track.stop());
+      stream = null;
+      useCamera = false;
+      els.camera.classList.remove("active");
+      els.synthetic.classList.add("active");
+      writeLog("synthetic source active", "camera can be restarted when needed");
+    }
+
+    document.querySelector("#viewButtons").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-view]");
+      if (!button) return;
+      view = button.dataset.view;
+      document.querySelectorAll("button[data-view]").forEach((item) => item.classList.toggle("active", item === button));
+    });
+
+    els.camera.addEventListener("click", startCamera);
+    els.synthetic.addEventListener("click", stopCamera);
+
+    window.Module = {
+      onRuntimeInitialized() {
+        cvReady = true;
+        els.runtime.textContent = "OpenCV";
+        writeLog("OpenCV.js runtime ready", "switch views or start the camera");
+      }
+    };
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://docs.opencv.org/4.x/opencv.js";
+    script.onerror = () => {
+      cvReady = false;
+      els.runtime.textContent = "Canvas";
+      writeLog("OpenCV.js failed to load; Canvas fallback active", "the same controls still approximate the pipeline");
+    };
+    document.head.appendChild(script);
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
