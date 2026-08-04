@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Object Detector Threshold Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0a0d10;
+      color: #f4f7fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(125deg, rgba(22, 163, 184, 0.14), transparent 36%),
+        linear-gradient(315deg, rgba(238, 196, 77, 0.12), transparent 42%),
+        #0a0d10;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      border-bottom: 1px solid rgba(244, 247, 251, 0.14);
+      padding-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.4vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #c6d0d8;
+      line-height: 1.55;
+    }
+
+    button, input::file-selector-button {
+      min-height: 38px;
+      border: 1px solid rgba(72, 195, 214, 0.42);
+      background: rgba(72, 195, 214, 0.12);
+      color: #f4f7fb;
+      font: inherit;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    button.active {
+      background: #48c3d6;
+      color: #061113;
+      border-color: #48c3d6;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: wait;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      color: #c6d0d8;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #f0c95a;
+    }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      background: #050709;
+      border: 1px solid rgba(244, 247, 251, 0.16);
+      overflow: hidden;
+    }
+
+    canvas, video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    #camera {
+      display: none;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid rgba(244, 247, 251, 0.14);
+      background: rgba(11, 15, 18, 0.78);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .stat {
+      min-height: 68px;
+      border: 1px solid rgba(244, 247, 251, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 1.35rem;
+      line-height: 1.1;
+      color: #f0c95a;
+    }
+
+    .stat span, label, .hint {
+      color: #91a3af;
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .detections {
+      display: grid;
+      gap: 8px;
+      max-height: 310px;
+      overflow: auto;
+    }
+
+    .item {
+      border-left: 4px solid var(--item-color, #48c3d6);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 9px 10px;
+      border-radius: 4px;
+    }
+
+    .item strong {
+      display: block;
+      font-size: 0.95rem;
+    }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(240, 201, 90, 0.22);
+      background: rgba(240, 201, 90, 0.08);
+      color: #f5df9a;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Object Detector Threshold Lab</h1>
+        <p>MediaPipe Tasks Vision Object Detector を使い、静止画の検出ボックス、スコア、閾値の効き方を 1 画面で観察する自作ミニサンプルです。</p>
+      </div>
+      <p class="hint">Synthetic scene / upload / camera freeze</p>
+    </header>
+
+    <section class="stage">
+      <div class="canvas-wrap" aria-label="Detection stage">
+        <video id="camera" playsinline muted></video>
+        <canvas id="source" width="960" height="600"></canvas>
+        <canvas id="overlay" width="960" height="600"></canvas>
+      </div>
+      <div class="panel">
+        <div class="controls">
+          <button id="sceneButton" class="active" type="button">Synthetic scene</button>
+          <button id="cameraButton" type="button">Start camera</button>
+          <button id="freezeButton" type="button" disabled>Freeze frame</button>
+          <label class="wide">
+            Upload still
+            <input id="upload" type="file" accept="image/*">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Detection controls</h2>
+        <label for="threshold">Score threshold <span id="thresholdValue">0.45</span></label>
+        <input id="threshold" type="range" min="0.10" max="0.85" step="0.05" value="0.45">
+        <div class="row">
+          <label for="maxResults">Max results</label>
+          <input id="maxResults" type="range" min="1" max="8" step="1" value="5">
+        </div>
+        <p class="hint">MediaPipe の結果が空でも、合成シーンではフォールバック検出で UI の読み方を確認できます。</p>
+      </section>
+
+      <section class="panel">
+        <h2>Readout</h2>
+        <div class="stat-grid">
+          <div class="stat"><span>Detections</span><b id="count">0</b></div>
+          <div class="stat"><span>Inference</span><b id="latency">--</b></div>
+          <div class="stat"><span>Top label</span><b id="topLabel">--</b></div>
+          <div class="stat"><span>Source</span><b id="sourceType">scene</b></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Status</h2>
+        <div id="status" class="status">Loading MediaPipe Object Detector...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Detections</h2>
+        <div id="detections" class="detections"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    import { FilesetResolver, ObjectDetector } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+
+    const MODEL_URL = "https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite";
+    const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+    const colors = ["#48c3d6", "#f0c95a", "#f87979", "#9ee37d", "#c7a0ff", "#ff9f6e", "#7aa7ff", "#f6a6d4"];
+
+    const source = document.querySelector("#source");
+    const overlay = document.querySelector("#overlay");
+    const ctx = source.getContext("2d");
+    const octx = overlay.getContext("2d");
+    const status = document.querySelector("#status");
+    const detectionsEl = document.querySelector("#detections");
+    const threshold = document.querySelector("#threshold");
+    const thresholdValue = document.querySelector("#thresholdValue");
+    const maxResults = document.querySelector("#maxResults");
+    const count = document.querySelector("#count");
+    const latency = document.querySelector("#latency");
+    const topLabel = document.querySelector("#topLabel");
+    const sourceType = document.querySelector("#sourceType");
+    const sceneButton = document.querySelector("#sceneButton");
+    const cameraButton = document.querySelector("#cameraButton");
+    const freezeButton = document.querySelector("#freezeButton");
+    const upload = document.querySelector("#upload");
+    const camera = document.querySelector("#camera");
+
+    let detector = null;
+    let detectorReady = false;
+    let currentSource = "scene";
+    let cameraStream = null;
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function drawSyntheticScene() {
+      currentSource = "scene";
+      sourceType.textContent = "scene";
+      ctx.clearRect(0, 0, source.width, source.height);
+      const gradient = ctx.createLinearGradient(0, 0, source.width, source.height);
+      gradient.addColorStop(0, "#16202a");
+      gradient.addColorStop(1, "#071012");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, source.width, source.height);
+
+      ctx.fillStyle = "#263642";
+      ctx.fillRect(70, 420, 820, 64);
+      ctx.fillStyle = "#41515d";
+      ctx.fillRect(120, 466, 730, 18);
+
+      ctx.fillStyle = "#f1f5f9";
+      roundRect(ctx, 185, 174, 145, 178, 30);
+      ctx.fill();
+      ctx.strokeStyle = "#9aa8b3";
+      ctx.lineWidth = 13;
+      ctx.beginPath();
+      ctx.arc(330, 255, 42, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      ctx.fillStyle = "#c5d0d8";
+      ctx.fillRect(205, 214, 104, 10);
+
+      ctx.fillStyle = "#e94e4e";
+      ctx.beginPath();
+      ctx.arc(472, 342, 58, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#7fba61";
+      ctx.beginPath();
+      ctx.ellipse(505, 285, 35, 15, -0.7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#182126";
+      roundRect(ctx, 620, 182, 116, 210, 22);
+      ctx.fill();
+      ctx.fillStyle = "#33414a";
+      roundRect(ctx, 635, 204, 86, 155, 14);
+      ctx.fill();
+      ctx.fillStyle = "#7ad7e8";
+      ctx.fillRect(666, 370, 22, 5);
+
+      ctx.save();
+      ctx.translate(420, 175);
+      ctx.rotate(-0.12);
+      ctx.fillStyle = "#f0c95a";
+      roundRect(ctx, -98, -35, 196, 70, 12);
+      ctx.fill();
+      ctx.fillStyle = "#5e4931";
+      ctx.fillRect(-78, -14, 156, 9);
+      ctx.restore();
+
+      ctx.fillStyle = "#dae4e9";
+      ctx.font = "700 24px Inter, system-ui";
+      ctx.fillText("synthetic desk", 70, 72);
+      ctx.font = "16px Inter, system-ui";
+      ctx.fillStyle = "#9fb1bc";
+      ctx.fillText("cup / apple / phone / book-like shapes for detector probing", 70, 101);
+    }
+
+    function roundRect(context, x, y, width, height, radius) {
+      context.beginPath();
+      context.moveTo(x + radius, y);
+      context.lineTo(x + width - radius, y);
+      context.quadraticCurveTo(x + width, y, x + width, y + radius);
+      context.lineTo(x + width, y + height - radius);
+      context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      context.lineTo(x + radius, y + height);
+      context.quadraticCurveTo(x, y + height, x, y + height - radius);
+      context.lineTo(x, y + radius);
+      context.quadraticCurveTo(x, y, x + radius, y);
+      context.closePath();
+    }
+
+    async function initDetector() {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+        detector = await ObjectDetector.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL_URL },
+          scoreThreshold: Number(threshold.value),
+          maxResults: Number(maxResults.value),
+          runningMode: "IMAGE"
+        });
+        detectorReady = true;
+        setStatus("MediaPipe Object Detector is ready.");
+      } catch (error) {
+        detectorReady = false;
+        setStatus(`MediaPipe load failed; using local fallback boxes. ${error.message}`);
+      }
+      await runDetection();
+    }
+
+    async function runDetection() {
+      const minScore = Number(threshold.value);
+      thresholdValue.textContent = minScore.toFixed(2);
+      let result = { detections: [] };
+      const started = performance.now();
+
+      if (detectorReady) {
+        try {
+          await detector.setOptions({
+            scoreThreshold: minScore,
+            maxResults: Number(maxResults.value)
+          });
+          result = detector.detect(source);
+        } catch (error) {
+          setStatus(`Detection failed; showing fallback boxes. ${error.message}`);
+          result = { detections: [] };
+        }
+      }
+
+      const elapsed = performance.now() - started;
+      let detections = normalizeDetections(result.detections || []);
+      if (!detections.length && currentSource === "scene") {
+        detections = fallbackDetections(minScore, Number(maxResults.value));
+      }
+      drawDetections(detections);
+      renderList(detections);
+      count.textContent = detections.length;
+      latency.textContent = detectorReady ? `${elapsed.toFixed(1)}ms` : "fallback";
+      topLabel.textContent = detections[0]?.label || "--";
+    }
+
+    function normalizeDetections(raw) {
+      return raw.map((detection, index) => {
+        const box = detection.boundingBox || {};
+        const category = detection.categories?.[0] || {};
+        return {
+          label: category.categoryName || category.displayName || `object ${index + 1}`,
+          score: Number(category.score || 0),
+          box: {
+            x: Number(box.originX || 0),
+            y: Number(box.originY || 0),
+            width: Number(box.width || 0),
+            height: Number(box.height || 0)
+          }
+        };
+      }).filter((item) => item.box.width > 0 && item.box.height > 0);
+    }
+
+    function fallbackDetections(minScore, limit) {
+      const boxes = [
+        { label: "cup shape", score: 0.82, box: { x: 180, y: 168, width: 206, height: 192 } },
+        { label: "apple shape", score: 0.76, box: { x: 413, y: 283, width: 128, height: 121 } },
+        { label: "phone shape", score: 0.71, box: { x: 615, y: 176, width: 127, height: 224 } },
+        { label: "book shape", score: 0.64, box: { x: 313, y: 126, width: 220, height: 91 } }
+      ];
+      return boxes.filter((item) => item.score >= minScore).slice(0, limit);
+    }
+
+    function drawDetections(detections) {
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+      detections.forEach((item, index) => {
+        const color = colors[index % colors.length];
+        const { x, y, width, height } = item.box;
+        octx.strokeStyle = color;
+        octx.lineWidth = 4;
+        octx.strokeRect(x, y, width, height);
+        const label = `${item.label} ${(item.score * 100).toFixed(0)}%`;
+        octx.font = "700 18px Inter, system-ui";
+        const metrics = octx.measureText(label);
+        octx.fillStyle = color;
+        octx.fillRect(x, Math.max(0, y - 28), Math.min(metrics.width + 16, overlay.width - x), 28);
+        octx.fillStyle = "#071012";
+        octx.fillText(label, x + 8, Math.max(20, y - 8));
+      });
+    }
+
+    function renderList(detections) {
+      detectionsEl.innerHTML = detections.length
+        ? detections.map((item, index) => `
+          <div class="item" style="--item-color: ${colors[index % colors.length]}">
+            <strong>${escapeHtml(item.label)} ${(item.score * 100).toFixed(1)}%</strong>
+            <span>x ${item.box.x.toFixed(0)}, y ${item.box.y.toFixed(0)}, w ${item.box.width.toFixed(0)}, h ${item.box.height.toFixed(0)}</span>
+          </div>`).join("")
+        : "<p class=\"hint\">No boxes above the current threshold.</p>";
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    async function startCamera() {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 600 }, audio: false });
+        camera.srcObject = cameraStream;
+        await camera.play();
+        cameraButton.classList.add("active");
+        freezeButton.disabled = false;
+        setStatus("Camera is running. Freeze a frame to detect it.");
+      } catch (error) {
+        setStatus(`Camera unavailable: ${error.message}`);
+      }
+    }
+
+    function freezeCameraFrame() {
+      if (!camera.videoWidth) return;
+      currentSource = "camera";
+      sourceType.textContent = "camera";
+      ctx.clearRect(0, 0, source.width, source.height);
+      ctx.drawImage(camera, 0, 0, source.width, source.height);
+      runDetection();
+    }
+
+    function loadImage(file) {
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        currentSource = "upload";
+        sourceType.textContent = "upload";
+        ctx.clearRect(0, 0, source.width, source.height);
+        const scale = Math.min(source.width / img.width, source.height / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        const x = (source.width - width) / 2;
+        const y = (source.height - height) / 2;
+        ctx.fillStyle = "#050709";
+        ctx.fillRect(0, 0, source.width, source.height);
+        ctx.drawImage(img, x, y, width, height);
+        URL.revokeObjectURL(img.src);
+        runDetection();
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    threshold.addEventListener("input", runDetection);
+    maxResults.addEventListener("input", runDetection);
+    sceneButton.addEventListener("click", () => {
+      drawSyntheticScene();
+      runDetection();
+    });
+    cameraButton.addEventListener("click", startCamera);
+    freezeButton.addEventListener("click", freezeCameraFrame);
+    upload.addEventListener("change", (event) => loadImage(event.target.files?.[0]));
+
+    drawSyntheticScene();
+    initDetector();
+  </script>
+</body>
+</html>

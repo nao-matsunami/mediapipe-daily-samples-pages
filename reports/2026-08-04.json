@@ -1,0 +1,139 @@
+{
+  "date": "2026-08-04",
+  "headline": "Object Detector の閾値を 1 画面で観察する",
+  "headlineEn": "Inspect Object Detector thresholds in one screen",
+  "summary": "MediaPipe Tasks Vision の Object Detector を使い、静止画に対する検出ボックス、スコア、scoreThreshold、maxResults の効き方を観察する自作 HTML ラボを追加しました。合成シーン、アップロード画像、カメラのフリーズフレームを扱い、モデル取得に失敗した環境でも合成シーンのフォールバック検出で UI の読み方を確認できます。",
+  "summaryEn": "Added an original HTML lab for MediaPipe Tasks Vision Object Detector. It inspects detection boxes, scores, scoreThreshold, and maxResults on a still frame from a synthetic scene, uploaded image, or frozen camera frame, with fallback boxes for the synthetic scene when the model cannot be loaded.",
+  "keyTopics": [
+    "Object Detector は画像内の複数クラスの物体位置を bounding box とカテゴリスコアで返す MediaPipe Tasks の Vision タスク。",
+    "Web 実装では `@mediapipe/tasks-vision`、`FilesetResolver.forVisionTasks()`、`ObjectDetector.createFromOptions()`、EfficientDet Lite モデルを組み合わせる。",
+    "公式 Web ガイドは `scoreThreshold`、`maxResults`、`displayNamesLocale`、allowlist / denylist など、結果の量と意味を調整するオプションを示している。",
+    "`detect()` / `detectForVideo()` は同期実行で UI スレッドをブロックし得るため、ライブカメラ化するなら Worker 分離が重要になる。",
+    "今日の試作は公式デモ一覧ではなく、自作の合成シーン、アップロード、カメラフリーズ、閾値スライダー、検出リストを中心にした。"
+  ],
+  "keyTopicsEn": [
+    "Object Detector is a MediaPipe Tasks vision task that returns object locations as bounding boxes with category scores.",
+    "The web implementation combines `@mediapipe/tasks-vision`, `FilesetResolver.forVisionTasks()`, `ObjectDetector.createFromOptions()`, and an EfficientDet Lite model.",
+    "The official web guide documents options such as `scoreThreshold`, `maxResults`, `displayNamesLocale`, allowlists, and denylists for shaping result quantity and meaning.",
+    "`detect()` and `detectForVideo()` run synchronously and can block the UI thread, so live-camera use should move inference into a Worker.",
+    "Today's prototype centers an original synthetic scene, upload path, camera freeze, threshold slider, and detection list rather than external demo cards."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Object Detector Threshold Lab",
+      "url": "../outputs/2026-08-04_object_detector_threshold_lab.html"
+    },
+    {
+      "label": "Object detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/object_detector/web_js"
+    },
+    {
+      "label": "MediaPipe Tasks overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/tasks"
+    },
+    {
+      "label": "ObjectDetector API reference",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ObjectDetector"
+    },
+    {
+      "label": "ObjectDetectorOptions API reference",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ObjectDetectorOptions"
+    },
+    {
+      "label": "MediaPipe Tasks web examples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は MediaPipe Object Detector です。Image Segmenter がピクセル単位の領域を返すのに対し、Object Detector は物体単位の候補を bounding box とスコアで返すため、クリック候補、検索対象、在庫カウント、注釈作成などの UI の入口になります。スコア閾値を少し変えるだけで、画面上に残る候補数と上位ラベルが変わるところが試作向きです。",
+      "bodyEn": "Today's focus is MediaPipe Object Detector. Unlike Image Segmenter, which returns pixel-level regions, Object Detector returns object-level candidates as bounding boxes and scores, making it a useful entry point for click suggestions, search targets, inventory counts, and annotation tools. Small threshold changes visibly alter the remaining candidates and top label, which makes it well suited to a compact prototype.",
+      "links": [
+        {
+          "label": "Object detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/object_detector/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "自作サンプルでは、合成された机上シーンに対して box overlay と検出リストを出し、scoreThreshold と maxResults をスライダーで変えられるようにしました。アップロード画像やカメラのフリーズフレームでも同じ表示を使えるため、同じ UI で合成入力と実入力を比較できます。トップラベル、推論時間、検出数を右側に固定し、閾値を動かしたときの変化を読みやすくしています。",
+      "bodyEn": "The original sample renders box overlays and a detection list on a synthetic desktop scene, with sliders for scoreThreshold and maxResults. Uploaded images and frozen camera frames use the same display, so synthetic and real inputs can be compared through one UI. Top label, inference time, and detection count stay pinned on the right to make threshold changes easy to read."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "このサンプルで蓄積できる bounding box、カテゴリ名、スコア、閾値、入力種別、推論時間は、検出 UI の品質ログになります。Interactive Segmenter と組み合わせると box 内のクリック候補を提示でき、Image Segmenter と組み合わせると box と mask の一致度を見られます。Web Speech API で「赤い物体を探して」のような入力を受けたり、LLM に検出リストを渡して写真内の要約や確認質問を作らせたりする発展もできます。",
+      "bodyEn": "The sample can accumulate bounding boxes, category names, scores, thresholds, input type, and inference time as quality logs for detection UI. Paired with Interactive Segmenter, boxes can suggest click targets; paired with Image Segmenter, box-mask agreement can be inspected. It can also take commands through the Web Speech API or pass detection lists to an LLM for image summaries and clarification questions."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Web 版は `FilesetResolver.forVisionTasks()` で WASM を読み、`ObjectDetector.createFromOptions()` に `modelAssetPath`、`scoreThreshold`、`maxResults`、`runningMode: \"IMAGE\"` を渡します。今回のサンプルは Canvas に入力を描いてから `detector.detect(canvas)` を呼び、返ってきた `boundingBox` と `categories[0].score` を別 Canvas に描画しました。公式モデルや CDN が取れない場合でも合成シーン用の fallback boxes を表示し、レイアウトと検証項目を確認できるようにしています。",
+      "bodyEn": "The web version loads Wasm with `FilesetResolver.forVisionTasks()` and passes `modelAssetPath`, `scoreThreshold`, `maxResults`, and `runningMode: \"IMAGE\"` to `ObjectDetector.createFromOptions()`. This sample draws the chosen input into a Canvas, calls `detector.detect(canvas)`, and renders returned `boundingBox` and `categories[0].score` values on a second Canvas. If the official model or CDN is unavailable, fallback boxes for the synthetic scene keep the layout and inspection flow usable.",
+      "links": [
+        {
+          "label": "ObjectDetectorOptions API reference",
+          "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ObjectDetectorOptions"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は live video で `detectForVideo()` を使う場合の Worker 化、検出結果の temporal smoothing、allowlist / denylist UI、Object Detector と Interactive Segmenter の接続、MediaPipe releases の JavaScript / Web LLM まわりを見ます。公式 samples-web は Vision / Audio / Text タスクを横断しているため、日次サンプルを単体タスクから複合ワークフローへ広げる参考になります。",
+      "bodyEn": "Next, watch Worker execution for `detectForVideo()` in live video, temporal smoothing for detection results, allowlist / denylist UI, connections between Object Detector and Interactive Segmenter, and JavaScript / Web LLM notes in MediaPipe releases. The official samples-web project spans vision, audio, and text tasks, making it useful for expanding daily samples from single tasks into compound workflows.",
+      "links": [
+        {
+          "label": "MediaPipe Tasks web examples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        },
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず合成シーンのまま scoreThreshold を 0.10 から 0.85 まで動かし、検出数とトップラベルがどう変わるか見てください。次に Upload still で手元の机や棚の写真を入れ、maxResults を 1 から 8 へ動かすと、上位候補だけを使う UI と候補一覧 UI の違いが分かります。カメラが使える環境では Start camera から Freeze frame を押すだけで同じ検出フローに入れます。",
+      "bodyEn": "First keep the synthetic scene and move scoreThreshold from 0.10 to 0.85 to see how detection count and top label change. Then upload a desk or shelf photo and move maxResults from 1 to 8 to compare a top-candidate UI with a candidate-list UI. In a camera-enabled environment, Start camera and Freeze frame feed the same detection flow.",
+      "links": [
+        {
+          "label": "Open Object Detector Threshold Lab",
+          "url": "../outputs/2026-08-04_object_detector_threshold_lab.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Object Detector の Web ガイド、MediaPipe Tasks 概要、ObjectDetector / ObjectDetectorOptions API、公式 samples-web、公式デモ、MediaPipe releases を確認。設計: 外部デモ集ではなく、閾値操作に絞った 1 ファイルの自作サンプルにした。実装: 合成シーン、画像アップロード、カメラフリーズ、Object Detector 呼び出し、box overlay、検出リスト、推論時間、fallback boxes を追加。検証: JSON 構文確認、gallery 再生成、公開スクリプト実行、公開 URL の HTTP 応答確認を行う。",
+      "bodyEn": "Research: reviewed the Object Detector web guide, MediaPipe Tasks overview, ObjectDetector / ObjectDetectorOptions APIs, official samples-web, official demo, and MediaPipe releases. Design: built a one-file original sample focused on threshold controls rather than external demo listings. Implementation: added synthetic scene, image upload, camera freeze, Object Detector call, box overlay, detection list, inference timing, and fallback boxes. Validation: parse JSON, regenerate the gallery, run the publish script, and check the public URL."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "ここまでの流れは、Hand Landmarker で点、Image / Interactive Segmenter で面、Object Detector で箱を扱う段階に進みました。点、面、箱の 3 つがそろうと、Web ML の小さな UI でも「見る」「選ぶ」「編集する」「記録する」を分けて設計しやすくなります。日次アーカイブとしては、今後の複合サンプルの基礎部品が増えた状態です。",
+      "bodyEn": "The archive has now covered points with Hand Landmarker, areas with Image / Interactive Segmenter, and boxes with Object Detector. Once points, areas, and boxes are all available, even small Web ML UIs can separate seeing, selecting, editing, and logging. For the daily archive, this adds another base component for future compound samples."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Object Detector Threshold Lab` です。実際に動く部分は、MediaPipe Tasks Vision の Object Detector 読み込み、Canvas 入力への `detect()`、検出 box overlay、scoreThreshold と maxResults の調整、合成シーン / アップロード画像 / カメラフリーズ入力、検出数と推論時間の表示です。次に足すなら live video の Worker 化、検出結果の履歴グラフ、allowlist / denylist、box から Interactive Segmenter へ渡すクリック候補を加えます。",
+      "bodyEn": "The selected prototype is `Object Detector Threshold Lab`. The working parts are MediaPipe Tasks Vision Object Detector loading, `detect()` on a Canvas input, detection box overlay, scoreThreshold and maxResults controls, synthetic / uploaded / frozen-camera inputs, and detection-count plus inference-time readouts. Next additions should include live-video Worker execution, detection history charts, allowlist / denylist controls, and box-derived click candidates for Interactive Segmenter."
+    }
+  ]
+}
