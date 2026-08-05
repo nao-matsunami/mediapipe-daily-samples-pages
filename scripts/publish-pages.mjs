@@ -6,7 +6,7 @@ import { Buffer } from "node:buffer";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const sourceDir = path.resolve(scriptDir, "..");
-const targetDir = "/Users/nao/Documents/Codex/mediapipe-daily-samples-pages";
+const targetDir = process.env.PUBLISH_TARGET_DIR || "/Users/nao/Documents/Codex/mediapipe-daily-samples-pages";
 const repo = "nao-matsunami/mediapipe-daily-samples-pages";
 
 function run(command, args, cwd, stdio = "inherit") {
