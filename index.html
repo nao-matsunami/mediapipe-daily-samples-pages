@@ -21,6 +21,9 @@
     .badge { border: 1px solid rgba(141, 242, 200, .32); color: #f4fbff; background: rgba(141, 242, 200, .09); padding: 4px 8px; font-size: .72rem; text-transform: uppercase; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
     .actions a { border: 1px solid rgba(141, 242, 200, .34); padding: 9px 11px; text-decoration: none; }
+    .sample-list { display: grid; gap: 8px; margin-top: 12px; }
+    .sample-list a { border-top: 1px solid rgba(194, 244, 224, .14); padding-top: 8px; text-decoration: none; color: #f4fbff; }
+    .sample-list span { display: inline-block; color: #8df2c8; font-size: .72rem; text-transform: uppercase; margin-right: 8px; }
     iframe { width: 100%; height: min(720px, 80vh); border: 1px solid rgba(194, 244, 224, .18); background: #05080b; }
     .sample-frame { margin-top: 18px; }
     .en { color: #8fa39d; }
@@ -30,7 +33,7 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span></p></div><p class="date">6 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">OpenCV.js</span></p></div><p class="date">6 samples</p></header><div class="grid"><article class="card">
       <p class="meta"><span class="date">2026-08-05</span><span class="badge">MediaPipe</span></p>
       <h2>Pose Landmarker で姿勢バランスを読む</h2>
       <p class="en">Read posture balance with Pose Landmarker</p>
@@ -39,6 +42,7 @@
         <a href="days/2026-08-05.html">日付ページ</a>
         <a href="outputs/2026-08-05_pose_landmarker_balance_meter.html">サンプル</a>
       </div>
+      <div class="sample-list"><a href="outputs/2026-08-05_opencv_contour_finder_lab.html"><span>OpenCV.js</span>OpenCV Contour Finder Lab</a></div>
     </article><article class="card">
       <p class="meta"><span class="date">2026-08-04</span><span class="badge">MediaPipe</span></p>
       <h2>Object Detector の閾値を 1 画面で観察する</h2>
@@ -48,6 +52,7 @@
         <a href="days/2026-08-04.html">日付ページ</a>
         <a href="outputs/2026-08-04_object_detector_threshold_lab.html">サンプル</a>
       </div>
+      
     </article><article class="card">
       <p class="meta"><span class="date">2026-08-03</span><span class="badge">MediaPipe</span></p>
       <h2>Interactive Segmenter でクリック対象を切り出す</h2>
@@ -57,6 +62,7 @@
         <a href="days/2026-08-03.html">日付ページ</a>
         <a href="outputs/2026-08-03_interactive_segmenter_click_studio.html">サンプル</a>
       </div>
+      <div class="sample-list"><a href="outputs/2026-08-03_opencv_edge_threshold_lab.html"><span>OpenCV.js</span>OpenCV Edge Threshold Lab</a></div>
     </article><article class="card">
       <p class="meta"><span class="date">2026-08-02</span><span class="badge">MediaPipe</span></p>
       <h2>Image Segmenter のマスク合成を自作 UI で触る</h2>
@@ -66,6 +72,7 @@
         <a href="days/2026-08-02.html">日付ページ</a>
         <a href="outputs/2026-08-02_image_segmenter_matte_studio.html">サンプル</a>
       </div>
+      
     </article><article class="card">
       <p class="meta"><span class="date">2026-08-01</span><span class="badge">MediaPipe</span></p>
       <h2>Gesture Recognizer の結果を action gate で安定化する</h2>
@@ -75,6 +82,7 @@
         <a href="days/2026-08-01.html">日付ページ</a>
         <a href="outputs/2026-08-01_html_gesture_action_hysteresis_gate.html">サンプル</a>
       </div>
+      
     </article><article class="card">
       <p class="meta"><span class="date">2026-07-31</span><span class="badge">MediaPipe</span></p>
       <h2>Hand Landmarker を遅延読み込みと合成手で試す</h2>
@@ -84,6 +92,7 @@
         <a href="days/2026-07-31.html">日付ページ</a>
         <a href="outputs/2026-07-31_html_hand_landmark_latency_probe.html">サンプル</a>
       </div>
+      
     </article></div>
   </main>
 </body>
