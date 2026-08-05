@@ -1,5 +1,6 @@
 {
   "date": "2026-08-01",
+  "category": "MediaPipe",
   "headline": "Gesture Recognizer の結果を action gate で安定化する",
   "headlineEn": "Stabilizing Gesture Recognizer results with an action gate",
   "summary": "Google AI Edge の Gesture Recognizer Web guide、GestureRecognizer JS API、公式 samples を確認し、カメラ入力の `recognizeForVideo()` と synthetic stream の両方で、enter / exit threshold、hold frames、cooldown による action gate を試せる自作 HTML サンプルを追加しました。",

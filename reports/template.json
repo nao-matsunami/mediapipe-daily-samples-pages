@@ -1,5 +1,6 @@
 {
   "date": "YYYY-MM-DD",
+  "category": "MediaPipe",
   "headline": "日本語の見出し",
   "headlineEn": "English headline",
   "summary": "日本語の短い要約。",

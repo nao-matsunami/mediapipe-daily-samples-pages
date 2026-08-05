@@ -1,5 +1,6 @@
 {
   "date": "2026-08-02",
+  "category": "MediaPipe",
   "headline": "Image Segmenter のマスク合成を自作 UI で触る",
   "headlineEn": "Exploring Image Segmenter matte compositing with an original UI",
   "summary": "Google AI Edge の Image Segmenter / Interactive Segmenter / tasks-vision API / 公式 Web デモを確認し、webcam `segmentForVideo()` と synthetic matte の両方で threshold、feather、edge、composite を検証できる自作の segmentation matte ワークベンチを作成しました。",

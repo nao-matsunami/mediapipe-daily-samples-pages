@@ -1,5 +1,6 @@
 {
   "date": "2026-08-03",
+  "category": "MediaPipe",
   "headline": "Interactive Segmenter でクリック対象を切り出す",
   "headlineEn": "Click-target extraction with Interactive Segmenter",
   "summary": "MediaPipe Interactive Image Segmenter の Web API を使い、画像上のクリック点を ROI として渡して対象物マスクを作る自作 HTML ワークベンチを追加しました。合成画像、アップロード画像、カメラのフリーズフレームを扱い、マスク面積、推論時間、オーバーレイ強度を観察できます。",

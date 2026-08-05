@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pose Landmarker Balance Meter</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b0f12;
+      color: #f4f7fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(125deg, rgba(34, 184, 132, 0.13), transparent 36%),
+        linear-gradient(315deg, rgba(246, 197, 83, 0.11), transparent 42%),
+        #0b0f12;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      border-bottom: 1px solid rgba(244, 247, 251, 0.14);
+      padding-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.4vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #c5d0d7;
+      line-height: 1.55;
+    }
+
+    button, input::file-selector-button {
+      min-height: 38px;
+      border: 1px solid rgba(85, 210, 165, 0.42);
+      background: rgba(85, 210, 165, 0.12);
+      color: #f4f7fb;
+      font: inherit;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    button.active {
+      background: #55d2a5;
+      color: #06130f;
+      border-color: #55d2a5;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: wait;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      color: #c5d0d7;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #f1c453;
+    }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      background: #05080a;
+      border: 1px solid rgba(244, 247, 251, 0.16);
+      overflow: hidden;
+    }
+
+    canvas, video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    #camera {
+      display: none;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid rgba(244, 247, 251, 0.14);
+      background: rgba(11, 15, 18, 0.78);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .stat {
+      min-height: 68px;
+      border: 1px solid rgba(244, 247, 251, 0.1);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 1.28rem;
+      line-height: 1.1;
+      color: #f1c453;
+      overflow-wrap: anywhere;
+    }
+
+    .stat span, label, .hint {
+      color: #91a3af;
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(241, 196, 83, 0.22);
+      background: rgba(241, 196, 83, 0.08);
+      color: #f7df9b;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .meter {
+      height: 12px;
+      margin-top: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #f37969, #f1c453, #55d2a5);
+      transition: width 160ms ease;
+    }
+
+    .landmarks {
+      display: grid;
+      gap: 8px;
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    .item {
+      border-left: 4px solid #55d2a5;
+      background: rgba(255, 255, 255, 0.045);
+      padding: 9px 10px;
+      border-radius: 4px;
+    }
+
+    .item strong {
+      display: block;
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Pose Landmarker Balance Meter</h1>
+        <p>MediaPipe Tasks Vision Pose Landmarker の 33 点ランドマークを使い、肩・腰・足首の左右差から姿勢バランスを読む自作ミニサンプルです。</p>
+      </div>
+      <p class="hint">Synthetic pose / upload / camera freeze</p>
+    </header>
+
+    <section class="stage">
+      <div class="canvas-wrap" aria-label="Pose stage">
+        <video id="camera" playsinline muted></video>
+        <canvas id="source" width="960" height="600"></canvas>
+        <canvas id="overlay" width="960" height="600"></canvas>
+      </div>
+      <div class="panel">
+        <div class="controls">
+          <button id="sceneButton" class="active" type="button">Synthetic pose</button>
+          <button id="cameraButton" type="button">Start camera</button>
+          <button id="freezeButton" type="button" disabled>Freeze frame</button>
+          <label class="wide">
+            Upload person image
+            <input id="upload" type="file" accept="image/*">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Pose controls</h2>
+        <label for="visibility">Minimum visibility <span id="visibilityValue">0.35</span></label>
+        <input id="visibility" type="range" min="0.05" max="0.85" step="0.05" value="0.35">
+        <div class="row">
+          <label for="mirror">Mirror overlay</label>
+          <input id="mirror" type="checkbox" checked>
+        </div>
+        <p class="hint">アップロードやカメラでは MediaPipe の推論結果を使い、合成ポーズではフォールバックの 33 点で表示を確認できます。</p>
+      </section>
+
+      <section class="panel">
+        <h2>Readout</h2>
+        <div class="stat-grid">
+          <div class="stat"><span>Poses</span><b id="poseCount">0</b></div>
+          <div class="stat"><span>Inference</span><b id="latency">--</b></div>
+          <div class="stat"><span>Balance</span><b id="balanceScore">--</b></div>
+          <div class="stat"><span>Reach span</span><b id="reachSpan">--</b></div>
+        </div>
+        <div class="meter" aria-label="Balance meter"><div id="balanceFill" class="fill"></div></div>
+      </section>
+
+      <section class="panel">
+        <h2>Status</h2>
+        <div id="status" class="status">Loading MediaPipe Pose Landmarker...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Key landmarks</h2>
+        <div id="landmarkList" class="landmarks"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+
+    const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+    const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+    const bonePairs = [
+      [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+      [11, 23], [12, 24], [23, 24], [23, 25], [25, 27],
+      [24, 26], [26, 28], [27, 29], [29, 31], [28, 30], [30, 32],
+      [15, 17], [15, 19], [15, 21], [16, 18], [16, 20], [16, 22]
+    ];
+    const namedPoints = [
+      ["left shoulder", 11], ["right shoulder", 12], ["left wrist", 15],
+      ["right wrist", 16], ["left hip", 23], ["right hip", 24],
+      ["left ankle", 27], ["right ankle", 28]
+    ];
+
+    const source = document.querySelector("#source");
+    const overlay = document.querySelector("#overlay");
+    const ctx = source.getContext("2d");
+    const octx = overlay.getContext("2d");
+    const status = document.querySelector("#status");
+    const visibility = document.querySelector("#visibility");
+    const visibilityValue = document.querySelector("#visibilityValue");
+    const mirror = document.querySelector("#mirror");
+    const poseCount = document.querySelector("#poseCount");
+    const latency = document.querySelector("#latency");
+    const balanceScore = document.querySelector("#balanceScore");
+    const reachSpan = document.querySelector("#reachSpan");
+    const balanceFill = document.querySelector("#balanceFill");
+    const landmarkList = document.querySelector("#landmarkList");
+    const sceneButton = document.querySelector("#sceneButton");
+    const cameraButton = document.querySelector("#cameraButton");
+    const freezeButton = document.querySelector("#freezeButton");
+    const upload = document.querySelector("#upload");
+    const camera = document.querySelector("#camera");
+
+    let landmarker = null;
+    let landmarkerReady = false;
+    let currentSource = "scene";
+    let cameraStream = null;
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function roundRect(context, x, y, width, height, radius) {
+      context.beginPath();
+      context.moveTo(x + radius, y);
+      context.lineTo(x + width - radius, y);
+      context.quadraticCurveTo(x + width, y, x + width, y + radius);
+      context.lineTo(x + width, y + height - radius);
+      context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      context.lineTo(x + radius, y + height);
+      context.quadraticCurveTo(x, y + height, x, y + height - radius);
+      context.lineTo(x, y + radius);
+      context.quadraticCurveTo(x, y, x + radius, y);
+      context.closePath();
+    }
+
+    function drawSyntheticPose() {
+      currentSource = "scene";
+      sceneButton.classList.add("active");
+      ctx.clearRect(0, 0, source.width, source.height);
+      const gradient = ctx.createLinearGradient(0, 0, source.width, source.height);
+      gradient.addColorStop(0, "#13242a");
+      gradient.addColorStop(1, "#091012");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, source.width, source.height);
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.lineWidth = 1;
+      for (let x = 80; x < source.width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 80);
+        ctx.lineTo(x, 535);
+        ctx.stroke();
+      }
+      for (let y = 120; y < 560; y += 80) {
+        ctx.beginPath();
+        ctx.moveTo(70, y);
+        ctx.lineTo(890, y);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#1e2b31";
+      roundRect(ctx, 300, 128, 360, 372, 22);
+      ctx.fill();
+      ctx.fillStyle = "#30434b";
+      roundRect(ctx, 332, 160, 296, 310, 18);
+      ctx.fill();
+      ctx.fillStyle = "#091012";
+      roundRect(ctx, 356, 184, 248, 262, 12);
+      ctx.fill();
+
+      const fallback = fallbackLandmarks();
+      drawPose(fallback, true);
+      ctx.fillStyle = "#dde7ec";
+      ctx.font = "700 24px Inter, system-ui";
+      ctx.fillText("synthetic posture panel", 70, 72);
+      ctx.font = "16px Inter, system-ui";
+      ctx.fillStyle = "#9fb1bc";
+      ctx.fillText("use upload or camera freeze for real Pose Landmarker inference", 70, 101);
+      renderPose(fallback, true, "Synthetic fallback pose.");
+    }
+
+    async function initLandmarker() {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+        landmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL_URL },
+          runningMode: "IMAGE",
+          numPoses: 1,
+          minPoseDetectionConfidence: 0.35,
+          minPosePresenceConfidence: 0.35,
+          minTrackingConfidence: 0.35
+        });
+        landmarkerReady = true;
+        setStatus("MediaPipe Pose Landmarker is ready. Upload or freeze a person frame to infer.");
+      } catch (error) {
+        landmarkerReady = false;
+        setStatus(`MediaPipe load failed; synthetic pose remains interactive. ${error.message}`);
+      }
+    }
+
+    async function runPoseDetection() {
+      visibilityValue.textContent = Number(visibility.value).toFixed(2);
+      if (currentSource === "scene") {
+        renderPose(fallbackLandmarks(), true, "Synthetic fallback pose.");
+        return;
+      }
+      if (!landmarkerReady) {
+        renderPose([], false, "MediaPipe is not ready for real inference.");
+        return;
+      }
+
+      const started = performance.now();
+      try {
+        const result = landmarker.detect(source);
+        const elapsed = performance.now() - started;
+        const firstPose = result.landmarks?.[0] || [];
+        renderPose(firstPose, false, firstPose.length ? `Pose detected in ${elapsed.toFixed(1)}ms.` : "No pose detected.");
+        latency.textContent = `${elapsed.toFixed(1)}ms`;
+      } catch (error) {
+        renderPose([], false, `Detection failed: ${error.message}`);
+      }
+    }
+
+    function fallbackLandmarks() {
+      const points = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, visibility: 0.9 }));
+      const set = (index, x, y, z = 0, v = 0.95) => { points[index] = { x, y, z, visibility: v }; };
+      set(0, 0.50, 0.23); set(1, 0.485, 0.215); set(2, 0.515, 0.215);
+      set(7, 0.46, 0.225); set(8, 0.54, 0.225); set(9, 0.485, 0.255); set(10, 0.515, 0.255);
+      set(11, 0.42, 0.36); set(12, 0.58, 0.36);
+      set(13, 0.34, 0.43); set(14, 0.66, 0.43);
+      set(15, 0.29, 0.28); set(16, 0.71, 0.55);
+      set(17, 0.275, 0.265); set(18, 0.725, 0.565); set(19, 0.265, 0.285); set(20, 0.735, 0.545);
+      set(21, 0.30, 0.31); set(22, 0.70, 0.58);
+      set(23, 0.45, 0.60); set(24, 0.56, 0.60);
+      set(25, 0.40, 0.76); set(26, 0.61, 0.76);
+      set(27, 0.37, 0.92); set(28, 0.66, 0.91);
+      set(29, 0.35, 0.94); set(30, 0.68, 0.93); set(31, 0.40, 0.96); set(32, 0.70, 0.95);
+      return points;
+    }
+
+    function screenPoint(point) {
+      const x = mirror.checked ? 1 - point.x : point.x;
+      return { x: x * overlay.width, y: point.y * overlay.height };
+    }
+
+    function visible(point) {
+      return point && (point.visibility ?? 1) >= Number(visibility.value);
+    }
+
+    function drawPose(landmarks, onSource = false) {
+      const context = onSource ? ctx : octx;
+      if (!onSource) octx.clearRect(0, 0, overlay.width, overlay.height);
+      if (!landmarks.length) return;
+
+      context.lineCap = "round";
+      bonePairs.forEach(([from, to]) => {
+        if (!visible(landmarks[from]) || !visible(landmarks[to])) return;
+        const a = screenPoint(landmarks[from]);
+        const b = screenPoint(landmarks[to]);
+        context.strokeStyle = "rgba(85, 210, 165, 0.92)";
+        context.lineWidth = 5;
+        context.beginPath();
+        context.moveTo(a.x, a.y);
+        context.lineTo(b.x, b.y);
+        context.stroke();
+      });
+
+      landmarks.forEach((point, index) => {
+        if (!visible(point)) return;
+        const p = screenPoint(point);
+        context.fillStyle = index === 15 || index === 16 ? "#f1c453" : "#f4f7fb";
+        context.beginPath();
+        context.arc(p.x, p.y, index === 15 || index === 16 ? 7 : 5, 0, Math.PI * 2);
+        context.fill();
+      });
+    }
+
+    function renderPose(landmarks, synthetic, message) {
+      if (!synthetic) drawPose(landmarks, false);
+      const metrics = calculateMetrics(landmarks);
+      poseCount.textContent = landmarks.length ? "1" : "0";
+      latency.textContent = synthetic ? "fallback" : latency.textContent;
+      balanceScore.textContent = landmarks.length ? `${metrics.balance}%` : "--";
+      reachSpan.textContent = landmarks.length ? `${metrics.reach}%` : "--";
+      balanceFill.style.width = landmarks.length ? `${metrics.balance}%` : "0";
+      setStatus(message);
+      landmarkList.innerHTML = landmarks.length ? namedPoints.map(([label, index]) => {
+        const point = landmarks[index];
+        const visibilityText = ((point.visibility ?? 1) * 100).toFixed(0);
+        return `<div class="item"><strong>${escapeHtml(label)}</strong><span>x ${point.x.toFixed(3)}, y ${point.y.toFixed(3)}, visibility ${visibilityText}%</span></div>`;
+      }).join("") : "<p class=\"hint\">No landmarks above the current state.</p>";
+    }
+
+    function calculateMetrics(landmarks) {
+      const shoulderTilt = Math.abs((landmarks[11]?.y || 0) - (landmarks[12]?.y || 0));
+      const hipTilt = Math.abs((landmarks[23]?.y || 0) - (landmarks[24]?.y || 0));
+      const ankleCenter = ((landmarks[27]?.x || 0) + (landmarks[28]?.x || 0)) / 2;
+      const hipCenter = ((landmarks[23]?.x || 0) + (landmarks[24]?.x || 0)) / 2;
+      const centerOffset = Math.abs(ankleCenter - hipCenter);
+      const penalty = Math.min(1, shoulderTilt * 2.6 + hipTilt * 2.2 + centerOffset * 1.8);
+      const reach = Math.abs((landmarks[15]?.x || 0) - (landmarks[16]?.x || 0));
+      return {
+        balance: Math.max(0, Math.round((1 - penalty) * 100)),
+        reach: Math.round(Math.min(1, reach) * 100)
+      };
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    async function startCamera() {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 600 }, audio: false });
+        camera.srcObject = cameraStream;
+        await camera.play();
+        cameraButton.classList.add("active");
+        freezeButton.disabled = false;
+        setStatus("Camera is running. Freeze a frame to run Pose Landmarker.");
+      } catch (error) {
+        setStatus(`Camera unavailable: ${error.message}`);
+      }
+    }
+
+    function freezeCameraFrame() {
+      if (!camera.videoWidth) return;
+      currentSource = "camera";
+      sceneButton.classList.remove("active");
+      ctx.clearRect(0, 0, source.width, source.height);
+      ctx.fillStyle = "#05080a";
+      ctx.fillRect(0, 0, source.width, source.height);
+      ctx.drawImage(camera, 0, 0, source.width, source.height);
+      runPoseDetection();
+    }
+
+    function loadImage(file) {
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        currentSource = "upload";
+        sceneButton.classList.remove("active");
+        ctx.clearRect(0, 0, source.width, source.height);
+        ctx.fillStyle = "#05080a";
+        ctx.fillRect(0, 0, source.width, source.height);
+        const scale = Math.min(source.width / img.width, source.height / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        const x = (source.width - width) / 2;
+        const y = (source.height - height) / 2;
+        ctx.drawImage(img, x, y, width, height);
+        URL.revokeObjectURL(img.src);
+        runPoseDetection();
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    visibility.addEventListener("input", () => {
+      visibilityValue.textContent = Number(visibility.value).toFixed(2);
+      if (currentSource === "scene") drawSyntheticPose();
+      else runPoseDetection();
+    });
+    mirror.addEventListener("change", () => {
+      if (currentSource === "scene") drawSyntheticPose();
+      else runPoseDetection();
+    });
+    sceneButton.addEventListener("click", drawSyntheticPose);
+    cameraButton.addEventListener("click", startCamera);
+    freezeButton.addEventListener("click", freezeCameraFrame);
+    upload.addEventListener("change", (event) => loadImage(event.target.files?.[0]));
+
+    drawSyntheticPose();
+    initLandmarker();
+  </script>
+</body>
+</html>

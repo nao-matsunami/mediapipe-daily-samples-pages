@@ -1,5 +1,6 @@
 {
   "date": "2026-07-31",
+  "category": "MediaPipe",
   "headline": "Hand Landmarker を遅延読み込みと合成手で試す",
   "headlineEn": "Testing Hand Landmarker with lazy loading and a synthetic hand",
   "summary": "MediaPipe Solutions、Hand Landmarker for Web、Tasks Vision API、MediaPipe Studio、legacy Hands pipeline を確認し、カメラとモデルが使える時は実 MediaPipe、使えない時は合成 21 ランドマークで latency / smoothing / gesture hint を触れる自作 HTML サンプルを作成しました。",

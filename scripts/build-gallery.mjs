@@ -54,6 +54,10 @@ function renderLinks(links = []) {
   return `<ul class="link-list">${links.map((link) => `<li><a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.label)}</a></li>`).join("")}</ul>`;
 }
 
+function categoryOf(day) {
+  return day.report?.category || "MediaPipe";
+}
+
 function pageShell(title, body, basePath = "") {
   return `<!doctype html>
 <html lang="ja">
@@ -74,6 +78,8 @@ function pageShell(title, body, basePath = "") {
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-top: 22px; }
     .card, .block { border: 1px solid rgba(194, 244, 224, .18); background: rgba(9, 18, 22, .78); padding: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
     .date { color: #8df2c8; font-size: .82rem; text-transform: uppercase; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; }
+    .badge { border: 1px solid rgba(141, 242, 200, .32); color: #f4fbff; background: rgba(141, 242, 200, .09); padding: 4px 8px; font-size: .72rem; text-transform: uppercase; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
     .actions a { border: 1px solid rgba(141, 242, 200, .34); padding: 9px 11px; text-decoration: none; }
     iframe { width: 100%; height: min(720px, 80vh); border: 1px solid rgba(194, 244, 224, .18); background: #05080b; }
@@ -92,10 +98,12 @@ function pageShell(title, body, basePath = "") {
 }
 
 function renderIndex(days, basePath = "") {
+  const categories = [...new Set(days.map(categoryOf))].sort();
+  const categorySummary = categories.map((category) => `<span class="badge">${escapeHtml(category)}</span>`).join("");
   const cards = days.map((day) => {
     const sample = primarySample(day);
     return `<article class="card">
-      <p class="date">${escapeHtml(day.date)}</p>
+      <p class="meta"><span class="date">${escapeHtml(day.date)}</span><span class="badge">${escapeHtml(categoryOf(day))}</span></p>
       <h2>${escapeHtml(day.report?.headline || sample.title)}</h2>
       ${day.report?.headlineEn ? `<p class="en">${escapeHtml(day.report.headlineEn)}</p>` : ""}
       <p>${escapeHtml(day.report?.summary || sample.description)}</p>
@@ -105,14 +113,14 @@ function renderIndex(days, basePath = "") {
       </div>
     </article>`;
   }).join("");
-  return pageShell("MediaPipe Daily Samples", `<header><div><h1>MediaPipe Daily Samples</h1><p>公式情報を参考にした日次の自作 MediaPipe 最小サンプル集。</p></div><p class="date">${days.length} samples</p></header><div class="grid">${cards}</div>`, basePath);
+  return pageShell("Browser Vision Daily Samples", `<header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta">${categorySummary}</p></div><p class="date">${days.length} samples</p></header><div class="grid">${cards}</div>`, basePath);
 }
 
 function renderDay(day) {
   const sample = primarySample(day);
   const topics = day.report?.keyTopics?.map((topic, index) => `<li>${escapeHtml(topic)}${day.report.keyTopicsEn?.[index] ? `<p class="en">${escapeHtml(day.report.keyTopicsEn[index])}</p>` : ""}</li>`).join("") || "";
   const sections = day.report?.sections?.map((section) => `<section class="block"><h2>${escapeHtml(section.title)}</h2>${section.titleEn ? `<p class="en">${escapeHtml(section.titleEn)}</p>` : ""}${section.body ? `<p>${escapeHtml(section.body)}</p>` : ""}${section.bodyEn ? `<p class="en">${escapeHtml(section.bodyEn)}</p>` : ""}${renderLinks(section.links)}</section>`).join("") || "";
-  return pageShell(`${day.report?.headline || sample.title} | ${day.date}`, `<header><div><p class="date">${escapeHtml(day.date)}</p><h1>${escapeHtml(day.report?.headline || sample.title)}</h1>${day.report?.headlineEn ? `<p class="en">${escapeHtml(day.report.headlineEn)}</p>` : ""}<p>${escapeHtml(day.report?.summary || sample.description)}</p></div><div class="actions"><a href="../index.html">一覧</a><a href="../outputs/${encodeURIComponent(sample.fileName)}">代表サンプルを開く</a></div></header><section class="sample-frame"><iframe src="../outputs/${encodeURIComponent(sample.fileName)}" title="${escapeHtml(sample.title)}"></iframe></section><section class="block"><h2>今日の重要トピック</h2><ol>${topics}</ol>${renderLinks(day.report?.links)}</section>${sections}`, "../");
+  return pageShell(`${day.report?.headline || sample.title} | ${day.date}`, `<header><div><p class="meta"><span class="date">${escapeHtml(day.date)}</span><span class="badge">${escapeHtml(categoryOf(day))}</span></p><h1>${escapeHtml(day.report?.headline || sample.title)}</h1>${day.report?.headlineEn ? `<p class="en">${escapeHtml(day.report.headlineEn)}</p>` : ""}<p>${escapeHtml(day.report?.summary || sample.description)}</p></div><div class="actions"><a href="../index.html">一覧</a><a href="../outputs/${encodeURIComponent(sample.fileName)}">代表サンプルを開く</a></div></header><section class="sample-frame"><iframe src="../outputs/${encodeURIComponent(sample.fileName)}" title="${escapeHtml(sample.title)}"></iframe></section><section class="block"><h2>今日の重要トピック</h2><ol>${topics}</ol>${renderLinks(day.report?.links)}</section>${sections}`, "../");
 }
 
 async function main() {
@@ -139,7 +147,7 @@ async function main() {
     const pageDays = days.slice((i - 1) * pageSize, i * pageSize);
     await fs.writeFile(path.join(pagesDir, `${i}.html`), renderIndex(pageDays, "../"), "utf8");
   }
-  console.log(`Built ${days.length} MediaPipe daily page(s).`);
+  console.log(`Built ${days.length} browser vision daily page(s).`);
 }
 
 main().catch((error) => {
