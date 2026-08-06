@@ -1,0 +1,108 @@
+{
+  "date": "2026-08-06",
+  "category": "OpenCV.js",
+  "headline": "OpenCV.js で動きの差分マスクを観察する",
+  "headlineEn": "Inspect motion difference masks with OpenCV.js",
+  "summary": "OpenCV.js の3本目として、現在フレームとゆっくり更新される背景モデルを比較し、`absdiff()`、`accumulateWeighted()`、threshold、motion mask、blob box、motion coverage を観察できる自作 HTML ラボを追加しました。",
+  "summaryEn": "As the third OpenCV.js sample, this adds an original HTML lab for comparing current frames against a slowly updating background model and inspecting `absdiff()`, `accumulateWeighted()`, thresholds, motion masks, blob boxes, and motion coverage.",
+  "keyTopics": [
+    "`cv.absdiff()` は現在フレームと背景モデルの差分を取り、軽量な動き検出の入口になる。",
+    "`cv.accumulateWeighted()` を使うと背景を少しずつ更新でき、静止した変化を徐々に背景へ吸収できる。",
+    "差分画像を threshold して motion mask に変換すると、`findContours()` で動いている領域を blob box として扱える。",
+    "motion coverage と blob count は、Pose Landmarker の速度や Object Detector の box と組み合わせる補助信号になる。",
+    "OpenCV.js が使えない環境でも同じ UI を確認できるよう、Canvas の pixel array fallback を入れた。"
+  ],
+  "keyTopicsEn": [
+    "`cv.absdiff()` compares the current frame with a background model and provides a lightweight entry point for motion detection.",
+    "`cv.accumulateWeighted()` updates the background gradually, letting still changes settle into the model over time.",
+    "Thresholding the difference image creates a motion mask, and `findContours()` can turn moving regions into blob boxes.",
+    "Motion coverage and blob count are useful helper signals for Pose Landmarker velocity or Object Detector boxes.",
+    "A Canvas pixel-array fallback keeps the same UI usable when OpenCV.js is unavailable."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: OpenCV Motion Difference Lab",
+      "url": "../outputs/2026-08-06_opencv_motion_difference_lab.html"
+    },
+    {
+      "label": "OpenCV.js image arithmetic tutorial",
+      "url": "https://docs.opencv.org/4.x/dd/d4d/tutorial_js_image_arithmetics.html"
+    },
+    {
+      "label": "OpenCV.js thresholding tutorial",
+      "url": "https://docs.opencv.org/4.x/d7/dd0/tutorial_js_thresholding.html"
+    },
+    {
+      "label": "OpenCV.js contours tutorial",
+      "url": "https://docs.opencv.org/4.x/d5/daa/tutorial_js_contours_begin.html"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、OpenCV.js の処理を単一フレームから時間方向の観察へ広げることです。edge と contour は画像内の構造を見ましたが、motion difference は前後の変化を見ます。背景モデルとの差分を取るだけでも、カメラ内の動き、画面内の注目領域、UI の発火候補を軽量に作れます。",
+      "bodyEn": "Today's focus is extending OpenCV.js from single-frame inspection into time-based observation. Edges and contours inspect structure inside one image, while motion difference inspects change across frames. Comparing against a background model can cheaply produce movement regions, attention areas, and UI trigger candidates.",
+      "links": [
+        {
+          "label": "OpenCV.js image arithmetic tutorial",
+          "url": "https://docs.opencv.org/4.x/dd/d4d/tutorial_js_image_arithmetics.html"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "サンプルは Synthetic source を常に持ち、Start Camera で実カメラにも切り替えられます。Source、Diff、Mask、Boxes を切り替えながら、Difference threshold、Background learn、Minimum area、Max blobs を調整します。Reset BG を押すと背景モデルを次フレームで作り直せるため、動き検出の安定点を探しやすくしています。",
+      "bodyEn": "The sample always has a synthetic source and can switch to a real camera with Start Camera. It exposes Source, Diff, Mask, and Boxes views, with controls for difference threshold, background learning rate, minimum area, and max blobs. Reset BG rebuilds the background on the next frame, making it easier to find a stable motion-detection point."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "このサンプルで得られる motion coverage、blob count、motion box、background learn 設定は、行動検出や視覚エフェクトの補助ログになります。Pose Landmarker と合わせれば体の動き量、Object Detector と合わせれば物体 box 内の変化、Image Segmenter と合わせれば人物領域内だけの motion mask を作れます。GLSL へ渡せば動いた領域からパーティクルや残像を出す入力になります。",
+      "bodyEn": "The sample's motion coverage, blob count, motion boxes, and background-learning settings can become helper logs for action detection or visual effects. Combined with Pose Landmarker it can estimate body movement, with Object Detector it can inspect changes inside object boxes, and with Image Segmenter it can restrict motion masks to person regions. Sent to GLSL, moving regions can drive particles or trails."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "OpenCV.js では Canvas から `cv.imread()` で現在フレームを読み、grayscale を `CV_32F` に変換して背景モデルと `cv.absdiff()` します。背景は `cv.accumulateWeighted()` で少しずつ更新し、差分を `cv.threshold()` して motion mask にします。mask は `cv.findContours()` と `cv.boundingRect()` で blob box へ変換し、`cv.countNonZero()` で coverage を計測します。",
+      "bodyEn": "The OpenCV.js path reads the current frame from Canvas with `cv.imread()`, converts grayscale to `CV_32F`, and compares it with the background model using `cv.absdiff()`. The background updates gradually with `cv.accumulateWeighted()`, then the difference is thresholded into a motion mask. The mask is converted into blob boxes with `cv.findContours()` and `cv.boundingRect()`, while `cv.countNonZero()` measures coverage."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は background subtraction の専用 API、optical flow、motion history、MediaPipe Pose のフレーム間速度、Web Worker / OffscreenCanvas 化を見ます。OpenCV.js が3本そろったので、次の整理ではカテゴリ別一覧やフィルタを追加して、MediaPipe と OpenCV.js のサンプルを見分けやすくします。",
+      "bodyEn": "Next, watch dedicated background-subtraction APIs, optical flow, motion history, frame-to-frame velocity from MediaPipe Pose, and Web Worker / OffscreenCanvas execution. With three OpenCV.js samples now present, the next organization step should add category-specific lists or filters so MediaPipe and OpenCV.js samples are easier to scan."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Synthetic のまま Boxes 表示で Background learn を低くし、動いている図形の残像が残りやすくなることを見てください。次に Mask 表示へ切り替え、Difference threshold を上げると小さな変化が消えます。カメラを使う場合は静止した状態で Reset BG を押してから手を動かすと、動き検出の反応が読みやすくなります。",
+      "bodyEn": "First stay on Synthetic in the Boxes view and lower Background learn to see moving shapes leave longer traces. Then switch to Mask and raise Difference threshold to remove smaller changes. With a camera, stay still, press Reset BG, then move a hand to make the motion response easy to read.",
+      "links": [
+        {
+          "label": "Open OpenCV Motion Difference Lab",
+          "url": "../outputs/2026-08-06_opencv_motion_difference_lab.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: OpenCV.js image arithmetic、thresholding、contours の公式チュートリアルを確認。設計: OpenCV.js の3本目として、単一フレーム処理から時間差分へ進める。実装: synthetic source、camera source、background model、absdiff、accumulateWeighted、motion mask、blob boxes、motion coverage、Canvas fallback を追加。検証: JSON 構文確認、HTML script 構文確認、gallery 再生成、HTTP 応答確認、GitHub Pages 公開確認を行う。",
+      "bodyEn": "Research: reviewed official OpenCV.js image arithmetic, thresholding, and contours tutorials. Design: use the third OpenCV.js sample to move from single-frame processing into temporal difference. Implementation: added synthetic source, camera source, background model, absdiff, accumulateWeighted, motion mask, blob boxes, motion coverage, and Canvas fallback. Validation: parse JSON, check HTML script syntax, regenerate the gallery, check HTTP responses, and publish to GitHub Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "OpenCV.js 側は edge、contour、motion の3種類になりました。edge は境界、contour は領域、motion は時間変化です。MediaPipe が意味ラベルやランドマークを返すのに対し、OpenCV.js は画像そのものの構造と変化を返します。この2系統を合わせると、入力理解と表現変換の足場がかなり広がります。",
+      "bodyEn": "The OpenCV.js track now has edges, contours, and motion. Edges capture boundaries, contours capture regions, and motion captures temporal change. MediaPipe returns semantic labels and landmarks, while OpenCV.js returns image structure and change. Combining both tracks broadens the foundation for input understanding and expressive transformation."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `OpenCV Motion Difference Lab` です。実際に動く部分は synthetic source、camera source、OpenCV.js runtime、Canvas fallback、background model、difference image、motion mask、blob box overlay、motion coverage と blob count の計測です。次に足すなら optical flow、motion trail export、Pose velocity 比較、Worker 化を追加します。",
+      "bodyEn": "The selected prototype is `OpenCV Motion Difference Lab`. The working parts are synthetic source, camera source, OpenCV.js runtime, Canvas fallback, background model, difference image, motion mask, blob-box overlay, motion coverage, and blob count. Next additions should include optical flow, motion-trail export, Pose velocity comparison, and Worker execution."
+    }
+  ]
+}

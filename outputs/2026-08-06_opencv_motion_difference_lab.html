@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenCV Motion Difference Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #08100f;
+      color: #f5fff9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(128, 235, 199, 0.07) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(128, 235, 199, 0.05) 1px, transparent 1px),
+        linear-gradient(135deg, #06110f 0%, #111718 50%, #18120d 100%);
+      background-size: 38px 38px, 38px 38px, auto;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(128, 235, 199, 0.2);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.75rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: #b8c9c1;
+      line-height: 1.56;
+    }
+
+    .lede {
+      max-width: 800px;
+      margin-top: 10px;
+    }
+
+    .badge {
+      min-width: 138px;
+      border: 1px solid rgba(128, 235, 199, 0.36);
+      background: rgba(128, 235, 199, 0.1);
+      color: #80ebc7;
+      padding: 8px 10px;
+      text-align: center;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(245, 255, 249, 0.14);
+      background: #050807;
+      overflow: hidden;
+      box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 660px;
+      touch-action: none;
+    }
+
+    video {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .metric, section {
+      border: 1px solid rgba(245, 255, 249, 0.13);
+      background: rgba(6, 14, 15, 0.82);
+      backdrop-filter: blur(12px);
+    }
+
+    .metric {
+      min-height: 58px;
+      padding: 9px 10px;
+    }
+
+    .metric span {
+      display: block;
+      color: #88a69b;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      color: #f5fff9;
+      font-size: 0.96rem;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    section { padding: 14px; }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 12px 0;
+      color: #b8c9c1;
+      font-size: 0.86rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #80ebc7;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(128, 235, 199, 0.34);
+      background: rgba(128, 235, 199, 0.09);
+      color: #f5fff9;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button.active {
+      background: #80ebc7;
+      border-color: #80ebc7;
+      color: #041411;
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .readout {
+      display: grid;
+      gap: 8px;
+      color: #b8c9c1;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .readout b {
+      color: #f3c96a;
+      font-weight: 700;
+    }
+
+    footer {
+      grid-column: 1 / -1;
+      color: #8aa49b;
+      font-size: 0.84rem;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .stage, canvas { min-height: 560px; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 560px) {
+      .seg { grid-template-columns: 1fr; }
+      .hud {
+        position: static;
+        margin: 10px;
+      }
+      canvas { min-height: 460px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>OpenCV Motion Difference Lab</h1>
+        <p class="lede">A compact OpenCV.js workbench for comparing current frames against a slowly adapting background, then turning motion masks into coverage, bounding boxes, and motion-energy readouts.</p>
+      </div>
+      <div class="badge" id="runtime">Loading OpenCV</div>
+    </header>
+
+    <section class="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="stage" width="960" height="620" aria-label="OpenCV motion difference preview"></canvas>
+      <div class="hud">
+        <div class="metric"><span>Motion</span><strong id="motionCoverage">0%</strong></div>
+        <div class="metric"><span>Blobs</span><strong id="blobCount">0</strong></div>
+        <div class="metric"><span>Frame cost</span><strong id="frameCost">0.0 ms</strong></div>
+        <div class="metric"><span>Source</span><strong id="sourceName">Synthetic</strong></div>
+      </div>
+    </section>
+
+    <aside>
+      <section>
+        <h2>Motion Pipeline</h2>
+        <div class="seg" id="viewButtons">
+          <button data-view="source">Source</button>
+          <button data-view="diff">Diff</button>
+          <button data-view="mask">Mask</button>
+          <button data-view="boxes" class="active">Boxes</button>
+        </div>
+        <label>Difference threshold <input id="threshold" type="range" min="1" max="90" value="24" step="1"></label>
+        <label>Background learn <input id="learn" type="range" min="0.01" max="0.4" value="0.08" step="0.01"></label>
+        <label>Minimum area <input id="minArea" type="range" min="20" max="9000" value="360" step="20"></label>
+      </section>
+
+      <section>
+        <h2>Scene</h2>
+        <label>Max blobs <input id="maxBlobs" type="range" min="1" max="10" value="5" step="1"></label>
+        <label>Overlay gain <input id="overlay" type="range" min="0" max="1" value="0.78" step="0.01"></label>
+        <label>Synthetic speed <input id="speed" type="range" min="0" max="1" value="0.56" step="0.01"></label>
+      </section>
+
+      <section>
+        <h2>Input</h2>
+        <div class="seg">
+          <button id="camera">Start Camera</button>
+          <button id="reset">Reset BG</button>
+        </div>
+        <div class="readout" id="log">
+          <span><b>state</b> synthetic source active, background warming up</span>
+          <span><b>next</b> reset background after changing camera or scene</span>
+        </div>
+      </section>
+    </aside>
+
+    <footer>References: OpenCV.js image arithmetic, thresholding, and contours. Motion masks are useful as a lightweight signal before connecting to MediaPipe pose, object, or segmentation tasks.</footer>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const video = document.querySelector("#video");
+    const sourceCanvas = document.createElement("canvas");
+    const diffCanvas = document.createElement("canvas");
+    const maskCanvas = document.createElement("canvas");
+    const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    const diffCtx = diffCanvas.getContext("2d", { willReadFrequently: true });
+    const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
+    const controls = {
+      threshold: document.querySelector("#threshold"),
+      learn: document.querySelector("#learn"),
+      minArea: document.querySelector("#minArea"),
+      maxBlobs: document.querySelector("#maxBlobs"),
+      overlay: document.querySelector("#overlay"),
+      speed: document.querySelector("#speed")
+    };
+    const els = {
+      runtime: document.querySelector("#runtime"),
+      motionCoverage: document.querySelector("#motionCoverage"),
+      blobCount: document.querySelector("#blobCount"),
+      frameCost: document.querySelector("#frameCost"),
+      sourceName: document.querySelector("#sourceName"),
+      camera: document.querySelector("#camera"),
+      reset: document.querySelector("#reset"),
+      log: document.querySelector("#log")
+    };
+    const lowW = 320;
+    const lowH = 206;
+    let view = "boxes";
+    let cvReady = false;
+    let useCamera = false;
+    let stream = null;
+    let bgMat = null;
+    let bgArray = null;
+    let resetBg = true;
+
+    function fit() {
+      const box = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const nextW = Math.max(420, Math.floor(box.width * dpr));
+      const nextH = Math.max(420, Math.floor(box.height * dpr));
+      if (canvas.width !== nextW || canvas.height !== nextH) {
+        canvas.width = nextW;
+        canvas.height = nextH;
+      }
+      if (sourceCanvas.width !== lowW) {
+        for (const item of [sourceCanvas, diffCanvas, maskCanvas]) {
+          item.width = lowW;
+          item.height = lowH;
+        }
+        resetBg = true;
+      }
+    }
+
+    function writeLog(state, next) {
+      els.log.innerHTML = `<span><b>state</b> ${state}</span><span><b>next</b> ${next}</span>`;
+    }
+
+    function drawSynthetic(time) {
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      const speed = Number(controls.speed.value);
+      const t = time * (0.4 + speed * 1.7);
+      const grad = sourceCtx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#142521");
+      grad.addColorStop(0.52, "#253037");
+      grad.addColorStop(1, "#392516");
+      sourceCtx.fillStyle = grad;
+      sourceCtx.fillRect(0, 0, w, h);
+
+      sourceCtx.strokeStyle = "rgba(255,255,255,0.12)";
+      sourceCtx.lineWidth = 1;
+      for (let x = -40; x < w + 40; x += 22) {
+        sourceCtx.beginPath();
+        sourceCtx.moveTo(x, 0);
+        sourceCtx.lineTo(x - 38, h);
+        sourceCtx.stroke();
+      }
+
+      sourceCtx.fillStyle = "rgba(7, 12, 12, 0.28)";
+      sourceCtx.fillRect(34, 46, 250, 118);
+      sourceCtx.fillStyle = "#80ebc7";
+      sourceCtx.beginPath();
+      sourceCtx.arc(52 + ((Math.sin(t) + 1) * 0.5) * 210, 78 + Math.cos(t * 1.4) * 20, 22, 0, Math.PI * 2);
+      sourceCtx.fill();
+      sourceCtx.fillStyle = "#f3c96a";
+      sourceCtx.fillRect(168 + Math.sin(t * 0.7) * 58, 128 + Math.cos(t * 1.1) * 14, 48, 32);
+      sourceCtx.fillStyle = "#ef7d62";
+      sourceCtx.beginPath();
+      sourceCtx.moveTo(84 + Math.cos(t * 1.2) * 30, 174);
+      sourceCtx.lineTo(126 + Math.sin(t * 1.8) * 48, 118);
+      sourceCtx.lineTo(184 + Math.cos(t * 0.9) * 36, 182);
+      sourceCtx.closePath();
+      sourceCtx.fill();
+    }
+
+    function drawSource(time) {
+      if (useCamera && video.videoWidth) {
+        sourceCtx.save();
+        sourceCtx.translate(lowW, 0);
+        sourceCtx.scale(-1, 1);
+        sourceCtx.drawImage(video, 0, 0, lowW, lowH);
+        sourceCtx.restore();
+        return;
+      }
+      drawSynthetic(time);
+    }
+
+    function boxesFromMask(maskData) {
+      const visited = new Uint8Array(lowW * lowH);
+      const queue = [];
+      const boxes = [];
+      const minArea = Number(controls.minArea.value);
+      for (let y = 1; y < lowH - 1; y += 1) {
+        for (let x = 1; x < lowW - 1; x += 1) {
+          const start = y * lowW + x;
+          if (!maskData[start] || visited[start]) continue;
+          let head = 0;
+          let area = 0;
+          let minX = x;
+          let maxX = x;
+          let minY = y;
+          let maxY = y;
+          queue.length = 0;
+          queue.push(start);
+          visited[start] = 1;
+          while (head < queue.length) {
+            const i = queue[head++];
+            const px = i % lowW;
+            const py = Math.floor(i / lowW);
+            area += 1;
+            minX = Math.min(minX, px);
+            maxX = Math.max(maxX, px);
+            minY = Math.min(minY, py);
+            maxY = Math.max(maxY, py);
+            const neighbors = [i - 1, i + 1, i - lowW, i + lowW];
+            for (const next of neighbors) {
+              if (next < 0 || next >= maskData.length || visited[next] || !maskData[next]) continue;
+              visited[next] = 1;
+              queue.push(next);
+            }
+          }
+          if (area >= minArea) boxes.push({ x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1, area });
+        }
+      }
+      boxes.sort((a, b) => b.area - a.area);
+      return boxes.slice(0, Number(controls.maxBlobs.value));
+    }
+
+    function fallbackProcess() {
+      const src = sourceCtx.getImageData(0, 0, lowW, lowH);
+      const diff = diffCtx.createImageData(lowW, lowH);
+      const mask = maskCtx.createImageData(lowW, lowH);
+      const threshold = Number(controls.threshold.value);
+      const learn = Number(controls.learn.value);
+      if (!bgArray || resetBg) {
+        bgArray = new Float32Array(lowW * lowH);
+        for (let i = 0; i < bgArray.length; i += 1) {
+          const j = i * 4;
+          bgArray[i] = src.data[j] * 0.299 + src.data[j + 1] * 0.587 + src.data[j + 2] * 0.114;
+        }
+        resetBg = false;
+      }
+      const binary = new Uint8Array(lowW * lowH);
+      let motion = 0;
+      for (let i = 0; i < binary.length; i += 1) {
+        const j = i * 4;
+        const gray = src.data[j] * 0.299 + src.data[j + 1] * 0.587 + src.data[j + 2] * 0.114;
+        const delta = Math.abs(gray - bgArray[i]);
+        bgArray[i] = bgArray[i] * (1 - learn) + gray * learn;
+        const d = Math.min(255, Math.round(delta * 3));
+        const active = delta > threshold ? 255 : 0;
+        binary[i] = active ? 1 : 0;
+        if (active) motion += 1;
+        diff.data[j] = d;
+        diff.data[j + 1] = d;
+        diff.data[j + 2] = d;
+        diff.data[j + 3] = 255;
+        mask.data[j] = active;
+        mask.data[j + 1] = active;
+        mask.data[j + 2] = active;
+        mask.data[j + 3] = 255;
+      }
+      diffCtx.putImageData(diff, 0, 0);
+      maskCtx.putImageData(mask, 0, 0);
+      return { mode: "Canvas", boxes: boxesFromMask(binary), motion };
+    }
+
+    function opencvProcess() {
+      const src = cv.imread(sourceCanvas);
+      const gray = new cv.Mat();
+      const gray32 = new cv.Mat();
+      const diff = new cv.Mat();
+      const diff8 = new cv.Mat();
+      const mask = new cv.Mat();
+      const contours = new cv.MatVector();
+      const hierarchy = new cv.Mat();
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      gray.convertTo(gray32, cv.CV_32F);
+      if (!bgMat || resetBg) {
+        bgMat?.delete();
+        bgMat = gray32.clone();
+        resetBg = false;
+      }
+      cv.absdiff(gray32, bgMat, diff);
+      cv.accumulateWeighted(gray32, bgMat, Number(controls.learn.value));
+      diff.convertTo(diff8, cv.CV_8U, 3);
+      cv.threshold(diff8, mask, Number(controls.threshold.value), 255, cv.THRESH_BINARY);
+      cv.imshow(diffCanvas, diff8);
+      cv.imshow(maskCanvas, mask);
+      cv.findContours(mask, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      const boxes = [];
+      const minArea = Number(controls.minArea.value);
+      for (let i = 0; i < contours.size(); i += 1) {
+        const contour = contours.get(i);
+        const area = cv.contourArea(contour);
+        if (area >= minArea) {
+          const rect = cv.boundingRect(contour);
+          boxes.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height, area });
+        }
+        contour.delete();
+      }
+      boxes.sort((a, b) => b.area - a.area);
+      const motion = cv.countNonZero(mask);
+      src.delete();
+      gray.delete();
+      gray32.delete();
+      diff.delete();
+      diff8.delete();
+      mask.delete();
+      contours.delete();
+      hierarchy.delete();
+      return { mode: "OpenCV", boxes: boxes.slice(0, Number(controls.maxBlobs.value)), motion };
+    }
+
+    function drawOutput(stats) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const sx = w / lowW;
+      const sy = h / lowH;
+      ctx.clearRect(0, 0, w, h);
+      ctx.imageSmoothingEnabled = false;
+      if (view === "diff") ctx.drawImage(diffCanvas, 0, 0, w, h);
+      else if (view === "mask") ctx.drawImage(maskCanvas, 0, 0, w, h);
+      else ctx.drawImage(sourceCanvas, 0, 0, w, h);
+
+      if (view === "boxes") {
+        ctx.save();
+        ctx.globalAlpha = Number(controls.overlay.value);
+        ctx.drawImage(maskCanvas, 0, 0, w, h);
+        ctx.restore();
+      }
+
+      if (view === "boxes" || view === "mask") {
+        stats.boxes.forEach((box, index) => {
+          const color = index % 3 === 0 ? "#80ebc7" : index % 3 === 1 ? "#f3c96a" : "#ef7d62";
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 4;
+          ctx.strokeRect(box.x * sx, box.y * sy, box.w * sx, box.h * sy);
+          ctx.fillStyle = "rgba(4, 10, 9, 0.78)";
+          ctx.fillRect(box.x * sx, Math.max(0, box.y * sy - 28), 132, 24);
+          ctx.fillStyle = color;
+          ctx.font = "16px system-ui, sans-serif";
+          ctx.fillText(`#${index + 1} ${(box.area / (lowW * lowH) * 100).toFixed(1)}%`, box.x * sx + 8, Math.max(18, box.y * sy - 10));
+        });
+      }
+    }
+
+    function frame(now) {
+      const start = performance.now();
+      fit();
+      drawSource(now / 1000);
+      const stats = cvReady ? opencvProcess() : fallbackProcess();
+      drawOutput(stats);
+      els.motionCoverage.textContent = `${(stats.motion / (lowW * lowH) * 100).toFixed(1)}%`;
+      els.blobCount.textContent = String(stats.boxes.length);
+      els.frameCost.textContent = `${(performance.now() - start).toFixed(1)} ms`;
+      els.sourceName.textContent = useCamera && video.videoWidth ? "Camera" : "Synthetic";
+      els.runtime.textContent = stats.mode;
+      requestAnimationFrame(frame);
+    }
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 620 }, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        useCamera = true;
+        resetBg = true;
+        els.camera.classList.add("active");
+        writeLog("camera source active", "press Reset BG after the scene is still");
+      } catch (error) {
+        useCamera = false;
+        writeLog("camera unavailable, synthetic source active", error.message);
+      }
+    }
+
+    document.querySelector("#viewButtons").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-view]");
+      if (!button) return;
+      view = button.dataset.view;
+      document.querySelectorAll("button[data-view]").forEach((item) => item.classList.toggle("active", item === button));
+    });
+
+    els.camera.addEventListener("click", startCamera);
+    els.reset.addEventListener("click", () => {
+      resetBg = true;
+      writeLog("background reset requested", "motion will settle after the next frame");
+    });
+
+    window.Module = {
+      onRuntimeInitialized() {
+        cvReady = true;
+        els.runtime.textContent = "OpenCV";
+        writeLog("OpenCV.js runtime ready", "compare Diff, Mask, and Boxes views");
+      }
+    };
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://docs.opencv.org/4.x/opencv.js";
+    script.onerror = () => {
+      cvReady = false;
+      els.runtime.textContent = "Canvas";
+      writeLog("OpenCV.js failed to load; Canvas fallback active", "the same controls still approximate motion masks");
+    };
+    document.head.appendChild(script);
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
