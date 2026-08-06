@@ -1,108 +1,126 @@
 {
   "date": "2026-08-06",
-  "category": "OpenCV.js",
-  "headline": "OpenCV.js で動きの差分マスクを観察する",
-  "headlineEn": "Inspect motion difference masks with OpenCV.js",
-  "summary": "OpenCV.js の3本目として、現在フレームとゆっくり更新される背景モデルを比較し、`absdiff()`、`accumulateWeighted()`、threshold、motion mask、blob box、motion coverage を観察できる自作 HTML ラボを追加しました。",
-  "summaryEn": "As the third OpenCV.js sample, this adds an original HTML lab for comparing current frames against a slowly updating background model and inspecting `absdiff()`, `accumulateWeighted()`, thresholds, motion masks, blob boxes, and motion coverage.",
+  "category": "MediaPipe",
+  "headline": "Face Landmarker で表情の変化を読む",
+  "headlineEn": "Read expression shifts with Face Landmarker",
+  "summary": "MediaPipe Tasks Vision Face Landmarker の 478 点ランドマークと blendshape score を、表情メーターとして眺める自作 HTML ラボを追加しました。合成顔、アップロード画像、カメラのフリーズフレームで動き、MediaPipe 読み込みに失敗しても fallback UI を検証できます。",
+  "summaryEn": "This adds an original HTML lab that turns MediaPipe Tasks Vision Face Landmarker's 478 landmarks and blendshape scores into an expression dashboard. It works with a synthetic face, uploaded images, and frozen camera frames, with a fallback UI when MediaPipe cannot load.",
   "keyTopics": [
-    "`cv.absdiff()` は現在フレームと背景モデルの差分を取り、軽量な動き検出の入口になる。",
-    "`cv.accumulateWeighted()` を使うと背景を少しずつ更新でき、静止した変化を徐々に背景へ吸収できる。",
-    "差分画像を threshold して motion mask に変換すると、`findContours()` で動いている領域を blob box として扱える。",
-    "motion coverage と blob count は、Pose Landmarker の速度や Object Detector の box と組み合わせる補助信号になる。",
-    "OpenCV.js が使えない環境でも同じ UI を確認できるよう、Canvas の pixel array fallback を入れた。"
+    "Face Landmarker は顔の 478 点 3D ランドマーク、表情 blendshape、顔変換行列を返せるため、単なる点描画から表情 UI や avatar 制御へ進めやすい。",
+    "Web 版は `@mediapipe/tasks-vision` と `FilesetResolver.forVisionTasks()` で WASM を解決し、静止画では `detect()`、動画では `detectForVideo()` を使う。",
+    "公式ガイドは `detect()` / `detectForVideo()` が同期実行で UI thread を塞ぐ点を明記しており、ライブ表情 mirror へ進めるなら Worker 化が重要になる。",
+    "公式 web demo と `mediapipe-samples-web` は対応タスクや設定 UI の確認に便利だが、今日の公開代表はこのワークスペース内の自作最小サンプルにした。",
+    "MediaPipe 本体の GitHub release では Web / WASM / Tasks 周辺の更新が続いているため、日次サンプルはバージョン固定と最新ウォッチを分けて進める。"
   ],
   "keyTopicsEn": [
-    "`cv.absdiff()` compares the current frame with a background model and provides a lightweight entry point for motion detection.",
-    "`cv.accumulateWeighted()` updates the background gradually, letting still changes settle into the model over time.",
-    "Thresholding the difference image creates a motion mask, and `findContours()` can turn moving regions into blob boxes.",
-    "Motion coverage and blob count are useful helper signals for Pose Landmarker velocity or Object Detector boxes.",
-    "A Canvas pixel-array fallback keeps the same UI usable when OpenCV.js is unavailable."
+    "Face Landmarker can return 478 3D face landmarks, expression blendshapes, and facial transformation matrices, which makes it useful beyond drawing points.",
+    "The Web version resolves WASM through `@mediapipe/tasks-vision` and `FilesetResolver.forVisionTasks()`, using `detect()` for images and `detectForVideo()` for video.",
+    "The official guide notes that `detect()` and `detectForVideo()` are synchronous and block the UI thread, so Worker execution matters for a live expression mirror.",
+    "The official web demo and `mediapipe-samples-web` help inspect task coverage and controls, but today's public representative is the original local sample.",
+    "MediaPipe GitHub releases continue to change Web / WASM / Tasks internals, so this archive separates pinned sample versions from latest watch notes."
   ],
   "links": [
     {
-      "label": "Today's sample: OpenCV Motion Difference Lab",
-      "url": "../outputs/2026-08-06_opencv_motion_difference_lab.html"
+      "label": "Today's sample: Face Landmarker Expression Mirror",
+      "url": "../outputs/2026-08-06_face_landmarker_expression_mirror.html"
     },
     {
-      "label": "OpenCV.js image arithmetic tutorial",
-      "url": "https://docs.opencv.org/4.x/dd/d4d/tutorial_js_image_arithmetics.html"
+      "label": "Face landmark detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
     },
     {
-      "label": "OpenCV.js thresholding tutorial",
-      "url": "https://docs.opencv.org/4.x/d7/dd0/tutorial_js_thresholding.html"
+      "label": "Face Landmarker overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker"
     },
     {
-      "label": "OpenCV.js contours tutorial",
-      "url": "https://docs.opencv.org/4.x/d5/daa/tutorial_js_contours_begin.html"
+      "label": "MediaPipe Tasks Vision JS API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
     }
   ],
   "sections": [
     {
       "title": "注目事例と何が面白いか",
       "titleEn": "Notable example and why it matters",
-      "body": "今日の注目は、OpenCV.js の処理を単一フレームから時間方向の観察へ広げることです。edge と contour は画像内の構造を見ましたが、motion difference は前後の変化を見ます。背景モデルとの差分を取るだけでも、カメラ内の動き、画面内の注目領域、UI の発火候補を軽量に作れます。",
-      "bodyEn": "Today's focus is extending OpenCV.js from single-frame inspection into time-based observation. Edges and contours inspect structure inside one image, while motion difference inspects change across frames. Comparing against a background model can cheaply produce movement regions, attention areas, and UI trigger candidates.",
+      "body": "今日の注目は Face Landmarker の blendshape を、顔メッシュ表示の副産物ではなく UI の主役にすることです。公式ガイドでは顔ランドマーク、表情係数、顔変換行列を返せるタスクとして説明されており、フィルター、効果、virtual avatar の入口になります。今日のサンプルでは mouthOpen、mouthSmileLeft / Right、browInnerUp、eyeBlinkLeft / Right をバーとメーターに変換し、表情を数値の変化として見られるようにしました。",
+      "bodyEn": "Today's focus is treating Face Landmarker blendshapes as the main UI rather than a side effect of face-mesh rendering. The official guide describes the task as returning face landmarks, expression coefficients, and facial transformation matrices, which can drive filters, effects, and virtual avatars. This sample turns mouthOpen, mouthSmileLeft / Right, browInnerUp, and eyeBlinkLeft / Right into bars and meters.",
       "links": [
         {
-          "label": "OpenCV.js image arithmetic tutorial",
-          "url": "https://docs.opencv.org/4.x/dd/d4d/tutorial_js_image_arithmetics.html"
+          "label": "Face landmark detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
         }
       ]
     },
     {
       "title": "表現・インタラクションのアイデア",
       "titleEn": "Expression and interaction idea",
-      "body": "サンプルは Synthetic source を常に持ち、Start Camera で実カメラにも切り替えられます。Source、Diff、Mask、Boxes を切り替えながら、Difference threshold、Background learn、Minimum area、Max blobs を調整します。Reset BG を押すと背景モデルを次フレームで作り直せるため、動き検出の安定点を探しやすくしています。",
-      "bodyEn": "The sample always has a synthetic source and can switch to a real camera with Start Camera. It exposes Source, Diff, Mask, and Boxes views, with controls for difference threshold, background learning rate, minimum area, and max blobs. Reset BG rebuilds the background on the next frame, making it easier to find a stable motion-detection point."
+      "body": "サンプルは Synthetic face、Load MediaPipe、Upload face image、Start camera、Freeze frame の入口を持ちます。合成顔では fallback のランドマークと blendshape を即表示し、MediaPipe が読み込める環境では画像やカメラ静止画に対して `detect(canvas)` を実行します。Mesh density で点の密度を変え、表情バーで数値変化を確認できるようにしました。",
+      "bodyEn": "The sample exposes Synthetic face, Load MediaPipe, Upload face image, Start camera, and Freeze frame paths. The synthetic face immediately shows fallback landmarks and blendshapes, while environments that load MediaPipe run `detect(canvas)` on uploaded or frozen camera frames. Mesh density changes point density and expression bars show score changes."
     },
     {
       "title": "サンプルデータの可能性と組み合わせ",
       "titleEn": "Possibilities unlocked by sample data and combinations",
-      "body": "このサンプルで得られる motion coverage、blob count、motion box、background learn 設定は、行動検出や視覚エフェクトの補助ログになります。Pose Landmarker と合わせれば体の動き量、Object Detector と合わせれば物体 box 内の変化、Image Segmenter と合わせれば人物領域内だけの motion mask を作れます。GLSL へ渡せば動いた領域からパーティクルや残像を出す入力になります。",
-      "bodyEn": "The sample's motion coverage, blob count, motion boxes, and background-learning settings can become helper logs for action detection or visual effects. Combined with Pose Landmarker it can estimate body movement, with Object Detector it can inspect changes inside object boxes, and with Image Segmenter it can restrict motion masks to person regions. Sent to GLSL, moving regions can drive particles or trails."
+      "body": "このサンプルで蓄積できる顔ランドマーク、blendshape、顔数、カメラ静止画、UI 設定は、表情ログ、avatar 制御、顔フィルター、集中度や反応の軽量可視化に使えます。Face Detector で顔 ROI を先に決める、Image Segmenter で背景を分離する、Web Audio で笑顔や瞬きに音を返す、WebRTC で遠隔 UI の reaction signal にする、といった組み合わせが考えられます。Transformation matrix を使えば 2D overlay から 3D face effect へ発展できます。",
+      "bodyEn": "The sample's face landmarks, blendshapes, face count, frozen camera frames, and UI settings can support expression logs, avatar control, face filters, and lightweight reaction visualization. It can combine with Face Detector for ROI selection, Image Segmenter for background separation, Web Audio for smile or blink feedback, and WebRTC for remote reaction signals. Transformation matrices can move it from 2D overlays to 3D face effects."
     },
     {
       "title": "制作に使えそうな技術メモ",
       "titleEn": "Production note",
-      "body": "OpenCV.js では Canvas から `cv.imread()` で現在フレームを読み、grayscale を `CV_32F` に変換して背景モデルと `cv.absdiff()` します。背景は `cv.accumulateWeighted()` で少しずつ更新し、差分を `cv.threshold()` して motion mask にします。mask は `cv.findContours()` と `cv.boundingRect()` で blob box へ変換し、`cv.countNonZero()` で coverage を計測します。",
-      "bodyEn": "The OpenCV.js path reads the current frame from Canvas with `cv.imread()`, converts grayscale to `CV_32F`, and compares it with the background model using `cv.absdiff()`. The background updates gradually with `cv.accumulateWeighted()`, then the difference is thresholded into a motion mask. The mask is converted into blob boxes with `cv.findContours()` and `cv.boundingRect()`, while `cv.countNonZero()` measures coverage."
+      "body": "実装では `@mediapipe/tasks-vision@0.10.22` から `FaceLandmarker` と `FilesetResolver` を import し、`face_landmarker.task` を `createFromOptions()` で読み込みます。`outputFaceBlendshapes` と `outputFacialTransformationMatrixes` を true にし、アップロード画像やカメラ静止画を Canvas に描いてから `detect(canvas)` に渡します。公式 API では `FilesetResolver.forVisionTasks()` が WASM file set を解決し、SIMD 対応も確認します。",
+      "bodyEn": "The implementation imports `FaceLandmarker` and `FilesetResolver` from `@mediapipe/tasks-vision@0.10.22`, then loads `face_landmarker.task` through `createFromOptions()`. It enables `outputFaceBlendshapes` and `outputFacialTransformationMatrixes`, draws uploaded images or frozen camera frames to Canvas, and calls `detect(canvas)`. The official API resolves the WASM files and checks SIMD support through `FilesetResolver.forVisionTasks()`.",
+      "links": [
+        {
+          "label": "FilesetResolver API",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.filesetresolver"
+        }
+      ]
     },
     {
       "title": "明日以降ウォッチする対象",
       "titleEn": "Watch next",
-      "body": "次は background subtraction の専用 API、optical flow、motion history、MediaPipe Pose のフレーム間速度、Web Worker / OffscreenCanvas 化を見ます。OpenCV.js が3本そろったので、次の整理ではカテゴリ別一覧やフィルタを追加して、MediaPipe と OpenCV.js のサンプルを見分けやすくします。",
-      "bodyEn": "Next, watch dedicated background-subtraction APIs, optical flow, motion history, frame-to-frame velocity from MediaPipe Pose, and Web Worker / OffscreenCanvas execution. With three OpenCV.js samples now present, the next organization step should add category-specific lists or filters so MediaPipe and OpenCV.js samples are easier to scan."
+      "body": "次は Face Landmarker の `detectForVideo()`、Worker / OffscreenCanvas 化、DrawingUtils の使いどころ、transformation matrix を使った 2D/3D overlay、Holistic Landmarker との顔・手・姿勢統合を見ます。MediaPipe release では Web LLM、WASM、Tasks C API、GPU 同期なども継続して更新されているため、Web ML 全体の実装メモとして追います。",
+      "bodyEn": "Next, watch Face Landmarker `detectForVideo()`, Worker / OffscreenCanvas execution, DrawingUtils usage, 2D/3D overlays from transformation matrices, and Holistic Landmarker integration across face, hands, and pose. MediaPipe releases also continue to touch Web LLM, WASM, Tasks C API, and GPU synchronization, so they remain useful Web ML implementation notes."
     },
     {
       "title": "試すならこれ",
       "titleEn": "If you try one thing",
-      "body": "まず Synthetic のまま Boxes 表示で Background learn を低くし、動いている図形の残像が残りやすくなることを見てください。次に Mask 表示へ切り替え、Difference threshold を上げると小さな変化が消えます。カメラを使う場合は静止した状態で Reset BG を押してから手を動かすと、動き検出の反応が読みやすくなります。",
-      "bodyEn": "First stay on Synthetic in the Boxes view and lower Background learn to see moving shapes leave longer traces. Then switch to Mask and raise Difference threshold to remove smaller changes. With a camera, stay still, press Reset BG, then move a hand to make the motion response easy to read.",
+      "body": "まず Synthetic face のまま Mesh density を動かし、点群と表情バーが独立して読めることを確認してください。次に Load MediaPipe を押し、顔写真を Upload face image に入れて mouthOpen や smile の値を見ます。カメラが使える環境では Start camera のあと Freeze frame を押し、口角や眉を変えた静止フレームで数値の変化を比較します。",
+      "bodyEn": "First keep Synthetic face and move Mesh density to see point rendering and expression bars separately. Then load MediaPipe, upload a face image, and inspect mouthOpen or smile scores. With camera access, start the camera, freeze frames with different mouth or brow expressions, and compare score changes.",
       "links": [
         {
-          "label": "Open OpenCV Motion Difference Lab",
-          "url": "../outputs/2026-08-06_opencv_motion_difference_lab.html"
+          "label": "Open Face Landmarker Expression Mirror",
+          "url": "../outputs/2026-08-06_face_landmarker_expression_mirror.html"
         }
       ]
     },
     {
       "title": "進行マップ",
       "titleEn": "Progress map",
-      "body": "調査: OpenCV.js image arithmetic、thresholding、contours の公式チュートリアルを確認。設計: OpenCV.js の3本目として、単一フレーム処理から時間差分へ進める。実装: synthetic source、camera source、background model、absdiff、accumulateWeighted、motion mask、blob boxes、motion coverage、Canvas fallback を追加。検証: JSON 構文確認、HTML script 構文確認、gallery 再生成、HTTP 応答確認、GitHub Pages 公開確認を行う。",
-      "bodyEn": "Research: reviewed official OpenCV.js image arithmetic, thresholding, and contours tutorials. Design: use the third OpenCV.js sample to move from single-frame processing into temporal difference. Implementation: added synthetic source, camera source, background model, absdiff, accumulateWeighted, motion mask, blob boxes, motion coverage, and Canvas fallback. Validation: parse JSON, check HTML script syntax, regenerate the gallery, check HTTP responses, and publish to GitHub Pages."
+      "body": "調査: Google AI Edge の Face Landmarker Web ガイド、Face Landmarker overview、tasks-vision API、FilesetResolver API、公式 web demo、`mediapipe-samples-web`、MediaPipe releases を確認。設計: 顔メッシュだけでなく blendshape を操作可能なメーターにする。実装: synthetic fallback、MediaPipe loader、image upload、camera freeze、landmark overlay、mesh density、expression bars、top signals を追加。検証: JSON 構文、ギャラリー再生成、公開後 HTTP 応答を確認する。",
+      "bodyEn": "Research: reviewed the Face Landmarker Web guide, Face Landmarker overview, tasks-vision API, FilesetResolver API, official web demo, `mediapipe-samples-web`, and MediaPipe releases. Design: make blendshapes an interactive meter rather than only drawing a face mesh. Implementation: added synthetic fallback, MediaPipe loader, image upload, camera freeze, landmark overlay, mesh density, expression bars, and top signals. Validation: parse JSON, rebuild the gallery, and check HTTP responses after publishing."
     },
     {
       "title": "俯瞰メモ",
       "titleEn": "Bird's-eye memo",
-      "body": "OpenCV.js 側は edge、contour、motion の3種類になりました。edge は境界、contour は領域、motion は時間変化です。MediaPipe が意味ラベルやランドマークを返すのに対し、OpenCV.js は画像そのものの構造と変化を返します。この2系統を合わせると、入力理解と表現変換の足場がかなり広がります。",
-      "bodyEn": "The OpenCV.js track now has edges, contours, and motion. Edges capture boundaries, contours capture regions, and motion captures temporal change. MediaPipe returns semantic labels and landmarks, while OpenCV.js returns image structure and change. Combining both tracks broadens the foundation for input understanding and expressive transformation."
+      "body": "これまでの Hand、Image Segmenter、Interactive Segmenter、Object Detector、Pose に Face が加わり、手、面、クリック対象、箱、全身、顔表情という Web ML の基本入力が揃ってきました。MediaPipe Tasks は Canvas を入力にしやすく、日次サンプルの共通設計として upload、camera freeze、synthetic fallback、結果 readout が使い回せます。今日の Face は、ランドマークを表情状態へ圧縮する方向の土台です。",
+      "bodyEn": "Face now joins Hand, Image Segmenter, Interactive Segmenter, Object Detector, and Pose, covering hands, masks, click targets, boxes, bodies, and facial expression. MediaPipe Tasks fit Canvas input well, and the daily samples are converging on reusable upload, camera freeze, synthetic fallback, and result readout patterns. Today's Face sample establishes the path from landmarks to expression state."
     },
     {
       "title": "今日のミニ試作候補",
       "titleEn": "Today's mini prototype candidate",
-      "body": "採用した候補は `OpenCV Motion Difference Lab` です。実際に動く部分は synthetic source、camera source、OpenCV.js runtime、Canvas fallback、background model、difference image、motion mask、blob box overlay、motion coverage と blob count の計測です。次に足すなら optical flow、motion trail export、Pose velocity 比較、Worker 化を追加します。",
-      "bodyEn": "The selected prototype is `OpenCV Motion Difference Lab`. The working parts are synthetic source, camera source, OpenCV.js runtime, Canvas fallback, background model, difference image, motion mask, blob-box overlay, motion coverage, and blob count. Next additions should include optical flow, motion-trail export, Pose velocity comparison, and Worker execution."
+      "body": "採用した候補は `Face Landmarker Expression Mirror` です。実際に動く部分は合成顔 fallback、MediaPipe Face Landmarker の任意読み込み、顔画像アップロード、カメラ静止画、ランドマーク overlay、mesh density、mouth / smile / brow / blink の blendshape 表示です。次に足すなら live `detectForVideo()`、Worker 化、transformation matrix を使った 3D face accessory、Holistic Landmarker との比較を追加します。",
+      "bodyEn": "The selected prototype is `Face Landmarker Expression Mirror`. The working parts are a synthetic face fallback, optional MediaPipe Face Landmarker loading, face-image upload, frozen camera frames, landmark overlay, mesh density, and mouth / smile / brow / blink blendshape readouts. Next additions should include live `detectForVideo()`, Worker execution, a 3D face accessory from transformation matrices, and a Holistic Landmarker comparison."
     }
   ]
 }

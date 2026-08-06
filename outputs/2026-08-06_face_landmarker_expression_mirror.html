@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Landmarker Expression Mirror</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #091014;
+      color: #f5f8fa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(130deg, rgba(70, 190, 170, 0.14), transparent 34%),
+        linear-gradient(315deg, rgba(239, 117, 96, 0.12), transparent 42%),
+        #091014;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 350px;
+      gap: 16px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      border-bottom: 1px solid rgba(245, 248, 250, 0.14);
+      padding-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.2vw, 2.9rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #becbd0;
+      line-height: 1.55;
+    }
+
+    button, input::file-selector-button {
+      min-height: 38px;
+      border: 1px solid rgba(91, 210, 193, 0.45);
+      background: rgba(91, 210, 193, 0.12);
+      color: #f5f8fa;
+      font: inherit;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    button.active {
+      background: #5bd2c1;
+      color: #061311;
+      border-color: #5bd2c1;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      color: #becbd0;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #ef7560;
+    }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      background: #05090b;
+      border: 1px solid rgba(245, 248, 250, 0.16);
+      overflow: hidden;
+    }
+
+    canvas, video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    #camera {
+      display: none;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid rgba(245, 248, 250, 0.14);
+      background: rgba(9, 16, 20, 0.78);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(239, 117, 96, 0.26);
+      background: rgba(239, 117, 96, 0.08);
+      color: #ffd0c8;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .stat {
+      min-height: 70px;
+      border: 1px solid rgba(245, 248, 250, 0.1);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 1.22rem;
+      line-height: 1.1;
+      color: #ffc167;
+      overflow-wrap: anywhere;
+    }
+
+    .stat span, label, .hint {
+      color: #91a4aa;
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .bars {
+      display: grid;
+      gap: 9px;
+    }
+
+    .bar-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: #c9d4d7;
+      font-size: 0.86rem;
+    }
+
+    .meter {
+      height: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #5bd2c1, #ffc167, #ef7560);
+      transition: width 160ms ease;
+    }
+
+    .blend-list {
+      display: grid;
+      gap: 8px;
+      max-height: 270px;
+      overflow: auto;
+    }
+
+    .item {
+      border-left: 4px solid #5bd2c1;
+      background: rgba(255, 255, 255, 0.045);
+      padding: 9px 10px;
+      border-radius: 4px;
+    }
+
+    .item strong {
+      display: block;
+      color: #f5f8fa;
+      overflow-wrap: anywhere;
+    }
+
+    .item span {
+      color: #91a4aa;
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      aside {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      aside, .controls, .stat-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Face Landmarker Expression Mirror</h1>
+        <p>Face landmarks and blendshape scores are turned into a compact expression dashboard. MediaPipe runs when the model loads; a synthetic face keeps the sample usable offline or on blocked CDNs.</p>
+      </div>
+      <p class="hint">MediaPipe Tasks Vision + Canvas</p>
+    </header>
+
+    <section class="stage">
+      <div class="canvas-wrap">
+        <canvas id="input" width="960" height="600"></canvas>
+        <canvas id="overlay" width="960" height="600"></canvas>
+        <video id="camera" playsinline muted></video>
+      </div>
+      <div class="panel">
+        <div class="controls">
+          <button id="synthetic" class="active">Synthetic face</button>
+          <button id="loadModel">Load MediaPipe</button>
+          <label class="wide">
+            Upload face image
+            <input id="file" type="file" accept="image/*">
+          </label>
+          <button id="startCamera">Start camera</button>
+          <button id="freezeCamera">Freeze frame</button>
+        </div>
+        <p id="status" class="status">Synthetic fallback is ready. Load MediaPipe to run Face Landmarker on images or frozen camera frames.</p>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Expression Readout</h2>
+        <div class="stat-grid">
+          <div class="stat"><b id="faceCount">1</b><span>faces</span></div>
+          <div class="stat"><b id="mouthOpen">42%</b><span>mouth open</span></div>
+          <div class="stat"><b id="smileScore">58%</b><span>smile</span></div>
+          <div class="stat"><b id="browScore">18%</b><span>brow raise</span></div>
+        </div>
+        <div class="row">
+          <label for="meshDensity">Mesh density</label>
+          <span id="meshDensityValue" class="hint">2</span>
+        </div>
+        <input id="meshDensity" type="range" min="1" max="6" value="2">
+      </section>
+
+      <section class="panel">
+        <h2>Blendshape Bars</h2>
+        <div id="bars" class="bars"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Top Signals</h2>
+        <div id="blendList" class="blend-list"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    import {
+      FaceLandmarker,
+      FilesetResolver
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+
+    const input = document.querySelector("#input");
+    const overlay = document.querySelector("#overlay");
+    const ctx = input.getContext("2d");
+    const octx = overlay.getContext("2d");
+    const video = document.querySelector("#camera");
+    const statusEl = document.querySelector("#status");
+    const syntheticBtn = document.querySelector("#synthetic");
+    const loadModelBtn = document.querySelector("#loadModel");
+    const startCameraBtn = document.querySelector("#startCamera");
+    const freezeCameraBtn = document.querySelector("#freezeCamera");
+    const fileInput = document.querySelector("#file");
+    const meshDensity = document.querySelector("#meshDensity");
+    const meshDensityValue = document.querySelector("#meshDensityValue");
+    const faceCountEl = document.querySelector("#faceCount");
+    const mouthOpenEl = document.querySelector("#mouthOpen");
+    const smileScoreEl = document.querySelector("#smileScore");
+    const browScoreEl = document.querySelector("#browScore");
+    const barsEl = document.querySelector("#bars");
+    const blendListEl = document.querySelector("#blendList");
+
+    const modelUrl = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
+    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+    const trackedBars = ["mouthOpen", "mouthSmileLeft", "mouthSmileRight", "browInnerUp", "eyeBlinkLeft", "eyeBlinkRight"];
+    let faceLandmarker = null;
+    let lastLandmarks = [];
+    let lastBlendshapes = syntheticBlendshapes();
+    let cameraStream = null;
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function percent(value) {
+      return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+    }
+
+    function syntheticBlendshapes() {
+      return [
+        ["mouthOpen", 0.42],
+        ["mouthSmileLeft", 0.55],
+        ["mouthSmileRight", 0.61],
+        ["browInnerUp", 0.18],
+        ["eyeBlinkLeft", 0.08],
+        ["eyeBlinkRight", 0.11],
+        ["jawOpen", 0.36],
+        ["cheekSquintLeft", 0.21],
+        ["cheekSquintRight", 0.2],
+        ["noseSneerLeft", 0.04]
+      ].map(([categoryName, score]) => ({ categoryName, score }));
+    }
+
+    function makeSyntheticLandmarks() {
+      const points = [];
+      const centerX = 0.5;
+      const centerY = 0.49;
+      const rx = 0.22;
+      const ry = 0.31;
+      for (let ring = 0; ring < 5; ring += 1) {
+        const scale = 1 - ring * 0.17;
+        const count = 52 - ring * 6;
+        for (let i = 0; i < count; i += 1) {
+          const a = (i / count) * Math.PI * 2;
+          const wave = Math.sin(a * 3 + ring) * 0.012;
+          points.push({
+            x: centerX + Math.cos(a) * rx * scale + wave,
+            y: centerY + Math.sin(a) * ry * scale,
+            z: -0.02 * ring
+          });
+        }
+      }
+      const features = [
+        [0.42, 0.42], [0.46, 0.405], [0.54, 0.405], [0.58, 0.42],
+        [0.43, 0.35], [0.57, 0.35], [0.5, 0.49],
+        [0.43, 0.62], [0.47, 0.66], [0.53, 0.66], [0.57, 0.62],
+        [0.39, 0.51], [0.61, 0.51]
+      ];
+      features.forEach(([x, y]) => points.push({ x, y, z: -0.05 }));
+      return points;
+    }
+
+    function drawSyntheticFace() {
+      syntheticBtn.classList.add("active");
+      ctx.clearRect(0, 0, input.width, input.height);
+      const cx = input.width / 2;
+      const cy = input.height / 2 + 10;
+      const rx = 210;
+      const ry = 260;
+      const gradient = ctx.createLinearGradient(cx - rx, cy - ry, cx + rx, cy + ry);
+      gradient.addColorStop(0, "#f3b49b");
+      gradient.addColorStop(1, "#76514c");
+      ctx.fillStyle = "#071014";
+      ctx.fillRect(0, 0, input.width, input.height);
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#11181c";
+      ctx.beginPath();
+      ctx.ellipse(cx - 72, cy - 54, 28, 14, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 72, cy - 54, 28, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#522d2d";
+      ctx.lineWidth = 8;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cx - 82, cy + 102);
+      ctx.quadraticCurveTo(cx, cy + 158, cx + 82, cy + 102);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(17, 24, 28, 0.5)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 28);
+      ctx.quadraticCurveTo(cx + 28, cy + 38, cx - 8, cy + 54);
+      ctx.stroke();
+      lastLandmarks = [makeSyntheticLandmarks()];
+      lastBlendshapes = syntheticBlendshapes();
+      renderResults({ source: "synthetic" });
+    }
+
+    function drawLandmarks(faces) {
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+      const step = Number(meshDensity.value);
+      faces.forEach((face) => {
+        for (let i = 0; i < face.length; i += step) {
+          const point = face[i];
+          const x = point.x * overlay.width;
+          const y = point.y * overlay.height;
+          const radius = Math.max(1.6, 4.5 - step * 0.35);
+          octx.fillStyle = "rgba(91, 210, 193, 0.86)";
+          octx.beginPath();
+          octx.arc(x, y, radius, 0, Math.PI * 2);
+          octx.fill();
+          if (i % (step * 3) === 0 && face[i + step]) {
+            const next = face[i + step];
+            octx.strokeStyle = "rgba(255, 193, 103, 0.22)";
+            octx.lineWidth = 1;
+            octx.beginPath();
+            octx.moveTo(x, y);
+            octx.lineTo(next.x * overlay.width, next.y * overlay.height);
+            octx.stroke();
+          }
+        }
+      });
+    }
+
+    function blendScore(name) {
+      return lastBlendshapes.find((item) => item.categoryName === name)?.score || 0;
+    }
+
+    function renderBars() {
+      barsEl.innerHTML = trackedBars.map((name) => {
+        const score = blendScore(name);
+        return `<div>
+          <div class="bar-label"><span>${name}</span><span>${percent(score)}</span></div>
+          <div class="meter"><div class="fill" style="width: ${percent(score)}"></div></div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderTopSignals() {
+      const top = [...lastBlendshapes].sort((a, b) => b.score - a.score).slice(0, 8);
+      blendListEl.innerHTML = top.map((item) => `<div class="item"><strong>${item.categoryName}</strong><span>${item.score.toFixed(3)}</span></div>`).join("");
+    }
+
+    function renderResults({ source }) {
+      const smile = (blendScore("mouthSmileLeft") + blendScore("mouthSmileRight")) / 2;
+      const brow = blendScore("browInnerUp");
+      const mouth = Math.max(blendScore("mouthOpen"), blendScore("jawOpen"));
+      faceCountEl.textContent = String(lastLandmarks.length || 0);
+      mouthOpenEl.textContent = percent(mouth);
+      smileScoreEl.textContent = percent(smile);
+      browScoreEl.textContent = percent(brow);
+      drawLandmarks(lastLandmarks);
+      renderBars();
+      renderTopSignals();
+      if (source === "mediapipe") {
+        setStatus(`MediaPipe result rendered: ${lastLandmarks.length || 0} face(s), ${lastBlendshapes.length} blendshape scores.`);
+      }
+    }
+
+    async function ensureModel() {
+      if (faceLandmarker) return faceLandmarker;
+      loadModelBtn.disabled = true;
+      setStatus("Loading MediaPipe Face Landmarker model and WASM...");
+      try {
+        const vision = await FilesetResolver.forVisionTasks(wasmUrl);
+        faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: modelUrl,
+            delegate: "GPU"
+          },
+          runningMode: "IMAGE",
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true
+        });
+        setStatus("MediaPipe Face Landmarker loaded. Upload an image or freeze the camera.");
+      } catch (error) {
+        faceLandmarker = null;
+        setStatus(`MediaPipe load failed, staying on synthetic fallback: ${error.message}`);
+      } finally {
+        loadModelBtn.disabled = false;
+      }
+      return faceLandmarker;
+    }
+
+    function copyImageToCanvas(image) {
+      syntheticBtn.classList.remove("active");
+      ctx.fillStyle = "#05090b";
+      ctx.fillRect(0, 0, input.width, input.height);
+      const scale = Math.min(input.width / image.width, input.height / image.height);
+      const w = image.width * scale;
+      const h = image.height * scale;
+      const x = (input.width - w) / 2;
+      const y = (input.height - h) / 2;
+      ctx.drawImage(image, x, y, w, h);
+    }
+
+    async function runDetection() {
+      const detector = await ensureModel();
+      if (!detector) {
+        renderResults({ source: "synthetic" });
+        return;
+      }
+      try {
+        const result = detector.detect(input);
+        lastLandmarks = result.faceLandmarks || [];
+        lastBlendshapes = result.faceBlendshapes?.[0]?.categories || [];
+        if (!lastLandmarks.length) {
+          setStatus("MediaPipe ran, but no face was found. Try a clearer front-facing image.");
+        }
+        renderResults({ source: "mediapipe" });
+      } catch (error) {
+        setStatus(`Detection failed, keeping previous result: ${error.message}`);
+      }
+    }
+
+    loadModelBtn.addEventListener("click", async () => {
+      await ensureModel();
+      if (faceLandmarker) await runDetection();
+    });
+
+    syntheticBtn.addEventListener("click", () => {
+      drawSyntheticFace();
+      setStatus("Synthetic face reset. The bars and mesh are generated locally.");
+    });
+
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = async () => {
+        copyImageToCanvas(image);
+        URL.revokeObjectURL(url);
+        await runDetection();
+      };
+      image.src = url;
+    });
+
+    startCameraBtn.addEventListener("click", async () => {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        video.srcObject = cameraStream;
+        await video.play();
+        setStatus("Camera is running. Freeze a frame to run Face Landmarker.");
+      } catch (error) {
+        setStatus(`Camera unavailable: ${error.message}`);
+      }
+    });
+
+    freezeCameraBtn.addEventListener("click", async () => {
+      if (!video.videoWidth) {
+        setStatus("Start the camera before freezing a frame.");
+        return;
+      }
+      syntheticBtn.classList.remove("active");
+      ctx.fillStyle = "#05090b";
+      ctx.fillRect(0, 0, input.width, input.height);
+      const scale = Math.min(input.width / video.videoWidth, input.height / video.videoHeight);
+      const w = video.videoWidth * scale;
+      const h = video.videoHeight * scale;
+      ctx.save();
+      ctx.translate(input.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, (input.width - w) / 2, (input.height - h) / 2, w, h);
+      ctx.restore();
+      await runDetection();
+    });
+
+    meshDensity.addEventListener("input", () => {
+      meshDensityValue.textContent = meshDensity.value;
+      drawLandmarks(lastLandmarks);
+    });
+
+    window.addEventListener("beforeunload", () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    });
+
+    drawSyntheticFace();
+  </script>
+</body>
+</html>
