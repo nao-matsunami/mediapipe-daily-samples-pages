@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-07",
+  "category": "MediaPipe",
+  "headline": "Audio Classifier 入力を音のミキサーで読む",
+  "headlineEn": "Read Audio Classifier inputs with a sound mixer",
+  "summary": "MediaPipe Tasks Audio Classifier の `Float32Array` 入力と score threshold を意識した、自作の音イベント最小ラボを追加しました。合成音、波形、粗いスペクトル、簡易分類がすぐ動き、環境が許せば YamNet 版 MediaPipe Audio Classifier も任意ロードできます。",
+  "summaryEn": "This adds an original minimal sound-event lab shaped around MediaPipe Tasks Audio Classifier's `Float32Array` input and score threshold. Synthetic audio, waveform, coarse spectrum, and heuristic classification work immediately, with optional YamNet-backed MediaPipe Audio Classifier loading when the environment allows it.",
+  "keyTopics": [
+    "Audio Classifier は音声クリップまたは音声ストリームを入力にし、モデルで定義されたカテゴリを確率順に返す MediaPipe Tasks Audio の基本タスク。",
+    "Web 版は `@mediapipe/tasks-audio`、`FilesetResolver.forAudioTasks()`、`AudioClassifier.createFromOptions()` を使い、YamNet TFLite モデルを推奨モデルとして扱う。",
+    "`classify(audioData, sampleRate)` は `Float32Array` と sample rate を受け取る同期 API なので、連続マイク分類では Worker 化が重要になる。",
+    "Audio Classifier overview には score threshold、top-k、allowlist / denylist、locale label など、公開 UI に直結する設定項目がまとまっている。",
+    "Web ML の広い流れでは、MediaPipe LLM Inference Web guide がメンテナンス専用化と LiteRT-LM JavaScript API への移行を明記しており、今後のウォッチ対象になる。"
+  ],
+  "keyTopicsEn": [
+    "Audio Classifier is a core MediaPipe Tasks Audio task that takes audio clips or streams and returns model-defined categories ranked by probability.",
+    "The Web version uses `@mediapipe/tasks-audio`, `FilesetResolver.forAudioTasks()`, and `AudioClassifier.createFromOptions()`, with YamNet as the recommended TFLite model.",
+    "`classify(audioData, sampleRate)` is a synchronous API that accepts a `Float32Array` and sample rate, so Worker execution matters for continuous microphone classification.",
+    "The Audio Classifier overview lists score threshold, top-k, allowlist / denylist, and locale labels, all of which map directly to public UI controls.",
+    "For the broader Web ML watch list, the MediaPipe LLM Inference Web guide now states maintenance-only status and recommends migrating to LiteRT-LM JavaScript API."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Audio Event Threshold Mixer",
+      "url": "../outputs/2026-08-07_audio_event_threshold_mixer.html"
+    },
+    {
+      "label": "Audio classification guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/audio/audio_classifier/web_js"
+    },
+    {
+      "label": "Audio classification overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/audio/audio_classifier"
+    },
+    {
+      "label": "tasks-audio package reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-audio"
+    },
+    {
+      "label": "AudioClassifier class reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-audio.audioclassifier"
+    },
+    {
+      "label": "Official MediaPipe Tasks web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Audio Classifier を「結果ラベルを見るだけのデモ」ではなく、音声入力そのものの形を理解する UI として扱うことです。公式ガイドでは `Float32Array` の raw audio と sample rate を `classify()` に渡す流れが示され、overview では score threshold や top-k がタスク機能として整理されています。今日のサンプルは、speech pulse、music tone、noise bed を混ぜて 1.6 秒の音を作り、波形、ゼロ交差率、スペクトル重心、イベント score を同時に見られるようにしました。",
+      "bodyEn": "Today's notable angle is treating Audio Classifier not as a label-only demo, but as a UI for understanding the shape of the audio input itself. The official guide shows raw `Float32Array` audio and sample rate flowing into `classify()`, while the overview organizes score threshold and top-k as task features. Today's sample mixes speech pulse, music tone, and noise bed into a 1.6 second clip, then displays waveform, zero-crossing rate, spectral centroid, and event scores together.",
+      "links": [
+        {
+          "label": "Audio classification guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/audio/audio_classifier/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "サンプルは Synthesize、Play、Load MediaPipe、Mic 1.6s の入口を持ちます。スライダーで声っぽい周期、音楽的な和音、ノイズを混ぜ、threshold を動かすと top events の残り方が変わります。MediaPipe をロードできる環境では YamNet のカテゴリを表示し、失敗しても同じ音声バッファを使う簡易ヒューリスティックが動くため、公開アーカイブとしては常に操作できます。",
+      "bodyEn": "The sample exposes Synthesize, Play, Load MediaPipe, and Mic 1.6s controls. Sliders mix speech-like pulses, tonal chords, and noise, while the threshold changes which top events survive. When MediaPipe loads, it displays YamNet categories; when it fails, a heuristic over the same audio buffer keeps the public archive interactive."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは raw audio、RMS、ゼロ交差率、スペクトル重心、threshold、イベント score、マイク権限の成否です。Gesture Recognizer や Hand Landmarker と組み合わせれば、手の動きで音を作り、その音を Audio Classifier で読むフィードバック楽器になります。Pose Landmarker と合わせると運動中の音イベント、Face Landmarker と合わせると発話や笑いの反応可視化、WebRTC と合わせると遠隔セッションの軽量な音イベントログに発展できます。",
+      "bodyEn": "The accumulated data includes raw audio, RMS, zero-crossing rate, spectral centroid, threshold, event scores, and microphone permission results. Combined with Gesture Recognizer or Hand Landmarker, hand motion can generate sound that Audio Classifier reads back as a feedback instrument. With Pose Landmarker it can log exercise sound events, with Face Landmarker it can visualize speech or laughter reactions, and with WebRTC it can become a lightweight remote-session audio-event log."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では Web Audio の `AudioContext` で 16 kHz / 1.6 秒の mono buffer を作り、`Float32Array` として扱います。MediaPipe 側は `@mediapipe/tasks-audio@0.10.22` を CDN import し、`FilesetResolver.forAudioTasks()` で WASM を解決してから `AudioClassifier.createFromOptions()` に YamNet の modelAssetPath を渡します。公式 API の `classify(audioData, sampleRate)` は同期実行なので、長時間のマイクストリームでは `ScriptProcessor` 風の実装をそのまま本番にせず、Worker / AudioWorklet へ逃がす設計が必要です。",
+      "bodyEn": "The implementation creates a 16 kHz / 1.6 second mono buffer with Web Audio and treats it as a `Float32Array`. On the MediaPipe side, it imports `@mediapipe/tasks-audio@0.10.22`, resolves WASM through `FilesetResolver.forAudioTasks()`, and passes YamNet's model asset path to `AudioClassifier.createFromOptions()`. Because the official `classify(audioData, sampleRate)` API runs synchronously, long microphone streams should move away from a simple main-thread processor toward Worker / AudioWorklet execution.",
+      "links": [
+        {
+          "label": "AudioClassifier class reference",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-audio.audioclassifier"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Audio Embedder、Language Detector、Text Embedder、Holistic Landmarker、そして LiteRT-LM JavaScript API 周辺を見ます。特に LLM Inference Web guide はメンテナンス専用化を明記しているため、MediaPipe Tasks の日次サンプルと並行して、Google AI Edge の Web GenAI は LiteRT-LM 側の一次情報を追う必要があります。Audio 側は Worker / AudioWorklet、allowlist / denylist、連続ストリーム UI を追加候補にします。",
+      "bodyEn": "Next watch Audio Embedder, Language Detector, Text Embedder, Holistic Landmarker, and LiteRT-LM JavaScript API. Because the LLM Inference Web guide explicitly states maintenance-only status, the Web GenAI track should follow LiteRT-LM primary sources alongside MediaPipe Tasks samples. For Audio, Worker / AudioWorklet execution, allowlist / denylist controls, and continuous stream UI are the next candidates.",
+      "links": [
+        {
+          "label": "LLM Inference guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Synthesize のまま Speech pulse、Music tone、Noise bed を動かし、波形と top events がどう変わるか見ます。次に Score threshold を上げ下げして、同じ音でも公開 UI で残るイベントが変わることを確認します。最後に Load MediaPipe を押し、CDN と YamNet が読み込める環境なら MediaPipe の実カテゴリ、失敗する環境なら fallback のイベント score を比較します。",
+      "bodyEn": "First keep Synthesize active and move Speech pulse, Music tone, and Noise bed to see how waveform and top events change. Then move Score threshold to confirm that the same sound produces different visible events. Finally press Load MediaPipe: if CDN and YamNet load, compare real MediaPipe categories; if not, compare the fallback event scores.",
+      "links": [
+        {
+          "label": "Open Audio Event Threshold Mixer",
+          "url": "../outputs/2026-08-07_audio_event_threshold_mixer.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Audio Classifier Web guide、Audio Classifier overview、tasks-audio API、AudioClassifier API、公式 web demo、`mediapipe-samples-web`、LLM Inference Web guide を確認。設計: model download に依存せず、MediaPipe と同じ入力形を理解できる音声 UI にする。実装: synthetic mixer、waveform / spectrum canvas、RMS / zero-crossing / centroid、threshold filter、optional MediaPipe loader、microphone short capture を追加。検証: JSON 構文、gallery build、required publish command、公開 URL の HTTP 応答を確認する。",
+      "bodyEn": "Research: reviewed the Audio Classifier Web guide, Audio Classifier overview, tasks-audio API, AudioClassifier API, official web demo, `mediapipe-samples-web`, and LLM Inference Web guide. Design: create an audio UI that explains the MediaPipe input shape without depending on model download. Implementation: added synthetic mixer, waveform / spectrum canvas, RMS / zero-crossing / centroid, threshold filtering, optional MediaPipe loader, and short microphone capture. Validation: parse JSON, build the gallery, run the required publish command, and check public HTTP responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの Vision 中心サンプルに Audio が加わり、手、画像マスク、クリック分割、物体、姿勢、顔、音という入力モダリティが広がりました。MediaPipe Tasks の日次アーカイブでは、モデルが重くても synthetic fallback を用意すると、公式デモ一覧ではなく自作サンプルとして毎日触れる状態を保てます。Audio は UI thread blocking、マイク権限、sample rate、音声長という Vision とは別の実装リスクを可視化しやすい題材です。",
+      "bodyEn": "Audio now joins the Vision-heavy archive, widening the input modalities from hands, image masks, click segmentation, objects, pose, and face to sound. In a daily MediaPipe Tasks archive, synthetic fallbacks keep each original sample touchable even when models are heavy. Audio is useful because it exposes implementation risks that differ from Vision: UI-thread blocking, microphone permission, sample rate, and clip length."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Audio Event Threshold Mixer` です。実際に動く部分は 1.6 秒の合成音生成、再生、短いマイク録音、波形表示、粗いスペクトル表示、RMS / zero-crossing / spectral centroid、score threshold、top event 表示、任意の MediaPipe Audio Classifier ロードです。次に足すなら Worker / AudioWorklet 化、YamNet ラベルの allowlist / denylist、連続ストリームの時間軸ログ、Vision サンプルと同期する反応メーターを追加します。",
+      "bodyEn": "The selected prototype is `Audio Event Threshold Mixer`. The working parts are 1.6 second synthetic audio generation, playback, short microphone recording, waveform display, coarse spectrum display, RMS / zero-crossing / spectral centroid, score threshold, top event display, and optional MediaPipe Audio Classifier loading. Next additions should include Worker / AudioWorklet execution, YamNet label allowlist / denylist, continuous stream timelines, and reaction meters synchronized with the Vision samples."
+    }
+  ]
+}

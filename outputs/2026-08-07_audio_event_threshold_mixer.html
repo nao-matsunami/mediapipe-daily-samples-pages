@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audio Event Threshold Mixer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #08100f;
+      color: #f6fbf7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(82, 190, 128, 0.16), transparent 36%),
+        linear-gradient(300deg, rgba(242, 159, 86, 0.14), transparent 46%),
+        #08100f;
+    }
+
+    main {
+      width: min(1220px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 247, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.3vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.98rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #bbcbc1;
+      line-height: 1.55;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(92, 209, 148, 0.48);
+      background: rgba(92, 209, 148, 0.12);
+      color: #f6fbf7;
+      font: inherit;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    button.active {
+      background: #5cd194;
+      border-color: #5cd194;
+      color: #06110b;
+    }
+
+    button.warn {
+      border-color: rgba(242, 159, 86, 0.6);
+      background: rgba(242, 159, 86, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.54;
+      cursor: wait;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #f29f56;
+    }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .scope {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #040706;
+      border: 1px solid rgba(246, 251, 247, 0.16);
+      overflow: hidden;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid rgba(246, 251, 247, 0.14);
+      background: rgba(8, 16, 15, 0.82);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .wide { grid-column: 1 / -1; }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(242, 159, 86, 0.28);
+      background: rgba(242, 159, 86, 0.08);
+      color: #ffe3c4;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .stat {
+      min-height: 76px;
+      border: 1px solid rgba(246, 251, 247, 0.1);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .stat b {
+      display: block;
+      color: #f9c56c;
+      font-size: 1.28rem;
+      line-height: 1.1;
+      overflow-wrap: anywhere;
+    }
+
+    .stat span, label, .hint {
+      color: #91a89b;
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .bars {
+      display: grid;
+      gap: 10px;
+    }
+
+    .bar-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: #d8e2dc;
+      font-size: 0.88rem;
+    }
+
+    .meter {
+      height: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #5cd194, #f9c56c, #f29f56);
+      transition: width 160ms ease;
+    }
+
+    .events {
+      display: grid;
+      gap: 8px;
+    }
+
+    .event {
+      border: 1px solid rgba(246, 251, 247, 0.1);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .event strong {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid rgba(92, 209, 148, 0.34);
+      background: rgba(92, 209, 148, 0.08);
+      color: #c7f5d8;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 0.78rem;
+    }
+
+    a { color: #8ef0b7; }
+
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; }
+      aside { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .controls-panel, .results-panel { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 640px) {
+      main { padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      aside { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Audio Event Threshold Mixer</h1>
+        <p>Generate a short synthetic clip, inspect Web Audio features, and optionally pass the same Float32Array into MediaPipe Audio Classifier.</p>
+      </div>
+      <span class="pill" id="engine-pill">heuristic ready</span>
+    </header>
+
+    <section class="stage">
+      <div class="scope">
+        <canvas id="scope" width="1280" height="720"></canvas>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="rms">0.00</b><span>RMS energy</span></div>
+        <div class="stat"><b id="zcr">0.00</b><span>zero-crossing rate</span></div>
+        <div class="stat"><b id="centroid">0 Hz</b><span>spectral centroid</span></div>
+        <div class="stat"><b id="duration">1.6 s</b><span>clip length</span></div>
+      </div>
+      <div class="panel">
+        <h2>Event scores</h2>
+        <div class="bars" id="bars"></div>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel controls-panel">
+        <h2>Controls</h2>
+        <div class="controls">
+          <button id="synth" class="active">Synthesize</button>
+          <button id="play">Play</button>
+          <button id="load">Load MediaPipe</button>
+          <button id="mic" class="warn">Mic 1.6s</button>
+        </div>
+        <div class="row">
+          <label for="speech">Speech pulse</label>
+          <span id="speechValue">62%</span>
+        </div>
+        <input id="speech" type="range" min="0" max="100" value="62">
+        <div class="row">
+          <label for="music">Music tone</label>
+          <span id="musicValue">48%</span>
+        </div>
+        <input id="music" type="range" min="0" max="100" value="48">
+        <div class="row">
+          <label for="noise">Noise bed</label>
+          <span id="noiseValue">18%</span>
+        </div>
+        <input id="noise" type="range" min="0" max="100" value="18">
+        <div class="row">
+          <label for="threshold">Score threshold</label>
+          <span id="thresholdValue">0.25</span>
+        </div>
+        <input id="threshold" type="range" min="0" max="90" value="25">
+      </section>
+
+      <section class="panel results-panel">
+        <h2>Top events</h2>
+        <div id="events" class="events"></div>
+        <p class="hint">MediaPipe load uses <code>@mediapipe/tasks-audio</code> with YamNet. If CDN or model loading fails, the local heuristic remains active.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Status</h2>
+        <div class="status" id="status">Synthetic clip generated. Adjust sliders, then play or classify.</div>
+        <p class="hint">Official references: <a href="https://developers.google.com/edge/mediapipe/solutions/audio/audio_classifier/web_js" target="_blank" rel="noreferrer">Audio Classifier Web guide</a>, <a href="https://developers.google.com/edge/api/mediapipe/js/tasks-audio.audioclassifier" target="_blank" rel="noreferrer">AudioClassifier API</a>, <a href="https://github.com/google-ai-edge/mediapipe-samples-web" target="_blank" rel="noreferrer">samples web repo</a>.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const sampleRate = 16000;
+    const clipSeconds = 1.6;
+    const state = {
+      audio: new Float32Array(sampleRate * clipSeconds),
+      scores: [],
+      classifier: null,
+      usingMediaPipe: false
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const controls = {
+      speech: $("speech"),
+      music: $("music"),
+      noise: $("noise"),
+      threshold: $("threshold")
+    };
+    const ctx = $("scope").getContext("2d");
+
+    function setStatus(message) {
+      $("status").textContent = message;
+    }
+
+    function valueOf(name) {
+      return Number(controls[name].value) / 100;
+    }
+
+    function synthesize() {
+      const speech = valueOf("speech");
+      const music = valueOf("music");
+      const noise = valueOf("noise");
+      const data = new Float32Array(sampleRate * clipSeconds);
+      for (let i = 0; i < data.length; i += 1) {
+        const t = i / sampleRate;
+        const syllable = Math.sin(Math.PI * 2 * (115 + 42 * Math.sin(t * 18)) * t);
+        const vowel = Math.sin(Math.PI * 2 * 245 * t) * 0.35 + Math.sin(Math.PI * 2 * 490 * t) * 0.18;
+        const speechGate = 0.55 + 0.45 * Math.sign(Math.sin(Math.PI * 2 * 4.2 * t));
+        const chord = Math.sin(Math.PI * 2 * 330 * t) + 0.65 * Math.sin(Math.PI * 2 * 495 * t) + 0.45 * Math.sin(Math.PI * 2 * 660 * t);
+        const tremolo = 0.55 + 0.45 * Math.sin(Math.PI * 2 * 2.6 * t);
+        const white = (Math.random() * 2 - 1) * (0.72 + 0.28 * Math.sin(Math.PI * 2 * 11 * t));
+        data[i] = (speech * 0.42 * speechGate * (syllable + vowel)) + (music * 0.22 * tremolo * chord) + (noise * 0.34 * white);
+      }
+      normalize(data);
+      state.audio = data;
+      runClassification("Synthetic clip ready.");
+    }
+
+    function normalize(data) {
+      let peak = 0;
+      for (const value of data) peak = Math.max(peak, Math.abs(value));
+      if (peak > 0.98) {
+        const scale = 0.98 / peak;
+        for (let i = 0; i < data.length; i += 1) data[i] *= scale;
+      }
+    }
+
+    function features(data) {
+      let sum = 0;
+      let crossings = 0;
+      let prev = data[0] || 0;
+      for (const value of data) {
+        sum += value * value;
+        if ((value >= 0 && prev < 0) || (value < 0 && prev >= 0)) crossings += 1;
+        prev = value;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const zcr = crossings / data.length;
+      const bins = 96;
+      const spectrum = [];
+      let weighted = 0;
+      let total = 0.000001;
+      for (let b = 0; b < bins; b += 1) {
+        const freq = 70 + (b / (bins - 1)) * 3600;
+        let re = 0;
+        let im = 0;
+        const step = Math.max(1, Math.floor(data.length / 900));
+        for (let i = 0; i < data.length; i += step) {
+          const phase = Math.PI * 2 * freq * (i / sampleRate);
+          re += data[i] * Math.cos(phase);
+          im -= data[i] * Math.sin(phase);
+        }
+        const mag = Math.sqrt(re * re + im * im) / (data.length / step);
+        spectrum.push({ freq, mag });
+        weighted += freq * mag;
+        total += mag;
+      }
+      return { rms, zcr, centroid: weighted / total, spectrum };
+    }
+
+    function heuristicScores(data) {
+      const f = features(data);
+      const speechAmount = valueOf("speech");
+      const musicAmount = valueOf("music");
+      const noiseAmount = valueOf("noise");
+      const energy = clamp(f.rms * 3.4);
+      const noisiness = clamp((f.zcr - 0.035) * 11 + noiseAmount * 0.55);
+      const tonality = clamp(1 - Math.abs(f.centroid - 650) / 1300);
+      const pulse = clamp(speechAmount * 0.72 + energy * 0.34 - noisiness * 0.12);
+      const music = clamp(musicAmount * 0.72 + tonality * 0.32 + energy * 0.18);
+      const noise = clamp(noiseAmount * 0.78 + noisiness * 0.42);
+      const silence = clamp(1 - energy * 1.9);
+      const tone = clamp(tonality * 0.56 + musicAmount * 0.32 - noisiness * 0.18);
+      return {
+        featureSet: f,
+        scores: [
+          { label: "Speech-like pulse", score: pulse },
+          { label: "Music / tonal texture", score: music },
+          { label: "Broadband noise", score: noise },
+          { label: "Clean tone", score: tone },
+          { label: "Silence / room tone", score: silence }
+        ].sort((a, b) => b.score - a.score)
+      };
+    }
+
+    function clamp(value) {
+      return Math.max(0, Math.min(1, value));
+    }
+
+    async function runClassification(message) {
+      const local = heuristicScores(state.audio);
+      let scores = local.scores;
+      if (state.classifier) {
+        try {
+          const result = state.classifier.classify(state.audio, sampleRate);
+          const categories = result?.[0]?.classifications?.[0]?.categories || [];
+          if (categories.length) {
+            scores = categories.map((category) => ({
+              label: category.displayName || category.categoryName || `class ${category.index}`,
+              score: category.score || 0
+            })).sort((a, b) => b.score - a.score).slice(0, 8);
+            state.usingMediaPipe = true;
+          }
+        } catch (error) {
+          state.usingMediaPipe = false;
+          setStatus(`MediaPipe classify failed; heuristic shown. ${error.message}`);
+        }
+      }
+      state.scores = scores;
+      render(local.featureSet);
+      if (message) setStatus(message);
+    }
+
+    function render(featureSet = features(state.audio)) {
+      $("rms").textContent = featureSet.rms.toFixed(2);
+      $("zcr").textContent = featureSet.zcr.toFixed(2);
+      $("centroid").textContent = `${Math.round(featureSet.centroid)} Hz`;
+      $("duration").textContent = `${clipSeconds.toFixed(1)} s`;
+      $("engine-pill").textContent = state.usingMediaPipe ? "MediaPipe active" : "heuristic ready";
+      $("engine-pill").style.borderColor = state.usingMediaPipe ? "rgba(142, 240, 183, 0.7)" : "rgba(242, 159, 86, 0.42)";
+      drawScope(featureSet);
+      renderScores();
+    }
+
+    function drawScope(featureSet) {
+      const canvas = $("scope");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#040706";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "rgba(246, 251, 247, 0.08)";
+      ctx.lineWidth = 1;
+      for (let y = 90; y < height; y += 90) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "#5cd194";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const mid = height * 0.34;
+      const waveHeight = height * 0.22;
+      for (let x = 0; x < width; x += 1) {
+        const i = Math.floor((x / width) * state.audio.length);
+        const y = mid + state.audio[i] * waveHeight;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      const baseY = height - 64;
+      const barWidth = width / featureSet.spectrum.length;
+      featureSet.spectrum.forEach((bin, index) => {
+        const mag = Math.min(1, bin.mag * 15);
+        const h = mag * height * 0.34;
+        const hue = index / featureSet.spectrum.length;
+        ctx.fillStyle = `rgb(${Math.round(92 + hue * 150)}, ${Math.round(209 - hue * 52)}, ${Math.round(148 - hue * 62)})`;
+        ctx.fillRect(index * barWidth, baseY - h, Math.max(2, barWidth - 2), h);
+      });
+
+      ctx.fillStyle = "rgba(246, 251, 247, 0.76)";
+      ctx.font = "16px Inter, system-ui, sans-serif";
+      ctx.fillText("waveform", 22, 34);
+      ctx.fillText("coarse spectrum", 22, height - 24);
+    }
+
+    function renderScores() {
+      const threshold = Number(controls.threshold.value) / 100;
+      const filtered = state.scores.filter((item) => item.score >= threshold);
+      $("bars").innerHTML = state.scores.map((item) => `
+        <div>
+          <div class="bar-label"><span>${escapeHtml(item.label)}</span><span>${item.score.toFixed(2)}</span></div>
+          <div class="meter"><div class="fill" style="width:${Math.round(item.score * 100)}%"></div></div>
+        </div>
+      `).join("");
+      $("events").innerHTML = (filtered.length ? filtered : [{ label: "No event above threshold", score: 0 }]).map((item) => `
+        <div class="event">
+          <strong><span>${escapeHtml(item.label)}</span><span>${item.score.toFixed(2)}</span></strong>
+        </div>
+      `).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    async function playClip() {
+      const audioContext = new AudioContext({ sampleRate });
+      const buffer = audioContext.createBuffer(1, state.audio.length, sampleRate);
+      buffer.copyToChannel(state.audio, 0);
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start();
+      setStatus("Playing generated clip.");
+    }
+
+    async function loadMediaPipe() {
+      $("load").disabled = true;
+      setStatus("Loading MediaPipe Audio Classifier and YamNet model...");
+      try {
+        const audioTasks = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-audio@0.10.22/+esm");
+        const fileset = await audioTasks.FilesetResolver.forAudioTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-audio@0.10.22/wasm");
+        state.classifier = await audioTasks.AudioClassifier.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath: "https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite"
+          },
+          maxResults: 8,
+          scoreThreshold: 0
+        });
+        state.usingMediaPipe = true;
+        $("load").classList.add("active");
+        await runClassification("MediaPipe Audio Classifier loaded. Current clip classified with YamNet.");
+      } catch (error) {
+        state.classifier = null;
+        state.usingMediaPipe = false;
+        setStatus(`MediaPipe load failed; local heuristic remains usable. ${error.message}`);
+      } finally {
+        $("load").disabled = false;
+        render();
+      }
+    }
+
+    async function captureMic() {
+      $("mic").disabled = true;
+      setStatus("Requesting microphone and recording 1.6 seconds...");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioContext = new AudioContext({ sampleRate });
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(2048, 1, 1);
+        const chunks = [];
+        let collected = 0;
+        await new Promise((resolve) => {
+          processor.onaudioprocess = (event) => {
+            const input = event.inputBuffer.getChannelData(0);
+            chunks.push(new Float32Array(input));
+            collected += input.length;
+            if (collected >= state.audio.length) resolve();
+          };
+          source.connect(processor);
+          processor.connect(audioContext.destination);
+        });
+        const data = new Float32Array(state.audio.length);
+        let offset = 0;
+        for (const chunk of chunks) {
+          data.set(chunk.slice(0, Math.min(chunk.length, data.length - offset)), offset);
+          offset += chunk.length;
+          if (offset >= data.length) break;
+        }
+        stream.getTracks().forEach((track) => track.stop());
+        processor.disconnect();
+        source.disconnect();
+        await audioContext.close();
+        state.audio = data;
+        await runClassification("Microphone clip captured and classified.");
+      } catch (error) {
+        setStatus(`Microphone capture failed. ${error.message}`);
+      } finally {
+        $("mic").disabled = false;
+      }
+    }
+
+    function syncLabels() {
+      $("speechValue").textContent = `${controls.speech.value}%`;
+      $("musicValue").textContent = `${controls.music.value}%`;
+      $("noiseValue").textContent = `${controls.noise.value}%`;
+      $("thresholdValue").textContent = (Number(controls.threshold.value) / 100).toFixed(2);
+    }
+
+    ["speech", "music", "noise"].forEach((name) => {
+      controls[name].addEventListener("input", () => {
+        syncLabels();
+        synthesize();
+      });
+    });
+    controls.threshold.addEventListener("input", () => {
+      syncLabels();
+      renderScores();
+    });
+    $("synth").addEventListener("click", synthesize);
+    $("play").addEventListener("click", playClip);
+    $("load").addEventListener("click", loadMediaPipe);
+    $("mic").addEventListener("click", captureMic);
+
+    syncLabels();
+    synthesize();
+  </script>
+</body>
+</html>
