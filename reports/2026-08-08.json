@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-08",
+  "category": "MediaPipe",
+  "headline": "Text Embedder で短文の近さを可視化する",
+  "headlineEn": "Visualize short-text proximity with Text Embedder",
+  "summary": "MediaPipe Tasks Text Embedder の `embed(text)` と cosine similarity を意識した、自作の短文類似度ボードを追加しました。3つの文章を比較し、類似度行列、ペア順位、共有語を表示します。環境が許せば Universal Sentence Encoder 版 MediaPipe Text Embedder を任意ロードし、失敗してもローカル n-gram fallback が動きます。",
+  "summaryEn": "This adds an original short-text similarity board shaped around MediaPipe Tasks Text Embedder's `embed(text)` and cosine similarity. It compares three texts with a similarity matrix, pair ranking, and shared token display. It can optionally load the Universal Sentence Encoder-backed MediaPipe Text Embedder, while a local n-gram fallback keeps the sample usable when loading fails.",
+  "keyTopics": [
+    "Text Embedder はテキストを意味ベクトルに変換し、短文検索、類似文クラスタリング、重複検知、推薦 UI の基礎になる MediaPipe Tasks Text のタスク。",
+    "Web 版は `@mediapipe/tasks-text`、`FilesetResolver.forTextTasks()`、`TextEmbedder.createFromOptions()` を使い、Universal Sentence Encoder の `.tflite` モデルを指定できる。",
+    "`embed(text)` は同期的に `TextEmbedderResult` を返し、公式 API には `TextEmbedder.cosineSimilarity()` も用意されているため、結果表示は pairwise similarity に直結する。",
+    "公式 MediaPipe Tasks web demo は Vision / Audio / Text を同じブラウザアプリにまとめ、Text では Language Detection、Text Classification、Text Embedding を扱っている。",
+    "MediaPipe v0.10.35 の release notes では JS export 修正や Vite worker での MP Task file 利用改善があり、今後の Worker 化サンプルの足場になる。"
+  ],
+  "keyTopicsEn": [
+    "Text Embedder converts text into semantic vectors and forms the basis for short-text search, similar-sentence clustering, duplicate detection, and recommendation UI.",
+    "The Web version uses `@mediapipe/tasks-text`, `FilesetResolver.forTextTasks()`, and `TextEmbedder.createFromOptions()`, and can point at the Universal Sentence Encoder `.tflite` model.",
+    "`embed(text)` synchronously returns a `TextEmbedderResult`, and the official API also exposes `TextEmbedder.cosineSimilarity()`, so result UI maps naturally to pairwise similarity.",
+    "The official MediaPipe Tasks web demo groups Vision, Audio, and Text in one browser app; the Text track includes Language Detection, Text Classification, and Text Embedding.",
+    "MediaPipe v0.10.35 release notes include JavaScript export fixes and improved MP Task file use in Vite workers, which is a useful base for future Worker-based samples."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Text Embedder Similarity Board",
+      "url": "../outputs/2026-08-08_text_embedder_similarity_board.html"
+    },
+    {
+      "label": "Text embedding guide for Web",
+      "url": "https://ai.google.dev/edge/mediapipe/solutions/text/text_embedder/web_js"
+    },
+    {
+      "label": "TextEmbedder class reference",
+      "url": "https://ai.google.dev/edge/mediapipe/api/solutions/js/tasks-text.textembedder"
+    },
+    {
+      "label": "Official MediaPipe Tasks web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "MediaPipe repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "LLM Inference guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Text Embedder を「テキストを数値化する API」としてだけでなく、短いメモ同士の近さを触れる UI として見せることです。公式 Web guide は Universal Sentence Encoder の `.tflite` を `TextEmbedder.createFromOptions()` に渡し、`embed(text)` で embedding を得る最小経路を示しています。今日のサンプルは3つの短文を入力にし、類似度行列、ペア順位、共有語を同時に表示して、意味ベクトルの使い道を小さく確認できます。",
+      "bodyEn": "Today's notable angle is showing Text Embedder not just as a text-to-number API, but as a touchable UI for comparing short notes. The official Web guide shows the minimal path of passing a Universal Sentence Encoder `.tflite` model to `TextEmbedder.createFromOptions()` and calling `embed(text)`. Today's sample takes three short texts and displays a similarity matrix, pair ranking, and shared tokens so the use of semantic vectors is visible in a small form.",
+      "links": [
+        {
+          "label": "Text embedding guide for Web",
+          "url": "https://ai.google.dev/edge/mediapipe/solutions/text/text_embedder/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "News、Product、Motion のプリセットを切り替え、3つの textarea を編集すると即座に比較が更新されます。Load MediaPipe を押すと CDN から `@mediapipe/tasks-text` とモデルを読み込み、成功した場合は MediaPipe の embedding を使います。ネットワークや WASM 制約で失敗しても、同じ UI がローカル n-gram fallback で動くため、公開アーカイブとして常に試せる状態を保てます。",
+      "bodyEn": "Switch News, Product, and Motion presets, then edit the three textareas to update comparisons immediately. Pressing Load MediaPipe fetches `@mediapipe/tasks-text` and the model from the CDN, using MediaPipe embeddings when successful. If network or WASM constraints fail, the same UI keeps working with a local n-gram fallback so the public archive remains usable."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは入力文、embedding source、ベクトル次元、pairwise cosine similarity、上位ペア、共有 token、プリセット選択です。Language Detector と組み合わせると多言語メモの分類前処理に、Text Classifier と合わせると意味的に近い文の感情やカテゴリ比較に使えます。Vision 側の Pose / Face / Hand サンプルから生成した短い説明文を Text Embedder に渡せば、動作ログや表情ログを意味検索する小さな Web ML ノートになります。",
+      "bodyEn": "The accumulated data includes input texts, embedding source, vector dimensions, pairwise cosine similarity, top pair, shared tokens, and preset selection. Combined with Language Detector it can preprocess multilingual notes; with Text Classifier it can compare sentiment or categories among semantically similar sentences. Feeding short descriptions generated from the Pose / Face / Hand samples into Text Embedder would turn motion or expression logs into a small Web ML semantic notebook."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "MediaPipe 経路は `@mediapipe/tasks-text@0.10.22` を CDN import し、`FilesetResolver.forTextTasks()` で WASM を解決し、`TextEmbedder.createFromOptions()` に Universal Sentence Encoder の `modelAssetPath` を渡す形にしました。API reference では `embed(text)` と `TextEmbedder.cosineSimilarity()` が明記されています。今回の fallback は128次元の hashed n-gram ベクトルで、MediaPipe の意味理解とは別物ですが、UI とデータ形の検証には十分です。",
+      "bodyEn": "The MediaPipe path imports `@mediapipe/tasks-text@0.10.22` from a CDN, resolves WASM with `FilesetResolver.forTextTasks()`, and passes the Universal Sentence Encoder `modelAssetPath` into `TextEmbedder.createFromOptions()`. The API reference documents `embed(text)` and `TextEmbedder.cosineSimilarity()`. The fallback uses 128-dimensional hashed n-gram vectors; it is not equivalent to MediaPipe semantic understanding, but it is enough to validate the UI and data shape.",
+      "links": [
+        {
+          "label": "TextEmbedder class reference",
+          "url": "https://ai.google.dev/edge/mediapipe/api/solutions/js/tasks-text.textembedder"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Language Detector、Text Classifier、Image Embedder、Holistic Landmarker、Worker / OffscreenCanvas 化、LiteRT-LM JavaScript API を見ます。特に MediaPipe release notes で Vite worker まわりの改善が出ているため、Web サンプルをメインスレッドから逃がす構成を継続的に試す価値があります。LLM Inference API はメンテナンス専用化が明記されているので、GenAI 系は LiteRT-LM 側を一次情報として追います。",
+      "bodyEn": "Next watch Language Detector, Text Classifier, Image Embedder, Holistic Landmarker, Worker / OffscreenCanvas execution, and LiteRT-LM JavaScript API. Because MediaPipe release notes mention Vite worker improvements, it is worth continuing to test browser samples that move work off the main thread. Since the LLM Inference API is explicitly maintenance-only, the GenAI track should follow LiteRT-LM primary sources.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず News preset のまま Compare を押し、A-B が AI Edge / MediaPipe 文脈で近く、C が都市計画文脈で離れることを見ます。次に Motion preset に切り替え、Pose の説明と動作文が近くなるか確認します。最後に Load MediaPipe を押し、ロードに成功した場合は MediaPipe embedding と fallback の順位差を比較します。",
+      "bodyEn": "First keep the News preset and press Compare to see A-B stay close in the AI Edge / MediaPipe context while C sits farther away in an urban-planning context. Then switch to Motion and check whether the Pose description and motion sentence move closer. Finally press Load MediaPipe and, if loading succeeds, compare ranking differences between MediaPipe embeddings and the fallback.",
+      "links": [
+        {
+          "label": "Open Text Embedder Similarity Board",
+          "url": "../outputs/2026-08-08_text_embedder_similarity_board.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Text Embedder Web guide、TextEmbedder API、公式 MediaPipe Tasks web demo、`mediapipe-samples-web`、MediaPipe releases、MediaPipe repository、LLM Inference guide を確認。設計: 公式デモ一覧ではなく、自作の3文比較 UI にする。実装: textarea、プリセット、類似度行列、pair ranking、共有 token、optional MediaPipe loader、fallback embedder を追加。検証: JSON 構文、gallery build、required publish command、公開 URL の HTTP 応答を確認する。",
+      "bodyEn": "Research: reviewed the Text Embedder Web guide, TextEmbedder API, official MediaPipe Tasks web demo, `mediapipe-samples-web`, MediaPipe releases, MediaPipe repository, and LLM Inference guide. Design: build an original three-text comparison UI rather than an external demo list. Implementation: added textareas, presets, similarity matrix, pair ranking, shared tokens, optional MediaPipe loader, and fallback embedder. Validation: parse JSON, build the gallery, run the required publish command, and check public HTTP responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでのアーカイブは Vision と Audio を中心に広がってきましたが、Text Embedder を入れることで Web ML の入力が画像・音・テキストの3系統になります。MediaPipe Tasks は低レベルの推論だけでなく、結果をどう UI に翻訳するかが重要です。今日のサンプルでは「ベクトル」そのものを見せるのではなく、行列とランキングとして見せることで、テキスト embedding の利用場面を掴みやすくしました。",
+      "bodyEn": "The archive has grown mostly through Vision and Audio, and Text Embedder adds text as a third Web ML input family. MediaPipe Tasks are not only about low-level inference; translating results into UI matters. Today's sample avoids showing raw vectors and instead presents a matrix and ranking, making the use case for text embeddings easier to grasp."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Text Embedder Similarity Board` です。実際に動く部分は3つの短文入力、プリセット、ローカル embedding fallback、任意の MediaPipe Text Embedder ロード、cosine similarity 行列、上位ペア表示、共有 token 表示です。次に足すなら、Language Detector による言語表示、Text Classifier による sentiment / topic 併記、保存したメモ群の近傍検索、Worker 化、Vision / Audio サンプルのログを文章化して検索する連携を追加します。",
+      "bodyEn": "The selected prototype is `Text Embedder Similarity Board`. The working parts are three short-text inputs, presets, local embedding fallback, optional MediaPipe Text Embedder loading, a cosine similarity matrix, top-pair display, and shared token display. Next additions should include Language Detector labels, Text Classifier sentiment / topic display, nearest-neighbor search over saved notes, Worker execution, and links that turn Vision / Audio sample logs into searchable text."
+    }
+  ]
+}

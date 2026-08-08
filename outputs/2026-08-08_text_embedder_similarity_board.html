@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Embedder Similarity Board</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #07110f;
+      color: #f6fbf8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(66, 201, 146, 0.15), transparent 34%),
+        linear-gradient(315deg, rgba(231, 183, 88, 0.12), transparent 46%),
+        #07110f;
+    }
+
+    main {
+      width: min(1220px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 248, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.3vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.98rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #b8c9c0;
+      line-height: 1.55;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(89, 213, 154, 0.48);
+      background: rgba(89, 213, 154, 0.12);
+      color: #f6fbf8;
+      font: inherit;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    button.active {
+      background: #59d59a;
+      border-color: #59d59a;
+      color: #06110b;
+    }
+
+    button.warn {
+      border-color: rgba(231, 183, 88, 0.6);
+      background: rgba(231, 183, 88, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.54;
+      cursor: wait;
+    }
+
+    textarea, select {
+      width: 100%;
+      border: 1px solid rgba(246, 251, 248, 0.14);
+      background: rgba(255, 255, 255, 0.055);
+      color: #f6fbf8;
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 128px;
+      padding: 11px;
+      resize: vertical;
+      line-height: 1.42;
+    }
+
+    select { min-height: 38px; padding: 8px; }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .panel {
+      border: 1px solid rgba(246, 251, 248, 0.14);
+      background: rgba(7, 17, 15, 0.82);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .inputs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .input-card {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    label, .hint, .small {
+      color: #91a89d;
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(231, 183, 88, 0.28);
+      background: rgba(231, 183, 88, 0.08);
+      color: #ffe8bd;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 90px repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .cell {
+      min-height: 74px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      border: 1px solid rgba(246, 251, 248, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      border-radius: 6px;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
+    .cell.head {
+      min-height: 42px;
+      color: #e7b758;
+      background: rgba(231, 183, 88, 0.09);
+    }
+
+    .score {
+      font-size: clamp(1.15rem, 3vw, 2.2rem);
+      line-height: 1;
+      color: #f8f1d4;
+    }
+
+    .pair-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .pair {
+      min-height: 94px;
+      border: 1px solid rgba(246, 251, 248, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .pair b {
+      display: block;
+      color: #59d59a;
+      font-size: 1.5rem;
+      line-height: 1.1;
+    }
+
+    .tokens {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 34px;
+    }
+
+    .token {
+      border: 1px solid rgba(89, 213, 154, 0.24);
+      color: #dce9e2;
+      background: rgba(89, 213, 154, 0.08);
+      padding: 4px 7px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .wide { grid-column: 1 / -1; }
+
+    .stat-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid rgba(246, 251, 248, 0.1);
+      padding-bottom: 8px;
+    }
+
+    .stat b {
+      color: #e7b758;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      header { align-items: start; flex-direction: column; }
+      .inputs, .pair-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      main { padding: 14px; }
+      .matrix {
+        grid-template-columns: 64px repeat(3, minmax(0, 1fr));
+        gap: 5px;
+      }
+      .cell { min-height: 62px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Text Embedder Similarity Board</h1>
+        <p>Compare three short notes as semantic vectors. It works immediately with a local n-gram fallback and can optionally load MediaPipe Tasks Text Embedder from the CDN.</p>
+      </div>
+      <p class="small">MediaPipe Tasks Text / Web ML</p>
+    </header>
+
+    <section class="stage">
+      <section class="panel inputs" aria-label="Text inputs">
+        <div class="input-card">
+          <div class="label-row"><label for="textA">Text A</label><span class="small" id="countA">0 chars</span></div>
+          <textarea id="textA"></textarea>
+        </div>
+        <div class="input-card">
+          <div class="label-row"><label for="textB">Text B</label><span class="small" id="countB">0 chars</span></div>
+          <textarea id="textB"></textarea>
+        </div>
+        <div class="input-card">
+          <div class="label-row"><label for="textC">Text C</label><span class="small" id="countC">0 chars</span></div>
+          <textarea id="textC"></textarea>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Similarity Matrix</h2>
+        <div class="matrix" id="matrix"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Pair Ranking</h2>
+        <div class="pair-grid" id="pairs"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Shared Signals</h2>
+        <div class="tokens" id="tokens"></div>
+      </section>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Controls</h2>
+        <div class="controls">
+          <button id="compareButton" class="active">Compare</button>
+          <button id="loadButton" class="warn">Load MediaPipe</button>
+          <button id="presetNews">News</button>
+          <button id="presetProduct">Product</button>
+          <button id="presetMotion">Motion</button>
+          <button id="clearButton">Clear</button>
+          <label class="wide" for="modeSelect">Embedding source</label>
+          <select id="modeSelect" class="wide">
+            <option value="auto">Auto: MediaPipe if loaded</option>
+            <option value="fallback">Local n-gram fallback</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Status</h2>
+        <div class="status" id="status">Fallback embedder is ready. Load MediaPipe to try Universal Sentence Encoder if the network allows it.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Readout</h2>
+        <div class="stat-list">
+          <div class="stat"><span>Source</span><b id="sourceReadout">fallback</b></div>
+          <div class="stat"><span>Dimensions</span><b id="dimReadout">128</b></div>
+          <div class="stat"><span>Best pair</span><b id="bestReadout">-</b></div>
+          <div class="stat"><span>Contrast</span><b id="contrastReadout">-</b></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>MediaPipe Shape</h2>
+        <p class="hint">The optional path mirrors the Web guide: resolve text WASM, create `TextEmbedder` with a `.tflite` model, call `embed(text)`, then use cosine similarity over returned embeddings.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const texts = [
+      document.getElementById("textA"),
+      document.getElementById("textB"),
+      document.getElementById("textC")
+    ];
+    const counts = ["countA", "countB", "countC"].map((id) => document.getElementById(id));
+    const matrixEl = document.getElementById("matrix");
+    const pairsEl = document.getElementById("pairs");
+    const tokensEl = document.getElementById("tokens");
+    const statusEl = document.getElementById("status");
+    const sourceReadout = document.getElementById("sourceReadout");
+    const dimReadout = document.getElementById("dimReadout");
+    const bestReadout = document.getElementById("bestReadout");
+    const contrastReadout = document.getElementById("contrastReadout");
+    const modeSelect = document.getElementById("modeSelect");
+    const loadButton = document.getElementById("loadButton");
+
+    let mediaPipe = null;
+    let textEmbedder = null;
+    let source = "fallback";
+
+    const presets = {
+      news: [
+        "Google AI Edge is moving more machine learning tasks into the browser so private inputs can stay on device.",
+        "MediaPipe Tasks for Web runs vision, audio, and text models locally with WebAssembly and compact task APIs.",
+        "A city council approved a new waterfront plan after a long public meeting about transportation and housing."
+      ],
+      product: [
+        "The note app groups related meeting notes and highlights follow-up tasks for each project.",
+        "This browser tool clusters similar snippets and shows why two short descriptions feel close.",
+        "A compact camera tripod folds into a pocket and holds a phone steady during video calls."
+      ],
+      motion: [
+        "A dancer raises both hands, shifts weight to the left foot, and pauses before turning.",
+        "Pose tracking can turn shoulder and hip alignment into a simple balance score.",
+        "The audio sample mixes pulse, tone, and noise to explain classifier thresholds."
+      ]
+    };
+
+    function setPreset(name) {
+      presets[name].forEach((value, index) => {
+        texts[index].value = value;
+      });
+      compare();
+    }
+
+    function normalizeText(value) {
+      return value.toLowerCase().replace(/[^\p{Letter}\p{Number}\s]+/gu, " ").replace(/\s+/g, " ").trim();
+    }
+
+    function fallbackEmbed(text) {
+      const dimensions = 128;
+      const vector = new Float32Array(dimensions);
+      const normalized = ` ${normalizeText(text)} `;
+      const grams = [];
+      for (let i = 0; i < normalized.length - 2; i += 1) {
+        grams.push(normalized.slice(i, i + 3));
+      }
+      const words = normalized.trim().split(" ").filter(Boolean);
+      [...grams, ...words].forEach((token, index) => {
+        let hash = 2166136261;
+        for (let i = 0; i < token.length; i += 1) {
+          hash ^= token.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+        const slot = Math.abs(hash) % dimensions;
+        const sign = ((hash >>> 8) & 1) ? 1 : -1;
+        vector[slot] += sign * (index < grams.length ? 0.68 : 1.15);
+      });
+      const length = Math.hypot(...vector) || 1;
+      for (let i = 0; i < vector.length; i += 1) vector[i] /= length;
+      return { vector, dimensions, raw: null };
+    }
+
+    function vectorFromMediaPipeResult(result) {
+      const embedding = result?.embeddings?.[0];
+      const floatValues = embedding?.floatEmbedding || embedding?.float_embedding;
+      const quantizedValues = embedding?.quantizedEmbedding || embedding?.quantized_embedding;
+      const values = floatValues || quantizedValues || [];
+      const vector = Float32Array.from(values, (value) => Number(value));
+      const length = Math.hypot(...vector) || 1;
+      for (let i = 0; i < vector.length; i += 1) vector[i] /= length;
+      return { vector, dimensions: vector.length, raw: embedding };
+    }
+
+    function cosine(a, b) {
+      const length = Math.min(a.length, b.length);
+      let total = 0;
+      for (let i = 0; i < length; i += 1) total += a[i] * b[i];
+      return Math.max(-1, Math.min(1, total));
+    }
+
+    function heat(score) {
+      const normalized = Math.max(0, Math.min(1, (score + 1) / 2));
+      const green = Math.round(80 + normalized * 120);
+      const amber = Math.round(80 + normalized * 120);
+      return `rgba(${Math.round(230 - normalized * 90)}, ${green}, ${amber}, ${0.09 + normalized * 0.32})`;
+    }
+
+    function pairName(i, j) {
+      return `${String.fromCharCode(65 + i)}-${String.fromCharCode(65 + j)}`;
+    }
+
+    function sharedTokens(values) {
+      const maps = values.map((value) => new Set(normalizeText(value).split(" ").filter((word) => word.length > 2)));
+      const shared = [...maps[0]].filter((word) => maps[1].has(word) || maps[2].has(word));
+      const byPair = [...new Set([...maps[1], ...maps[2]])].filter((word) => maps[0].has(word));
+      return [...new Set([...shared, ...byPair])].slice(0, 18);
+    }
+
+    async function embedAll(values) {
+      if (textEmbedder && modeSelect.value === "auto") {
+        source = "MediaPipe";
+        return values.map((value) => vectorFromMediaPipeResult(textEmbedder.embed(value)));
+      }
+      source = "fallback";
+      return values.map(fallbackEmbed);
+    }
+
+    async function compare() {
+      const values = texts.map((input) => input.value);
+      counts.forEach((count, index) => {
+        count.textContent = `${values[index].length} chars`;
+      });
+      const embeddings = await embedAll(values);
+      const labels = ["A", "B", "C"];
+      const scores = labels.map((_, row) => labels.map((__, col) => row === col ? 1 : cosine(embeddings[row].vector, embeddings[col].vector)));
+      const pairs = [
+        { name: pairName(0, 1), score: scores[0][1] },
+        { name: pairName(0, 2), score: scores[0][2] },
+        { name: pairName(1, 2), score: scores[1][2] }
+      ].sort((a, b) => b.score - a.score);
+
+      matrixEl.innerHTML = `<div></div>${labels.map((label) => `<div class="cell head">${label}</div>`).join("")}${
+        labels.map((rowLabel, row) => `<div class="cell head">${rowLabel}</div>${labels.map((_, col) => {
+          const score = scores[row][col];
+          return `<div class="cell" style="background:${heat(score)}"><span class="score">${score.toFixed(2)}</span><span>${row === col ? "same text" : pairName(row, col)}</span></div>`;
+        }).join("")}`).join("")
+      }`;
+
+      pairsEl.innerHTML = pairs.map((pair) => `<div class="pair"><span>${pair.name}</span><b>${pair.score.toFixed(3)}</b><p class="small">${pair.score > 0.72 ? "close meaning" : pair.score > 0.42 ? "partly related" : "different direction"}</p></div>`).join("");
+      const tokens = sharedTokens(values);
+      tokensEl.innerHTML = tokens.length ? tokens.map((token) => `<span class="token">${token}</span>`).join("") : `<span class="small">No repeated words; semantic embedding may still connect the texts.</span>`;
+
+      sourceReadout.textContent = source;
+      dimReadout.textContent = String(embeddings[0].dimensions || 0);
+      bestReadout.textContent = `${pairs[0].name} ${pairs[0].score.toFixed(2)}`;
+      contrastReadout.textContent = (pairs[0].score - pairs[pairs.length - 1].score).toFixed(2);
+      statusEl.textContent = source === "MediaPipe"
+        ? "MediaPipe Text Embedder produced the current vectors."
+        : "Local n-gram fallback produced the current vectors.";
+    }
+
+    async function loadMediaPipe() {
+      loadButton.disabled = true;
+      statusEl.textContent = "Loading MediaPipe Text Embedder and Universal Sentence Encoder model...";
+      try {
+        mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@0.10.22/+esm");
+        const fileset = await mediaPipe.FilesetResolver.forTextTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@0.10.22/wasm");
+        textEmbedder = await mediaPipe.TextEmbedder.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-tasks/text_embedder/universal_sentence_encoder.tflite"
+          },
+          quantize: false
+        });
+        loadButton.textContent = "MediaPipe Loaded";
+        loadButton.classList.add("active");
+        statusEl.textContent = "MediaPipe Text Embedder is ready.";
+        await compare();
+      } catch (error) {
+        textEmbedder = null;
+        statusEl.textContent = `MediaPipe load failed, keeping fallback active: ${error.message}`;
+      } finally {
+        loadButton.disabled = false;
+      }
+    }
+
+    document.getElementById("compareButton").addEventListener("click", compare);
+    document.getElementById("loadButton").addEventListener("click", loadMediaPipe);
+    document.getElementById("presetNews").addEventListener("click", () => setPreset("news"));
+    document.getElementById("presetProduct").addEventListener("click", () => setPreset("product"));
+    document.getElementById("presetMotion").addEventListener("click", () => setPreset("motion"));
+    document.getElementById("clearButton").addEventListener("click", () => {
+      texts.forEach((input) => { input.value = ""; });
+      compare();
+    });
+    modeSelect.addEventListener("change", compare);
+    texts.forEach((input) => input.addEventListener("input", compare));
+
+    setPreset("news");
+  </script>
+</body>
+</html>
