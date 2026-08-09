@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-09",
+  "category": "MediaPipe",
+  "headline": "Language Detector で多言語メモを行単位で仕分ける",
+  "headlineEn": "Gate multilingual notes line by line with Language Detector",
+  "summary": "MediaPipe Tasks Language Detector の `detect(text)` を意識した、自作の多言語メモ仕分けサンプルを追加しました。複数行のテキストを言語コードと確信度で判定し、対象ロケールに一致する行とレビューが必要な行を分けます。環境が許せば公式モデルを任意ロードし、失敗してもローカルの軽量ヒューリスティックで同じ UI を検証できます。",
+  "summaryEn": "This adds an original multilingual note triage sample shaped around MediaPipe Tasks Language Detector's `detect(text)`. It splits multi-line text into language-code and confidence decisions, separating target-locale lines from lines that need review. It can optionally load the official model while a local heuristic keeps the same UI testable if loading fails.",
+  "keyTopics": [
+    "Language Detector Web guide は 2026-08-07 UTC 更新で、`@mediapipe/tasks-text`、text WASM、`LanguageDetector.createFromOptions()`、`detect(inputText)` の最小経路を示している。",
+    "Language Detector は string 入力を受け取り、ISO 639-1 / locale-like code と probability を含む予測リストを返す Text task。",
+    "推奨モデルは 315 KB の軽量モデルとして説明され、110 言語を識別できるため、ブラウザ内の多言語入力整理に向いている。",
+    "設定項目は `maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` で、allowlist と denylist は同時利用不可。",
+    "MediaPipe Tasks の privacy notice は入力処理がデバイス上で行われ入力データは Google サーバーへ送られない一方、API 利用メトリクスの扱いには同意設計が必要だと説明している。"
+  ],
+  "keyTopicsEn": [
+    "The Language Detector Web guide was updated on 2026-08-07 UTC and shows the minimal path through `@mediapipe/tasks-text`, text WASM, `LanguageDetector.createFromOptions()`, and `detect(inputText)`.",
+    "Language Detector is a Text task that accepts string input and returns predictions with ISO 639-1 / locale-like codes and probabilities.",
+    "The recommended model is described as a lightweight 315 KB model that can identify 110 languages, making it useful for in-browser multilingual input triage.",
+    "Configuration options include `maxResults`, `scoreThreshold`, `categoryAllowlist`, and `categoryDenylist`; allowlist and denylist are mutually exclusive.",
+    "The MediaPipe Tasks privacy notice says input processing happens on device and input data is not sent to Google servers, while API metrics still require consent-aware product design."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Language Detector Locale Gate",
+      "url": "../outputs/2026-08-09_language_detector_locale_gate.html"
+    },
+    {
+      "label": "Language detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/text/language_detector/web_js"
+    },
+    {
+      "label": "Language detection overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/text/language_detector"
+    },
+    {
+      "label": "MediaPipe Tasks Text package reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text"
+    },
+    {
+      "label": "Official MediaPipe Tasks web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe samples repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples"
+    },
+    {
+      "label": "MediaPipe Tasks overview and privacy notice",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/tasks"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Language Detector を単なる言語表示ではなく、多言語メモや問い合わせ文を行単位で仕分ける小さな運用 UI として扱うことです。公式 Web guide は CDN から `@mediapipe/tasks-text` と text WASM を読み込み、`LanguageDetector.createFromOptions()` に `language_detector.tflite` を渡して `detect(inputText)` を呼ぶ流れを示しています。今日のサンプルは複数行テキストを入力にし、対象ロケール、確信度しきい値、レビュー判定をまとめて確認できます。",
+      "bodyEn": "Today's notable angle is treating Language Detector not just as a language label, but as a small operations UI for triaging multilingual notes or support messages line by line. The official Web guide shows loading `@mediapipe/tasks-text` and text WASM from a CDN, passing `language_detector.tflite` into `LanguageDetector.createFromOptions()`, then calling `detect(inputText)`. Today's sample takes multi-line text and lets you inspect target locale, confidence threshold, and review decisions together.",
+      "links": [
+        {
+          "label": "Language detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/text/language_detector/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "Product Notes、Support Queue、Travel Memo のプリセットを切り替え、対象ロケールとレビューしきい値を動かすと、各行が target / review に即時分類されます。Load MediaPipe を押すと公式モデル経路を試し、読み込みに成功した場合は各行に `detect(text)` を適用します。失敗時もローカル fallback が同じ結果形を返すため、UI、しきい値、カード構造、公開アーカイブの体験を途切れさせません。",
+      "bodyEn": "Switch Product Notes, Support Queue, and Travel Memo presets, then adjust the target locale and review threshold to classify each line as target or review. Pressing Load MediaPipe tries the official model path and applies `detect(text)` to each line when loading succeeds. If it fails, the local fallback returns the same result shape, preserving the UI, threshold behavior, card structure, and public archive experience."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは入力行、推定言語コード、確信度、対象ロケール、しきい値、target / review 判定、検出元です。Text Embedder と組み合わせると、言語ごとに分けた後で近い問い合わせやリリースノートをまとめられます。Text Classifier と合わせれば、言語判定後に sentiment / topic を付けるレビューキューになります。Vision / Audio サンプルのログを短文化して渡せば、各ログの言語別整理や翻訳前処理にも使えます。",
+      "bodyEn": "The accumulated data includes input line, predicted language code, confidence, target locale, threshold, target / review decision, and detection source. Combined with Text Embedder, it can group similar support messages or release notes after splitting by language. With Text Classifier it becomes a review queue that adds sentiment / topic after language detection. If Vision / Audio sample logs are converted into short text, this can organize logs by language or prepare them for translation."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "MediaPipe 経路は `@mediapipe/tasks-text@0.10.22` を ESM import し、`FilesetResolver.forTextTasks()` で WASM を解決し、`LanguageDetector.createFromOptions()` に hosted model を指定します。公式ドキュメントの設定項目は `maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` なので、次回は UI 側に allow / deny list を加えると公式オプションに近づきます。今回の fallback は文字種と少数の機能語だけを見る簡易版で、公式モデルの代替ではなく UI 検証用です。",
+      "bodyEn": "The MediaPipe path imports `@mediapipe/tasks-text@0.10.22` as ESM, resolves WASM with `FilesetResolver.forTextTasks()`, and points `LanguageDetector.createFromOptions()` at the hosted model. The official configuration options are `maxResults`, `scoreThreshold`, `categoryAllowlist`, and `categoryDenylist`, so adding allow / deny list UI next would align the sample more closely with the official options. The fallback only checks scripts and a few function words; it is for UI validation, not a replacement for the official model.",
+      "links": [
+        {
+          "label": "MediaPipe Tasks Text package reference",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Text Classifier、Image Embedder、Image Classifier、Holistic Landmarker、Language Detector の allowlist / denylist 実装、Worker 化、ブラウザ組み込み Language Detector API との比較を見ます。MediaPipe Tasks web demo は Text task を Language Detection、Text Classification、Text Embedding の3つで見せているため、この3点を小さな自作 UI として一巡させるのがよさそうです。",
+      "bodyEn": "Next watch Text Classifier, Image Embedder, Image Classifier, Holistic Landmarker, Language Detector allowlist / denylist implementation, Worker execution, and comparison with browser-built-in Language Detector APIs. The official MediaPipe Tasks web demo presents the Text track as Language Detection, Text Classification, and Text Embedding, so completing that trio with small original UIs is a useful direction.",
+      "links": [
+        {
+          "label": "Official MediaPipe Tasks web demo",
+          "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Product Notes のまま対象ロケールを ja にして、日本語行だけが target になり、それ以外が review になることを見ます。次に threshold を上げ下げして、低確信度の行が review に寄る感覚を確認します。最後に Load MediaPipe を押し、成功した場合は公式モデルの language code と fallback の違いを見比べます。",
+      "bodyEn": "First keep the Product Notes preset with target locale set to ja and confirm that only Japanese lines become target while the rest become review. Then adjust the threshold to see low-confidence lines move toward review. Finally press Load MediaPipe and, if loading succeeds, compare official model language codes against the fallback.",
+      "links": [
+        {
+          "label": "Open Language Detector Locale Gate",
+          "url": "../outputs/2026-08-09_language_detector_locale_gate.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Language Detector Web guide、overview、Tasks Text package reference、公式 Tasks web demo、`mediapipe-samples-web`、`mediapipe-samples`、MediaPipe Tasks privacy notice を確認。設計: 外部デモ一覧ではなく、自作の多言語行仕分け UI にする。実装: 複数行 textarea、プリセット、対象ロケール、しきい値、target / review 判定、検出言語 chips、optional MediaPipe loader、fallback detector を追加。検証: JSON 構文、gallery build、required publish command、公開 URL の HTTP 応答を確認する。",
+      "bodyEn": "Research: reviewed the Language Detector Web guide, overview, Tasks Text package reference, official Tasks web demo, `mediapipe-samples-web`, `mediapipe-samples`, and the MediaPipe Tasks privacy notice. Design: build an original multilingual line-gating UI rather than an external demo list. Implementation: added multi-line textarea, presets, target locale, threshold, target / review decisions, detected locale chips, optional MediaPipe loader, and fallback detector. Validation: parse JSON, build the gallery, run the required publish command, and check public HTTP responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月前半の蓄積は Hand、Image Segmenter、Interactive Segmenter、Object Detector、Pose、Face、Audio、Text Embedder と広がり、今日は Text task の入口にあたる Language Detector を追加しました。MediaPipe Tasks はモデルの出力を直接見せるだけでなく、プロダクト上の意思決定に変換すると使いどころが見えます。今回なら `language_code + probability` を target / review という編集ワークフローに変換しています。",
+      "bodyEn": "The early-August archive has grown through Hand, Image Segmenter, Interactive Segmenter, Object Detector, Pose, Face, Audio, and Text Embedder; today adds Language Detector as an entry point for Text tasks. MediaPipe Tasks become easier to evaluate when model output is translated into product decisions, not only displayed directly. Here, `language_code + probability` becomes a target / review editing workflow."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Language Detector Locale Gate` です。実際に動く部分は多言語テキストの行分割、プリセット、対象ロケール選択、しきい値調整、言語コードと確信度表示、target / review 判定、検出言語 chips、任意の MediaPipe Language Detector ロードです。次に足すなら、公式オプションに合わせた allowlist / denylist、Text Embedder で同一言語内の近傍検索、Text Classifier で問い合わせ種別付与、翻訳前のキュー保存を追加します。",
+      "bodyEn": "The selected prototype is `Language Detector Locale Gate`. The working parts are multilingual text line splitting, presets, target-locale selection, threshold adjustment, language-code and confidence display, target / review decisions, detected-locale chips, and optional MediaPipe Language Detector loading. Next additions should include allowlist / denylist matching the official options, Text Embedder nearest-neighbor search within each language, Text Classifier issue labeling, and queue saving before translation."
+    }
+  ]
+}

@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Language Detector Locale Gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0a1012;
+      color: #f6fbff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(67, 202, 168, 0.15), transparent 34%),
+        linear-gradient(315deg, rgba(245, 203, 92, 0.12), transparent 44%),
+        #0a1012;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 255, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.5vw, 3.05rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #b7c9cc;
+      line-height: 1.55;
+    }
+
+    button, select, textarea, input {
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(67, 202, 168, 0.48);
+      background: rgba(67, 202, 168, 0.13);
+      color: #f6fbff;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: #43caa8;
+      border-color: #43caa8;
+      color: #05100d;
+    }
+
+    button.warn {
+      border-color: rgba(245, 203, 92, 0.56);
+      background: rgba(245, 203, 92, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    textarea, select, input {
+      width: 100%;
+      border: 1px solid rgba(246, 251, 255, 0.14);
+      background: rgba(255, 255, 255, 0.055);
+      color: #f6fbff;
+    }
+
+    textarea {
+      min-height: 138px;
+      padding: 11px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    select, input { min-height: 38px; padding: 8px; }
+
+    .stage, .side {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .panel {
+      border: 1px solid rgba(246, 251, 255, 0.14);
+      background: rgba(10, 16, 18, 0.82);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .controls, .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .controls > * { flex: 1 1 150px; }
+    .preset-row button { flex: 1 1 130px; }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(245, 203, 92, 0.28);
+      background: rgba(245, 203, 92, 0.08);
+      color: #ffeabd;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .sentences {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 148px 104px;
+      gap: 8px;
+      align-items: center;
+      min-height: 58px;
+      border: 1px solid rgba(246, 251, 255, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 8px;
+      border-radius: 6px;
+    }
+
+    .index {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(67, 202, 168, 0.28);
+      color: #43caa8;
+      border-radius: 50%;
+    }
+
+    .line {
+      color: #e9f2f2;
+      overflow-wrap: anywhere;
+      line-height: 1.45;
+    }
+
+    .code {
+      font-size: 1.35rem;
+      line-height: 1;
+      color: #f5cb5c;
+    }
+
+    .bar {
+      height: 8px;
+      margin-top: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      width: var(--w);
+      background: linear-gradient(90deg, #43caa8, #f5cb5c);
+    }
+
+    .decision {
+      min-height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      border: 1px solid rgba(246, 251, 255, 0.12);
+      color: #b7c9cc;
+    }
+
+    .decision.pass {
+      color: #06120f;
+      background: #43caa8;
+      border-color: #43caa8;
+    }
+
+    .decision.review {
+      color: #241b04;
+      background: #f5cb5c;
+      border-color: #f5cb5c;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      min-height: 88px;
+      border: 1px solid rgba(246, 251, 255, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .metric b {
+      display: block;
+      color: #f5cb5c;
+      font-size: 1.8rem;
+      line-height: 1;
+      overflow-wrap: anywhere;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 32px;
+    }
+
+    .chip {
+      border: 1px solid rgba(67, 202, 168, 0.26);
+      background: rgba(67, 202, 168, 0.09);
+      color: #dceceb;
+      padding: 4px 7px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+    }
+
+    .small, label {
+      color: #8fa5a8;
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .row { grid-template-columns: 34px minmax(0, 1fr); }
+      .row > :nth-child(3), .row > :nth-child(4) { grid-column: 2; }
+      .summary-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Language Detector Locale Gate</h1>
+        <p>Split a multilingual note into lines, detect likely language codes, and gate lines for a target locale. Optional MediaPipe Tasks loading mirrors the official Web guide; the local fallback keeps the UI testable offline.</p>
+      </div>
+      <button id="loadMediaPipe" class="warn">Load MediaPipe</button>
+    </header>
+
+    <section class="stage">
+      <div class="panel">
+        <h2>Input</h2>
+        <textarea id="sourceText" spellcheck="false"></textarea>
+        <div class="controls" style="margin-top: 10px;">
+          <label>Target locale
+            <select id="targetLocale">
+              <option value="ja">ja Japanese</option>
+              <option value="en">en English</option>
+              <option value="fr">fr French</option>
+              <option value="es">es Spanish</option>
+              <option value="ko">ko Korean</option>
+              <option value="zh">zh Chinese</option>
+            </select>
+          </label>
+          <label>Review threshold
+            <input id="threshold" type="range" min="0.35" max="0.95" value="0.68" step="0.01">
+          </label>
+          <button id="analyze">Analyze</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Line Decisions</h2>
+        <div id="sentences" class="sentences"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Batch Summary</h2>
+        <div class="summary-grid">
+          <div class="metric"><span class="small">Target lines</span><b id="targetCount">0</b><p id="targetText" class="small"></p></div>
+          <div class="metric"><span class="small">Needs review</span><b id="reviewCount">0</b><p class="small">Different language or low confidence.</p></div>
+          <div class="metric"><span class="small">Source</span><b id="sourceName">Local</b><p id="sourceMeta" class="small"></p></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Presets</h2>
+        <div class="preset-row">
+          <button data-preset="product" class="active">Product Notes</button>
+          <button data-preset="support">Support Queue</button>
+          <button data-preset="travel">Travel Memo</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Status</h2>
+        <div id="status" class="status">Using local heuristic detector. Load MediaPipe for the official model path.</div>
+        <p class="small">MediaPipe path: import <span class="mono">@mediapipe/tasks-text</span>, resolve text WASM, create <span class="mono">LanguageDetector</span>, then call <span class="mono">detect(text)</span>.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Detected Locales</h2>
+        <div id="localeChips" class="chips"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Experiment Notes</h2>
+        <p class="small">The sample focuses on product UI behavior: triage lines by locale, confidence, and target match. The fallback is not a replacement for the MediaPipe model; it preserves the same result shape for interaction testing.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    const presets = {
+      product: [
+        "新しい手のジェスチャー UI は、低照度での確認がまだ必要です。",
+        "Please verify the language gate before sending localized release notes.",
+        "Le panneau de revue doit afficher les lignes incertaines en premier.",
+        "MediaPipe Tasks can keep text processing on device after the model is loaded."
+      ].join("\\n"),
+      support: [
+        "カメラ権限を許可してもプレビューが表示されません。",
+        "The demo works on desktop Chrome but fails on my mobile browser.",
+        "La page charge le modele, mais le resultat reste vide.",
+        "로그를 보내면 장치와 브라우저 버전을 확인하겠습니다."
+      ].join("\\n"),
+      travel: [
+        "京都駅で 10:30 に集合して、午後は展示会場へ移動します。",
+        "Bring the compact test phone and the printed QR cards.",
+        "Despues de la reunion, revisaremos las notas del prototipo.",
+        "明日の朝に多言語メモをもう一度整理します。"
+      ].join("\\n")
+    };
+
+    const languageNames = {
+      ja: "Japanese",
+      en: "English",
+      fr: "French",
+      es: "Spanish",
+      ko: "Korean",
+      zh: "Chinese",
+      de: "German",
+      it: "Italian",
+      pt: "Portuguese",
+      unknown: "Unknown"
+    };
+
+    const sourceText = document.querySelector("#sourceText");
+    const targetLocale = document.querySelector("#targetLocale");
+    const threshold = document.querySelector("#threshold");
+    const statusEl = document.querySelector("#status");
+    const sentencesEl = document.querySelector("#sentences");
+    const targetCountEl = document.querySelector("#targetCount");
+    const reviewCountEl = document.querySelector("#reviewCount");
+    const targetTextEl = document.querySelector("#targetText");
+    const sourceNameEl = document.querySelector("#sourceName");
+    const sourceMetaEl = document.querySelector("#sourceMeta");
+    const localeChipsEl = document.querySelector("#localeChips");
+    const loadButton = document.querySelector("#loadMediaPipe");
+    let detector = null;
+    let mode = "local";
+
+    function scriptScore(text) {
+      const total = Math.max([...text].filter((char) => /\\S/u.test(char)).length, 1);
+      const counts = {
+        ja: (text.match(/[\\u3040-\\u30ff\\u3400-\\u9fff]/gu) || []).length,
+        zh: (text.match(/[\\u3400-\\u9fff]/gu) || []).length,
+        ko: (text.match(/[\\uac00-\\ud7af]/gu) || []).length,
+        en: (text.match(/[a-z]/giu) || []).length,
+        fr: (text.match(/[àâçéèêëîïôûùüÿœæ]/giu) || []).length,
+        es: (text.match(/[áéíóúñü¿¡]/giu) || []).length
+      };
+      const words = text.toLowerCase();
+      counts.fr += [" le ", " la ", " les ", " des ", " pour ", " avec ", " doit "].filter((w) => words.includes(w)).length * 3;
+      counts.es += [" el ", " la ", " los ", " para ", " despues ", " reunion ", " notas "].filter((w) => words.includes(w)).length * 3;
+      counts.en += [" the ", " and ", " with ", " before ", " after ", " verify ", " works "].filter((w) => words.includes(w)).length * 2;
+      if (counts.ja > 0 && /[\\u3040-\\u30ff]/u.test(text)) counts.ja += 6;
+      if (counts.ko > 0) counts.ko += 6;
+      const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const [code, top] = ranked[0];
+      const second = ranked[1]?.[1] || 0;
+      const probability = top <= 0 ? 0.22 : Math.min(0.98, Math.max(0.38, (top + 3) / (total + 8) + (top - second) / (total + 16)));
+      return { code: top <= 0 ? "unknown" : code, probability };
+    }
+
+    function normalizePrediction(result, text) {
+      const predictions = result?.languages || result?.languagePredictions || result?.predictions || [];
+      const first = predictions[0];
+      if (!first) return scriptScore(text);
+      return {
+        code: first.languageCode || first.language_code || first.categoryName || first.code || "unknown",
+        probability: Number(first.probability ?? first.score ?? 0)
+      };
+    }
+
+    async function detectLine(text) {
+      if (detector) {
+        try {
+          return normalizePrediction(detector.detect(text), text);
+        } catch (error) {
+          statusEl.textContent = `MediaPipe detect failed; using local fallback. ${error.message}`;
+          mode = "local";
+        }
+      }
+      return scriptScore(text);
+    }
+
+    async function analyze() {
+      const lines = sourceText.value.split(/\\n+/).map((line) => line.trim()).filter(Boolean);
+      const target = targetLocale.value;
+      const gate = Number(threshold.value);
+      const results = [];
+      for (const line of lines) {
+        const prediction = await detectLine(line);
+        results.push({ line, ...prediction });
+      }
+      render(results, target, gate);
+    }
+
+    function render(results, target, gate) {
+      sentencesEl.innerHTML = "";
+      let targetCount = 0;
+      let reviewCount = 0;
+      const locales = new Map();
+      results.forEach((item, index) => {
+        const pass = item.code === target && item.probability >= gate;
+        const review = !pass;
+        if (pass) targetCount += 1;
+        if (review) reviewCount += 1;
+        locales.set(item.code, (locales.get(item.code) || 0) + 1);
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+          <div class="index">${index + 1}</div>
+          <div class="line">${escapeHtml(item.line)}</div>
+          <div>
+            <div class="code">${escapeHtml(item.code)}</div>
+            <div class="small">${escapeHtml(languageNames[item.code] || "Other")} / ${(item.probability * 100).toFixed(0)}%</div>
+            <div class="bar"><div class="fill" style="--w:${Math.round(item.probability * 100)}%"></div></div>
+          </div>
+          <div class="decision ${pass ? "pass" : "review"}">${pass ? "target" : "review"}</div>
+        `;
+        sentencesEl.append(row);
+      });
+      targetCountEl.textContent = targetCount;
+      reviewCountEl.textContent = reviewCount;
+      targetTextEl.textContent = `${target} ${languageNames[target]} at ${(gate * 100).toFixed(0)}% threshold.`;
+      sourceNameEl.textContent = mode === "mediapipe" ? "MediaPipe" : "Local";
+      sourceMetaEl.textContent = mode === "mediapipe" ? "Official Language Detector result shape." : "Script and keyword heuristic fallback.";
+      localeChipsEl.innerHTML = "";
+      [...locales.entries()].sort((a, b) => b[1] - a[1]).forEach(([code, count]) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${code} ${count}`;
+        localeChipsEl.append(chip);
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function loadMediaPipe() {
+      loadButton.disabled = true;
+      statusEl.textContent = "Loading MediaPipe Tasks Text WASM and Language Detector model...";
+      try {
+        const mp = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@0.10.22/+esm");
+        const fileset = await mp.FilesetResolver.forTextTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@0.10.22/wasm");
+        detector = await mp.LanguageDetector.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/language_detector/language_detector/float32/1/language_detector.tflite"
+          },
+          maxResults: 3
+        });
+        mode = "mediapipe";
+        statusEl.textContent = "MediaPipe Language Detector loaded. Running detect(text) for each line.";
+        loadButton.textContent = "MediaPipe Loaded";
+        loadButton.classList.remove("warn");
+        loadButton.classList.add("active");
+        await analyze();
+      } catch (error) {
+        detector = null;
+        mode = "local";
+        loadButton.disabled = false;
+        statusEl.textContent = `MediaPipe load failed; local fallback remains active. ${error.message}`;
+      }
+    }
+
+    document.querySelectorAll("[data-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-preset]").forEach((item) => item.classList.toggle("active", item === button));
+        sourceText.value = presets[button.dataset.preset];
+        analyze();
+      });
+    });
+    document.querySelector("#analyze").addEventListener("click", analyze);
+    [sourceText, targetLocale, threshold].forEach((element) => element.addEventListener("input", analyze));
+    loadButton.addEventListener("click", loadMediaPipe);
+
+    sourceText.value = presets.product;
+    analyze();
+  </script>
+</body>
+</html>
