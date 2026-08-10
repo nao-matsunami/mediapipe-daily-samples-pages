@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Embedder Patch Matcher</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #08100e;
+      color: #f6fbf7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(92, 211, 151, 0.14), transparent 34%),
+        linear-gradient(315deg, rgba(238, 190, 89, 0.12), transparent 42%),
+        #08100e;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 247, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 3.6vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #b7c7bf;
+      line-height: 1.6;
+    }
+
+    button, select, input {
+      min-height: 38px;
+      border: 1px solid rgba(246, 251, 247, 0.16);
+      background: rgba(255, 255, 255, 0.055);
+      color: #f6fbf7;
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    button {
+      padding: 8px 11px;
+      cursor: pointer;
+      border-color: rgba(92, 211, 151, 0.44);
+      background: rgba(92, 211, 151, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #5cd397;
+    }
+
+    .stage, .side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid rgba(246, 251, 247, 0.14);
+      background: rgba(8, 16, 14, 0.82);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .control label, .metric-label {
+      color: #8fa49c;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .patch {
+      border: 1px solid rgba(246, 251, 247, 0.14);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.04);
+      min-width: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1;
+      background: #151d1a;
+    }
+
+    .patch-foot {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px;
+      align-items: center;
+    }
+
+    .name {
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chip, .score {
+      border: 1px solid rgba(92, 211, 151, 0.32);
+      background: rgba(92, 211, 151, 0.1);
+      color: #f6fbf7;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .score {
+      border-radius: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 100px repeat(3, minmax(0, 1fr));
+      border: 1px solid rgba(246, 251, 247, 0.12);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .cell {
+      min-height: 54px;
+      border-right: 1px solid rgba(246, 251, 247, 0.1);
+      border-bottom: 1px solid rgba(246, 251, 247, 0.1);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8px;
+      color: #dce8e2;
+    }
+
+    .cell:nth-child(4n) { border-right: 0; }
+    .cell.head { background: rgba(255, 255, 255, 0.055); color: #f6fbf7; font-weight: 700; }
+    .cell.hot { background: rgba(92, 211, 151, 0.2); color: #f6fbf7; }
+    .cell.mid { background: rgba(238, 190, 89, 0.13); }
+    .cell.low { background: rgba(246, 251, 247, 0.035); }
+
+    .bars {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr) 58px;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+
+    .bar-track {
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: var(--w);
+      background: linear-gradient(90deg, #5cd397, #eebe59);
+    }
+
+    .log {
+      min-height: 80px;
+      color: #b7c7bf;
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 880px) {
+      main { grid-template-columns: 1fr; padding: 16px; }
+      header { align-items: start; flex-direction: column; }
+      .controls, .swatches { grid-template-columns: 1fr; }
+      .matrix { grid-template-columns: 78px repeat(3, minmax(0, 1fr)); }
+      .cell { min-height: 46px; padding: 6px; font-size: 0.86rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Image Embedder Patch Matcher</h1>
+        <p>自作キャンバス素材を3枚生成し、見た目の近さを embedding 風のベクトルで比較します。Load MediaPipe が成功した環境では公式 Image Embedder の cosine similarity に差し替わります。</p>
+      </div>
+      <button id="loadMediapipe">Load MediaPipe</button>
+    </header>
+
+    <section class="stage">
+      <section class="panel">
+        <h2>Patch generator</h2>
+        <div class="controls">
+          <div class="control">
+            <label for="preset">Preset</label>
+            <select id="preset">
+              <option value="citrus">Citrus labels</option>
+              <option value="transit">Transit tiles</option>
+              <option value="textile">Textile marks</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="jitter">Jitter <span id="jitterValue">22</span></label>
+            <input id="jitter" type="range" min="0" max="80" value="22">
+          </div>
+          <div class="control">
+            <label for="rotation">Rotation <span id="rotationValue">14</span></label>
+            <input id="rotation" type="range" min="-45" max="45" value="14">
+          </div>
+          <div class="control">
+            <label for="variant">Variant</label>
+            <select id="variant">
+              <option value="near">A and B are near</option>
+              <option value="split">B and C are near</option>
+              <option value="wide">All different</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="swatches" id="swatches"></section>
+
+      <section class="panel">
+        <h2>Similarity matrix</h2>
+        <div class="matrix" id="matrix"></div>
+      </section>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>Best pair</h2>
+        <p id="bestPair" class="log"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Feature preview</h2>
+        <div class="bars" id="bars"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Runtime note</h2>
+        <p id="runtime" class="log">Fallback feature extractor is active. It samples color cells and edge contrast locally, so the interaction works before loading the official model.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const state = {
+      preset: "citrus",
+      jitter: 22,
+      rotation: 14,
+      variant: "near",
+      embedder: null,
+      mode: "fallback",
+      labels: ["Patch A", "Patch B", "Patch C"],
+      vectors: []
+    };
+
+    const canvases = [];
+    const els = {
+      swatches: document.querySelector("#swatches"),
+      matrix: document.querySelector("#matrix"),
+      bars: document.querySelector("#bars"),
+      bestPair: document.querySelector("#bestPair"),
+      runtime: document.querySelector("#runtime"),
+      load: document.querySelector("#loadMediapipe"),
+      preset: document.querySelector("#preset"),
+      jitter: document.querySelector("#jitter"),
+      jitterValue: document.querySelector("#jitterValue"),
+      rotation: document.querySelector("#rotation"),
+      rotationValue: document.querySelector("#rotationValue"),
+      variant: document.querySelector("#variant")
+    };
+
+    const palettes = {
+      citrus: ["#f5d35d", "#51c878", "#f56f55"],
+      transit: ["#4ea0f5", "#f5f0e8", "#e4565f"],
+      textile: ["#9c7cf5", "#61d4b3", "#f0a34e"]
+    };
+
+    function setupSwatches() {
+      els.swatches.innerHTML = "";
+      state.labels.forEach((label, index) => {
+        const card = document.createElement("article");
+        card.className = "patch";
+        const canvas = document.createElement("canvas");
+        canvas.width = 224;
+        canvas.height = 224;
+        canvases[index] = canvas;
+        const foot = document.createElement("div");
+        foot.className = "patch-foot";
+        foot.innerHTML = `<span class="name">${label}</span><span class="chip" id="source-${index}">generated</span>`;
+        card.append(canvas, foot);
+        els.swatches.append(card);
+      });
+    }
+
+    function drawPatch(canvas, index) {
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const [a, b, c] = palettes[state.preset];
+      const jitter = state.jitter;
+      const baseRotation = state.rotation * Math.PI / 180;
+      const variantOffset = state.variant === "wide" ? index * 38 : state.variant === "split" ? Math.abs(index - 1) * 12 : index === 2 ? 48 : index * 8;
+      ctx.clearRect(0, 0, 224, 224);
+      ctx.fillStyle = index === 2 && state.variant !== "split" ? c : a;
+      ctx.fillRect(0, 0, 224, 224);
+      ctx.fillStyle = b;
+      ctx.fillRect(0, 0, 224, 54 + index * 6);
+
+      ctx.save();
+      ctx.translate(112, 112);
+      ctx.rotate(baseRotation + (index - 1) * 0.17);
+      for (let i = 0; i < 8; i += 1) {
+        const x = -94 + i * 28 + ((jitter + variantOffset) % 11);
+        const h = 38 + ((i * 13 + jitter + variantOffset) % 54);
+        ctx.fillStyle = i % 2 ? "rgba(8,16,14,.72)" : "rgba(255,255,255,.78)";
+        ctx.fillRect(x, -82, 14 + (index % 2) * 4, h);
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(112, 124);
+      ctx.rotate(-baseRotation * 0.7 + index * 0.08);
+      ctx.strokeStyle = index === 2 && state.variant === "wide" ? "#f6fbf7" : c;
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.arc(0, 0, 46 + (variantOffset % 24), 0.2, Math.PI * 1.72);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(8,16,14,.68)";
+      ctx.font = "700 52px Inter, system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(["A", "B", "C"][index], 112, 116);
+    }
+
+    function fallbackVector(canvas) {
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const features = [];
+      for (let gy = 0; gy < 4; gy += 1) {
+        for (let gx = 0; gx < 4; gx += 1) {
+          let r = 0, g = 0, bl = 0, count = 0;
+          const x0 = Math.floor(gx * width / 4);
+          const x1 = Math.floor((gx + 1) * width / 4);
+          const y0 = Math.floor(gy * height / 4);
+          const y1 = Math.floor((gy + 1) * height / 4);
+          for (let y = y0; y < y1; y += 6) {
+            for (let x = x0; x < x1; x += 6) {
+              const p = (y * width + x) * 4;
+              r += data[p] / 255;
+              g += data[p + 1] / 255;
+              bl += data[p + 2] / 255;
+              count += 1;
+            }
+          }
+          features.push(r / count, g / count, bl / count);
+        }
+      }
+      let edge = 0;
+      for (let y = 2; y < height - 2; y += 8) {
+        for (let x = 2; x < width - 2; x += 8) {
+          const p = (y * width + x) * 4;
+          const px = (y * width + x + 2) * 4;
+          const py = ((y + 2) * width + x) * 4;
+          edge += Math.abs(data[p] - data[px]) + Math.abs(data[p + 1] - data[py + 1]) + Math.abs(data[p + 2] - data[py + 2]);
+        }
+      }
+      features.push(edge / 255 / 784);
+      return features;
+    }
+
+    function cosine(a, b) {
+      let dot = 0, ma = 0, mb = 0;
+      for (let i = 0; i < a.length; i += 1) {
+        dot += a[i] * b[i];
+        ma += a[i] * a[i];
+        mb += b[i] * b[i];
+      }
+      return dot / (Math.sqrt(ma) * Math.sqrt(mb) || 1);
+    }
+
+    async function computeVectors() {
+      if (state.embedder) {
+        state.vectors = canvases.map((canvas) => state.embedder.embed(canvas).embeddings[0]);
+        state.mode = "mediapipe";
+      } else {
+        state.vectors = canvases.map(fallbackVector);
+        state.mode = "fallback";
+      }
+    }
+
+    function pairScore(i, j) {
+      if (i === j) return 1;
+      if (state.mode === "mediapipe" && window.MediaPipeImageEmbedder) {
+        return window.MediaPipeImageEmbedder.cosineSimilarity(state.vectors[i], state.vectors[j]);
+      }
+      return cosine(state.vectors[i], state.vectors[j]);
+    }
+
+    function renderMatrix() {
+      const headers = ["", ...state.labels.map((label) => label.replace("Patch ", ""))];
+      els.matrix.innerHTML = headers.map((h) => `<div class="cell head">${h}</div>`).join("");
+      let best = { pair: "", score: -Infinity };
+      for (let y = 0; y < 3; y += 1) {
+        const rowHead = document.createElement("div");
+        rowHead.className = "cell head";
+        rowHead.textContent = state.labels[y].replace("Patch ", "");
+        els.matrix.append(rowHead);
+        for (let x = 0; x < 3; x += 1) {
+          const score = pairScore(y, x);
+          if (x > y && score > best.score) best = { pair: `${state.labels[y]} + ${state.labels[x]}`, score };
+          const cell = document.createElement("div");
+          cell.className = `cell ${score > 0.94 ? "hot" : score > 0.86 ? "mid" : "low"}`;
+          cell.textContent = score.toFixed(3);
+          els.matrix.append(cell);
+        }
+      }
+      els.bestPair.textContent = `${best.pair} is closest at ${best.score.toFixed(3)} cosine similarity. Current mode: ${state.mode}.`;
+    }
+
+    function renderBars() {
+      const values = state.mode === "mediapipe"
+        ? state.vectors.map((v) => v.floatEmbedding?.slice(0, 8).reduce((sum, n) => sum + Math.abs(n), 0) || v.quantizedEmbedding?.slice(0, 8).reduce((sum, n) => sum + Math.abs(n), 0) / 255 || 0)
+        : state.vectors.map((v) => v.slice(0, 12).reduce((sum, n) => sum + n, 0) / 12);
+      const max = Math.max(...values, 0.001);
+      els.bars.innerHTML = values.map((value, index) => {
+        const width = Math.max(4, value / max * 100);
+        return `<div class="bar-row"><span>${state.labels[index]}</span><div class="bar-track"><div class="bar-fill" style="--w:${width}%"></div></div><span class="score">${value.toFixed(2)}</span></div>`;
+      }).join("");
+    }
+
+    async function refresh() {
+      els.jitterValue.textContent = state.jitter;
+      els.rotationValue.textContent = state.rotation;
+      canvases.forEach(drawPatch);
+      await computeVectors();
+      renderMatrix();
+      renderBars();
+      document.querySelectorAll("[id^='source-']").forEach((el) => {
+        el.textContent = state.mode;
+      });
+    }
+
+    async function loadMediapipe() {
+      els.load.disabled = true;
+      els.load.textContent = "Loading...";
+      try {
+        const visionTasks = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+        const vision = await visionTasks.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm");
+        state.embedder = await visionTasks.ImageEmbedder.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite",
+            delegate: "CPU"
+          },
+          runningMode: "IMAGE"
+        });
+        window.MediaPipeImageEmbedder = visionTasks.ImageEmbedder;
+        els.runtime.textContent = "MediaPipe Image Embedder is active. The matrix now uses embeddings from MobileNetV3 small and ImageEmbedder.cosineSimilarity().";
+        els.load.textContent = "MediaPipe active";
+        await refresh();
+      } catch (error) {
+        state.embedder = null;
+        els.runtime.textContent = `MediaPipe load failed, so the local fallback remains active. ${error.message}`;
+        els.load.textContent = "Retry MediaPipe";
+        els.load.disabled = false;
+      }
+    }
+
+    [els.preset, els.variant].forEach((select) => {
+      select.addEventListener("change", async (event) => {
+        state[event.target.id] = event.target.value;
+        await refresh();
+      });
+    });
+
+    [els.jitter, els.rotation].forEach((range) => {
+      range.addEventListener("input", async (event) => {
+        state[event.target.id] = Number(event.target.value);
+        await refresh();
+      });
+    });
+
+    els.load.addEventListener("click", loadMediapipe);
+    setupSwatches();
+    refresh();
+  </script>
+</body>
+</html>

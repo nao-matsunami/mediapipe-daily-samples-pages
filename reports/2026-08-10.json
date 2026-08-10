@@ -1,0 +1,132 @@
+{
+  "date": "2026-08-10",
+  "category": "MediaPipe",
+  "headline": "Image Embedder で自作キャンバス素材の近さを比較する",
+  "headlineEn": "Compare generated canvas patches with Image Embedder-style similarity",
+  "summary": "MediaPipe Tasks Image Embedder の `embed()` と `ImageEmbedder.cosineSimilarity()` を意識した、自作の画像パッチ比較サンプルを追加しました。3枚のキャンバス素材をその場で生成し、fallback の軽量特徴量で即時比較しつつ、環境が許せば公式 MobileNetV3 small Image Embedder に切り替えて cosine similarity を確認できます。",
+  "summaryEn": "This adds an original image-patch comparison sample shaped around MediaPipe Tasks Image Embedder's `embed()` and `ImageEmbedder.cosineSimilarity()`. It generates three canvas patches locally, compares them immediately with lightweight fallback features, and can switch to the official MobileNetV3 small Image Embedder when the runtime and hosted model load successfully.",
+  "keyTopics": [
+    "Image Embedder Web guide は 2026-08-07 UTC 更新で、`@mediapipe/tasks-vision`、vision WASM、`ImageEmbedder.createFromOptions()`、hosted MobileNetV3 small model の最小経路を示している。",
+    "Image Embedder は画像を高次元特徴ベクトルに変換し、`ImageEmbedder.cosineSimilarity()` で2つの embedding の類似度を比較できる Vision task。",
+    "入力は still image、decoded video frame、live video feed に対応し、出力は float または quantized embedding と head 情報を含む。",
+    "Web guide は `embed()` と `embedForVideo()` が同期実行で UI thread をブロックし得るため、動画フレームの継続処理では Web Worker 化が重要だと説明している。",
+    "公式サンプル群 `mediapipe-samples-web` は Image Embedding を Vision デモの1つとして扱い、外部デモではなく独自 UI に embedding を組み込む足場として参照できる。"
+  ],
+  "keyTopicsEn": [
+    "The Image Embedder Web guide was updated on 2026-08-07 UTC and shows the minimal path through `@mediapipe/tasks-vision`, vision WASM, `ImageEmbedder.createFromOptions()`, and the hosted MobileNetV3 small model.",
+    "Image Embedder is a Vision task that converts images into high-dimensional feature vectors and can compare two embeddings with `ImageEmbedder.cosineSimilarity()`.",
+    "Inputs include still images, decoded video frames, and live video feeds; outputs include float or quantized embeddings plus head metadata.",
+    "The Web guide explains that `embed()` and `embedForVideo()` run synchronously and may block the UI thread, so Web Workers matter for repeated video-frame processing.",
+    "The official `mediapipe-samples-web` project includes Image Embedding as one Vision demo, useful as a reference while keeping this archive centered on original UI samples."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Image Embedder Patch Matcher",
+      "url": "../outputs/2026-08-10_image_embedder_patch_matcher.html"
+    },
+    {
+      "label": "Image embedding guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder/web_js"
+    },
+    {
+      "label": "Image embedding task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder"
+    },
+    {
+      "label": "ImageEmbedder JavaScript API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imageembedder"
+    },
+    {
+      "label": "Official MediaPipe Tasks web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Image Embedder を「写真検索の裏側」ではなく、UI 上で作った素材や画面状態の近さを評価する小さな道具として扱うことです。公式 Web guide は `FilesetResolver.forVisionTasks()` で WASM を解決し、MobileNetV3 small の model path を `ImageEmbedder.createFromOptions()` に渡して `embed(image)` を呼ぶ流れを示しています。今日の自作サンプルでは外部画像を並べず、キャンバスで生成した3つのパッチを比較対象にしました。",
+      "bodyEn": "Today's notable angle is treating Image Embedder not as a hidden photo-search primitive, but as a small tool for judging the similarity of generated UI materials or visual states. The official Web guide shows resolving WASM with `FilesetResolver.forVisionTasks()`, passing the MobileNetV3 small model path to `ImageEmbedder.createFromOptions()`, then calling `embed(image)`. Today's original sample compares three generated canvas patches instead of listing external images.",
+      "links": [
+        {
+          "label": "Image embedding guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "Preset、Jitter、Rotation、Variant を動かすと、3枚の生成パッチが変わり、similarity matrix と best pair が即時更新されます。初期状態はローカル fallback の色グリッドとエッジ差分で動きます。Load MediaPipe が成功すると、同じキャンバスを公式 Image Embedder に渡し、`ImageEmbedder.cosineSimilarity()` の結果で matrix を更新します。",
+      "bodyEn": "Changing Preset, Jitter, Rotation, and Variant regenerates the three patches and immediately updates the similarity matrix and best pair. The initial mode uses local fallback color-grid and edge-difference features. When Load MediaPipe succeeds, the same canvases are passed to the official Image Embedder and the matrix updates with `ImageEmbedder.cosineSimilarity()` results."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは生成パラメータ、キャンバス画像、fallback 特徴量、MediaPipe embedding、pairwise similarity、best pair、runtime mode です。Image Classifier と組み合わせると「同じカテゴリ内で近い見た目」を抽出できます。Object Detector や Interactive Segmenter の ROI を切り出して Image Embedder に渡せば、画面内の部品や商品候補の近傍検索に発展します。Web Worker と IndexedDB を足すと、ブラウザ内の小さなビジュアル記憶にもできます。",
+      "bodyEn": "The accumulated data includes generation parameters, canvas images, fallback features, MediaPipe embeddings, pairwise similarity, best pair, and runtime mode. Combined with Image Classifier, it can retrieve visually close items within the same category. Passing Object Detector or Interactive Segmenter ROIs into Image Embedder can grow into nearest-neighbor search for page components or product candidates. Adding a Web Worker and IndexedDB would turn it into a small in-browser visual memory."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `@mediapipe/tasks-vision@0.10.22` を CDN import し、`FilesetResolver.forVisionTasks()`、`ImageEmbedder.createFromOptions()`、`runningMode: \"IMAGE\"`、hosted MobileNetV3 small model を使う経路を用意しました。公式 guide の注意通り `embed()` は同期的に返るため、今回は3枚だけに限定しています。動画や多数画像で試すなら worker に逃がし、`quantize` と `l2Normalize` の切り替えを UI に出すのが次の実装ポイントです。",
+      "bodyEn": "The implementation prepares a CDN-import path for `@mediapipe/tasks-vision@0.10.22`, `FilesetResolver.forVisionTasks()`, `ImageEmbedder.createFromOptions()`, `runningMode: \"IMAGE\"`, and the hosted MobileNetV3 small model. As the official guide notes, `embed()` returns synchronously, so this sample limits itself to three images. For video or many images, the next implementation step is to move embedding into a worker and expose `quantize` and `l2Normalize` toggles.",
+      "links": [
+        {
+          "label": "ImageEmbedder JavaScript API reference",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imageembedder"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Image Classifier、Face Detector、Holistic Landmarker、Image Embedder の `quantize`、ROI 指定、Worker 化、IndexedDB への embedding 保存を見ます。MediaPipe releases では Web LLM、WebGPU、Tasks JavaScript 周辺の更新が続いているため、ブラウザで完結する小さな比較・検索 UI に寄せると日次サンプルの線がつながります。",
+      "bodyEn": "Next watch Image Classifier, Face Detector, Holistic Landmarker, Image Embedder `quantize`, ROI handling, Worker execution, and embedding persistence in IndexedDB. MediaPipe releases continue to touch Web LLM, WebGPU, and Tasks JavaScript areas, so small browser-only comparison and retrieval UIs are a coherent path for the daily archive.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Variant を `A and B are near`、`B and C are near`、`All different` に切り替え、best pair がどう変わるかを見ます。次に Jitter と Rotation を動かして、生成素材の差が matrix に反映されることを確認します。最後に Load MediaPipe を押し、成功した場合は fallback と公式 embedding の近さの見え方を比較します。",
+      "bodyEn": "First switch Variant between `A and B are near`, `B and C are near`, and `All different`, then watch how the best pair changes. Next adjust Jitter and Rotation to confirm that generated visual differences flow into the matrix. Finally press Load MediaPipe and, if it succeeds, compare the fallback behavior with official embedding similarity.",
+      "links": [
+        {
+          "label": "Open Image Embedder Patch Matcher",
+          "url": "../outputs/2026-08-10_image_embedder_patch_matcher.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Embedder Web guide、overview、ImageEmbedder JS reference、公式 Tasks web demo、`mediapipe-samples-web`、MediaPipe releases を確認。設計: 外部デモ一覧ではなく、自作キャンバス素材を比較する最小 UI にする。実装: パッチ生成、操作パラメータ、fallback 特徴抽出、cosine matrix、best pair、optional MediaPipe loader を追加。検証: HTML 構文、JSON 構文、gallery build、publish command、公開 URL の HTTP 応答を確認する。",
+      "bodyEn": "Research: reviewed the Image Embedder Web guide, overview, ImageEmbedder JS reference, official Tasks web demo, `mediapipe-samples-web`, and MediaPipe releases. Design: build a minimal UI comparing generated canvas patches rather than an external demo list. Implementation: added patch generation, controls, fallback feature extraction, cosine matrix, best pair, and optional MediaPipe loader. Validation: check HTML syntax, JSON syntax, gallery build, publish command, and public URL response."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月前半の蓄積は Hand、Segmenter、Detector、Pose、Face、Audio、Text と広がってきました。今日は Vision の embedding を足し、分類や検出とは違う「近さを見る」軸を追加しました。MediaPipe Tasks の出力をそのまま表示するだけでなく、比較、仕分け、保存、再検索に変換すると、日次サンプルがプロダクト部品として見えやすくなります。",
+      "bodyEn": "The early-August archive has covered Hand, Segmenter, Detector, Pose, Face, Audio, and Text. Today adds Vision embedding and a different axis: looking at similarity rather than classification or detection. Translating MediaPipe Tasks output into comparison, triage, storage, and retrieval makes these daily samples easier to evaluate as product components."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Image Embedder Patch Matcher` です。実際に動く部分は3枚の自作キャンバス生成、プリセット切り替え、jitter / rotation 調整、variant 切り替え、similarity matrix、best pair 表示、feature preview、任意の MediaPipe Image Embedder ロードです。次に足すなら、ユーザー画像アップロード、ROI crop、`quantize` 切り替え、Worker 化、IndexedDB への embedding 保存、近傍検索リストを追加します。",
+      "bodyEn": "The selected prototype is `Image Embedder Patch Matcher`. The working parts are three generated canvas patches, preset switching, jitter / rotation adjustment, variant switching, similarity matrix, best-pair display, feature preview, and optional MediaPipe Image Embedder loading. Next additions should include user image upload, ROI crop, a `quantize` toggle, Worker execution, embedding storage in IndexedDB, and a nearest-neighbor result list."
+    }
+  ]
+}
