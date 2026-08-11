@@ -13,4 +13,4 @@
 - Official samples web repository: https://github.com/google-ai-edge/mediapipe-samples-web
   - README lists Image Classifier among Vision tasks and frames the app as browser-only MediaPipe Tasks demos.
 
-Today's prototype: generated-canvas Image Classifier probe. It creates three 224 x 224 canvases locally, uses fallback visual scores immediately, and can load MediaPipe ImageClassifier with EfficientNet-Lite0 for actual category outputs.
+Today's prototype: generated-canvas Image Classifier probe. It creates three 224 x 224 canvases locally, uses fallback visual scores immediately, and can load MediaPipe ImageClassifier with EfficientNet-Lite0 for actual category outputs. The current sample pins the CDN runtime to `@mediapipe/tasks-vision@1.0.1`, because npm and jsDelivr currently resolve that release while `0.10.22` is not published as a stable package.

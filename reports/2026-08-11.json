@@ -73,8 +73,8 @@
     {
       "title": "制作に使えそうな技術メモ",
       "titleEn": "Production note",
-      "body": "実装では CDN の `@mediapipe/tasks-vision@0.10.22` から `FilesetResolver` と `ImageClassifier` を読み、hosted EfficientNet-Lite0 float32 model を `runningMode: \"IMAGE\"`、`maxResults: 5`、可変 `scoreThreshold` で使う経路を用意しました。公式ドキュメントの通り `classify()` は同期的に返るため、今日の試作は3枚の still canvas に限定しています。カメラや連続生成フレームで使うなら Worker に分離し、`classifyForVideo()` と timestamp 管理に切り替えるのが次の実装ポイントです。",
-      "bodyEn": "The implementation loads `FilesetResolver` and `ImageClassifier` from CDN `@mediapipe/tasks-vision@0.10.22`, using the hosted EfficientNet-Lite0 float32 model with `runningMode: \"IMAGE\"`, `maxResults: 5`, and a variable `scoreThreshold`. As the official docs note, `classify()` returns synchronously, so today's prototype limits itself to three still canvases. For camera or continuously generated frames, the next implementation step is to move inference into a Worker and switch to `classifyForVideo()` plus timestamp handling.",
+      "body": "実装では CDN の `@mediapipe/tasks-vision@1.0.1` から `FilesetResolver` と `ImageClassifier` を読み、hosted EfficientNet-Lite0 float32 model を `runningMode: \"IMAGE\"`、`maxResults: 5`、可変 `scoreThreshold` で使う経路を用意しました。公式ドキュメントの通り `classify()` は同期的に返るため、今日の試作は3枚の still canvas に限定しています。カメラや連続生成フレームで使うなら Worker に分離し、`classifyForVideo()` と timestamp 管理に切り替えるのが次の実装ポイントです。",
+      "bodyEn": "The implementation loads `FilesetResolver` and `ImageClassifier` from CDN `@mediapipe/tasks-vision@1.0.1`, using the hosted EfficientNet-Lite0 float32 model with `runningMode: \"IMAGE\"`, `maxResults: 5`, and a variable `scoreThreshold`. As the official docs note, `classify()` returns synchronously, so today's prototype limits itself to three still canvases. For camera or continuously generated frames, the next implementation step is to move inference into a Worker and switch to `classifyForVideo()` plus timestamp handling.",
       "links": [
         {
           "label": "Image classification task guide",

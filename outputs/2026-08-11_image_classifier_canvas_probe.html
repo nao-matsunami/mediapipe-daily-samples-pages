@@ -337,7 +337,7 @@
   </main>
 
   <script type="module">
-    const CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+    const CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1";
     const MODEL = "https://storage.googleapis.com/mediapipe-models/image_classifier/efficientnet_lite0/float32/latest/efficientnet_lite0.tflite";
 
     const state = {
@@ -508,7 +508,7 @@
       loadButton.disabled = true;
       log("Loading MediaPipe ImageClassifier...");
       try {
-        const visionModule = await import(`${CDN}/tasks-vision.esm.js`);
+        const visionModule = await import(`${CDN}/+esm`);
         const vision = await visionModule.FilesetResolver.forVisionTasks(`${CDN}/wasm`);
         state.classifier = await visionModule.ImageClassifier.createFromOptions(vision, {
           baseOptions: { modelAssetPath: MODEL },
