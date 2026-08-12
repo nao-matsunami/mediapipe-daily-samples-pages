@@ -1,0 +1,128 @@
+{
+  "date": "2026-08-12",
+  "category": "MediaPipe",
+  "headline": "Face Detector で顔領域のプライバシーゲートを作る",
+  "headlineEn": "Build a face-region privacy gate with Face Detector",
+  "summary": "MediaPipe Tasks Face Detector の Web 実装を参考に、生成ポートレートまたはカメラ映像から顔 bbox、6つの顔キーポイント、confidence、latency を表示する自作サンプルを追加しました。MediaPipe を読み込める環境では BlazeFace short range model を使い、読み込めない環境でも肌色領域の fallback 推定で同じ閾値ゲート UI が動きます。",
+  "summaryEn": "This adds an original sample based on the MediaPipe Tasks Face Detector Web path, showing face bounding boxes, six facial keypoints, confidence, and latency from a generated portrait or camera stream. When MediaPipe loads, it uses the BlazeFace short range model; otherwise a skin-region fallback keeps the same threshold-gate UI working.",
+  "keyTopics": [
+    "Face detection guide for Web は 2026-08-07 UTC 更新で、`@mediapipe/tasks-vision`、vision WASM、`FaceDetector.createFromOptions()`、model asset path の最小経路を示している。",
+    "Face Detector は image と video の両方を扱い、顔 bbox に加えて left eye、right eye、nose tip、mouth、left eye tragion、right eye tragion の6点を返す。",
+    "Web の主要設定は `runningMode`、`minDetectionConfidence`、`minSuppressionThreshold` で、今日のサンプルでは confidence を UI のゲートとして動かす。",
+    "公式 guide は `detect()` と `detectForVideo()` が同期実行で UI thread をブロックし得るため、連続カメラ処理では Worker 化が重要だと説明している。",
+    "MediaPipe legacy docs は Face Detection を BlazeFace ベースの高速 ROI 検出として位置づけ、Face Mesh、表情分類、顔領域分割の前段に使える点を示している。"
+  ],
+  "keyTopicsEn": [
+    "The Face detection guide for Web was updated on 2026-08-07 UTC and shows the minimal path through `@mediapipe/tasks-vision`, vision WASM, `FaceDetector.createFromOptions()`, and a model asset path.",
+    "Face Detector handles both image and video inputs, returning a face bounding box plus six keypoints: left eye, right eye, nose tip, mouth, left eye tragion, and right eye tragion.",
+    "The main Web options are `runningMode`, `minDetectionConfidence`, and `minSuppressionThreshold`; today's sample turns confidence into an interactive UI gate.",
+    "The official guide explains that `detect()` and `detectForVideo()` run synchronously and can block the UI thread, making Workers important for continuous camera processing.",
+    "The MediaPipe legacy docs frame Face Detection as a fast BlazeFace-based ROI detector useful before Face Mesh, expression classification, and face-region segmentation."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Face Detector Privacy Gate",
+      "url": "../outputs/2026-08-12_face_detector_privacy_gate.html"
+    },
+    {
+      "label": "Face detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_detector/web_js"
+    },
+    {
+      "label": "MediaPipe Face Detection legacy docs",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/face_detection.md"
+    },
+    {
+      "label": "MediaPipe Tasks Vision JS API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Face Detector を「顔を見つけるデモ」ではなく、顔領域を見つけたときだけ UI を開くプライバシーゲートとして使うことです。公式 Web guide は `FilesetResolver.forVisionTasks()` で WASM を解決し、Face Detector に model asset path と running mode を渡す流れを示しています。自作サンプルでは生成ポートレートを初期入力にし、任意でカメラに切り替えて bbox、6点、confidence、latency を同じ画面で確認します。",
+      "bodyEn": "Today's notable angle is using Face Detector not as a generic face-finding demo, but as a privacy gate that opens UI only when a face region passes confidence. The official Web guide shows resolving WASM with `FilesetResolver.forVisionTasks()` and passing a model asset path plus running mode to Face Detector. The original sample starts from a generated portrait and optionally switches to camera, showing bbox, six keypoints, confidence, and latency on one surface.",
+      "links": [
+        {
+          "label": "Face detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_detector/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "Synthetic portrait、Camera、confidence slider、pose / seed controls を用意し、顔候補が閾値を超えたときだけ gate を open にします。MediaPipe を読み込める環境では BlazeFace の検出結果を緑、fallback 推定は赤で描き分けます。閾値を上げると表示が閉じるため、顔検出を「検出結果の可視化」から「入力品質や同意状態を示すインタラクション」に変えられます。",
+      "bodyEn": "The UI includes Synthetic portrait, Camera, confidence slider, and pose / seed controls, opening the gate only when a candidate passes the threshold. MediaPipe results are drawn in green, while fallback estimates are drawn in red. Raising the threshold closes the display, turning face detection from simple result visualization into an interaction that communicates input quality or consent state."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは入力種別、生成 seed、pose、bbox、6点キーポイント、score、threshold、gate 状態、latency、runtime です。Face Landmarker と組み合わせると、Face Detector は低コストな前段 ROI として使えます。Image Segmenter や Interactive Segmenter と接続すれば顔領域だけをぼかす、背景だけを残す、検出された顔を匿名 avatar に差し替えるなどの UI に発展します。Web Worker と OffscreenCanvas を足すと、カメラ処理の同期ブロックを避けながら同じ gate を維持できます。",
+      "bodyEn": "The sample can accumulate source type, generation seed, pose, bbox, six keypoints, score, threshold, gate state, latency, and runtime. Combined with Face Landmarker, Face Detector becomes a low-cost ROI stage. Connected to Image Segmenter or Interactive Segmenter, it can blur only faces, preserve only backgrounds, or replace detected faces with anonymous avatars. Adding Web Workers and OffscreenCanvas can keep the same gate while avoiding synchronous camera blocking."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では CDN の `@mediapipe/tasks-vision@1.0.1` から `FilesetResolver` と `FaceDetector` を任意 import し、hosted BlazeFace short range float16 model を `runningMode: \"IMAGE\"` / `\"VIDEO\"` で切り替えます。`minDetectionConfidence` は slider の値を反映し、`minSuppressionThreshold` は 0.3 に固定しました。MediaPipe が使えない場合でも、キャンバスのピクセルから肌色らしい最大領域を拾い、bbox と6点を合成する fallback で UI の検証を続けられます。",
+      "bodyEn": "The implementation optionally imports `FilesetResolver` and `FaceDetector` from CDN `@mediapipe/tasks-vision@1.0.1`, switching the hosted BlazeFace short range float16 model between `runningMode: \"IMAGE\"` and `\"VIDEO\"`. `minDetectionConfidence` follows the slider, while `minSuppressionThreshold` is fixed at 0.3. If MediaPipe is unavailable, a fallback scans canvas pixels for the largest skin-like region and synthesizes bbox plus six points so the UI remains testable.",
+      "links": [
+        {
+          "label": "MediaPipe Tasks Vision JS API",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Face Landmarker の blendshapes、Holistic Landmarker、Image Segmenter の人物・顔領域マスク、Worker での Tasks 実行、Vite worker 内での task file 利用を見ます。MediaPipe releases では JavaScript package export、WASM URL、Worker 対応、Web LLM / Vision modality の更新を継続して追います。Face Detector が入ったので、今後は検出した顔 ROI を Landmarker、Classifier、Segmenter に渡す接続サンプルに進めます。",
+      "bodyEn": "Next watch Face Landmarker blendshapes, Holistic Landmarker, person or face-region masks with Image Segmenter, running Tasks in Workers, and task-file use inside Vite workers. Continue tracking JavaScript package exports, WASM URLs, Worker support, and Web LLM / Vision modality changes in MediaPipe releases. With Face Detector covered, the archive can move into connection samples that pass detected face ROIs to Landmarker, Classifier, or Segmenter.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Synthetic portrait のまま confidence を 0.10 から 0.90 まで動かし、gate が開閉する閾値を見ます。次に Load MediaPipe を押し、読み込み成功時は実 detector、失敗時は fallback のまま bbox と6点が出ることを確認します。カメラを使える環境では Start camera に切り替え、顔の距離や角度で confidence と latency がどう変わるかを観察します。",
+      "bodyEn": "First keep Synthetic portrait active and move confidence from 0.10 to 0.90 to find where the gate opens and closes. Next press Load MediaPipe and confirm that bbox plus six points appear via the real detector when loading succeeds or via fallback when it does not. In a camera-capable environment, switch to Start camera and observe how face distance and angle change confidence and latency.",
+      "links": [
+        {
+          "label": "Open Face Detector Privacy Gate",
+          "url": "../outputs/2026-08-12_face_detector_privacy_gate.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Face detection Web guide、Tasks Vision JS API、legacy Face Detection docs、公式 Web Task Demo、MediaPipe releases を確認。設計: 外部デモ一覧ではなく、生成ポートレートと任意カメラを使う自作 gate UI にする。実装: canvas generator、camera path、threshold controls、optional MediaPipe loader、fallback detector、bbox / keypoint overlay、metrics、log を追加。検証: CDN module、WASM、model URL の HTTP 応答、JSON 構文、gallery build、publish command、公開 URL を確認する。",
+      "bodyEn": "Research: checked the Face detection Web guide, Tasks Vision JS API, legacy Face Detection docs, official Web Task Demo, and MediaPipe releases. Design: build an original gate UI using a generated portrait and optional camera instead of listing external demos. Implementation: added a canvas generator, camera path, threshold controls, optional MediaPipe loader, fallback detector, bbox / keypoint overlay, metrics, and log. Validation: check CDN module, WASM, model URL HTTP responses, JSON syntax, gallery build, publish command, and public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまで Gesture、Segmenter、Object Detector、Pose、Face Landmarker、Audio、Text、Image Embedder、Image Classifier を試し、今日は Face Detector を追加しました。Vision 側は分類、検出、分割、埋め込み、顔特徴の基本線がそろってきています。次の価値は単体 Task の増加より、bbox や mask を共通の中間データとして使い、複数 Task を1つの操作に接続することです。",
+      "bodyEn": "The archive has covered Gesture, Segmenter, Object Detector, Pose, Face Landmarker, Audio, Text, Image Embedder, and Image Classifier; today adds Face Detector. The Vision side now has the basic lines of classification, detection, segmentation, embedding, and facial features. The next value is less about adding isolated Tasks and more about using bbox and masks as shared intermediate data across multiple Tasks."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Face Detector Privacy Gate` です。実際に動く部分は生成ポートレート描画、pose / seed 変更、confidence gate、任意の MediaPipe FaceDetector ロード、カメラ切り替え、fallback 顔領域推定、bbox と6点キーポイントの overlay、faces / latency / gate / mode metrics です。次に足すなら Worker 化、Face Landmarker への ROI 受け渡し、顔領域 blur、匿名 avatar 置換、複数顔の個別 consent 状態を追加します。",
+      "bodyEn": "The selected prototype is `Face Detector Privacy Gate`. The working parts are generated portrait drawing, pose / seed changes, confidence gate, optional MediaPipe FaceDetector loading, camera switching, fallback face-region estimation, bbox plus six-keypoint overlay, and faces / latency / gate / mode metrics. Next additions should include Worker execution, ROI handoff to Face Landmarker, face-region blur, anonymous avatar replacement, and per-face consent state for multiple faces."
+    }
+  ]
+}

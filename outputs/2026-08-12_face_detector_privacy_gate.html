@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Detector Privacy Gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #101416;
+      color: #f6f1e7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(145deg, rgba(45, 153, 126, 0.16), transparent 34%),
+        linear-gradient(315deg, rgba(218, 104, 84, 0.12), transparent 42%),
+        #101416;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 241, 231, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 3.4vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #c9c2b6;
+      line-height: 1.62;
+    }
+
+    button, select, input {
+      min-height: 38px;
+      border: 1px solid rgba(246, 241, 231, 0.16);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.055);
+      color: #f6f1e7;
+      font: inherit;
+    }
+
+    button {
+      padding: 8px 11px;
+      cursor: pointer;
+      border-color: rgba(45, 153, 126, 0.46);
+      background: rgba(45, 153, 126, 0.15);
+    }
+
+    button.secondary {
+      border-color: rgba(218, 104, 84, 0.42);
+      background: rgba(218, 104, 84, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #2d997e;
+    }
+
+    .stage, .side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid rgba(246, 241, 231, 0.14);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(16, 20, 22, 0.84);
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    .viewer {
+      position: relative;
+      overflow: hidden;
+      padding: 0;
+      aspect-ratio: 4 / 3;
+      min-height: 320px;
+      background: #171b1d;
+    }
+
+    canvas, video {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #view {
+      object-fit: cover;
+    }
+
+    #camera {
+      display: none;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    label, .metric-label {
+      color: #9e978d;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid rgba(246, 241, 231, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 1.45rem;
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      border: 1px solid rgba(218, 104, 84, 0.34);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(218, 104, 84, 0.1);
+      color: #f6f1e7;
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr) 48px;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.86rem;
+    }
+
+    .track {
+      height: 13px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #2d997e, #da6854);
+    }
+
+    .score {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #e9e0d2;
+    }
+
+    .log {
+      min-height: 150px;
+      max-height: 230px;
+      overflow: auto;
+      display: grid;
+      align-content: start;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: #c9c2b6;
+    }
+
+    .log div {
+      border-left: 2px solid rgba(45, 153, 126, 0.65);
+      padding-left: 8px;
+    }
+
+    @media (max-width: 880px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .controls, .metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .viewer {
+        min-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Face Detector Privacy Gate</h1>
+        <p>生成ポートレートかカメラ映像から顔の bbox と6点を描き、閾値で UI の表示を切り替える最小サンプル。</p>
+      </div>
+      <div class="chips">
+        <span class="chip" id="runtimeChip">fallback</span>
+        <span class="chip">MediaPipe Tasks Vision</span>
+      </div>
+    </header>
+
+    <section class="stage">
+      <div class="panel viewer">
+        <video id="camera" playsinline muted></video>
+        <canvas id="view" width="960" height="720"></canvas>
+        <canvas id="overlay" class="overlay" width="960" height="720"></canvas>
+      </div>
+
+      <div class="panel controls">
+        <div class="control">
+          <label for="source">Source</label>
+          <select id="source">
+            <option value="synthetic">Synthetic portrait</option>
+            <option value="camera">Camera</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="threshold">Confidence <span id="thresholdValue">0.50</span></label>
+          <input id="threshold" type="range" min="0.1" max="0.9" step="0.01" value="0.5">
+        </div>
+        <div class="control">
+          <label for="pose">Pose</label>
+          <select id="pose">
+            <option value="front">Front</option>
+            <option value="tilt">Tilt</option>
+            <option value="wide">Wide face</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="seed">Seed <span id="seedValue">7</span></label>
+          <input id="seed" type="range" min="1" max="32" step="1" value="7">
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>Run</h2>
+        <div class="actions">
+          <button id="detectBtn">Detect frame</button>
+          <button id="loadBtn">Load MediaPipe</button>
+          <button id="cameraBtn" class="secondary">Start camera</button>
+        </div>
+        <p id="status">fallback の肌色領域推定で待機中。</p>
+      </section>
+
+      <section class="panel">
+        <h2>Metrics</h2>
+        <div class="metrics">
+          <div class="metric">
+            <span class="metric-label">Faces</span>
+            <strong id="facesMetric">0</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Latency</span>
+            <strong id="latencyMetric">0ms</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Gate</span>
+            <strong id="gateMetric">closed</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Mode</span>
+            <strong id="modeMetric">image</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Detections</h2>
+        <div class="list" id="detections"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Log</h2>
+        <div class="log" id="log"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const TASKS_VERSION = "1.0.1";
+    const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
+
+    const view = document.querySelector("#view");
+    const overlay = document.querySelector("#overlay");
+    const camera = document.querySelector("#camera");
+    const ctx = view.getContext("2d", { willReadFrequently: true });
+    const overlayCtx = overlay.getContext("2d");
+
+    const sourceEl = document.querySelector("#source");
+    const thresholdEl = document.querySelector("#threshold");
+    const thresholdValue = document.querySelector("#thresholdValue");
+    const poseEl = document.querySelector("#pose");
+    const seedEl = document.querySelector("#seed");
+    const seedValue = document.querySelector("#seedValue");
+    const detectBtn = document.querySelector("#detectBtn");
+    const loadBtn = document.querySelector("#loadBtn");
+    const cameraBtn = document.querySelector("#cameraBtn");
+    const statusEl = document.querySelector("#status");
+    const runtimeChip = document.querySelector("#runtimeChip");
+    const facesMetric = document.querySelector("#facesMetric");
+    const latencyMetric = document.querySelector("#latencyMetric");
+    const gateMetric = document.querySelector("#gateMetric");
+    const modeMetric = document.querySelector("#modeMetric");
+    const detectionsEl = document.querySelector("#detections");
+    const logEl = document.querySelector("#log");
+
+    let detector = null;
+    let runtime = "fallback";
+    let stream = null;
+    let rafId = null;
+    let lastVideoTime = -1;
+
+    function log(message) {
+      const line = document.createElement("div");
+      line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
+      logEl.prepend(line);
+      while (logEl.children.length > 18) logEl.lastChild.remove();
+    }
+
+    function random(seed) {
+      let value = seed * 9301 + 49297;
+      return () => {
+        value = (value * 9301 + 49297) % 233280;
+        return value / 233280;
+      };
+    }
+
+    function drawSyntheticPortrait() {
+      const seed = Number(seedEl.value);
+      const pose = poseEl.value;
+      const rnd = random(seed);
+      ctx.clearRect(0, 0, view.width, view.height);
+      const bg = ctx.createLinearGradient(0, 0, view.width, view.height);
+      bg.addColorStop(0, "#172327");
+      bg.addColorStop(1, "#312220");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, view.width, view.height);
+
+      for (let i = 0; i < 60; i += 1) {
+        ctx.fillStyle = `rgba(246, 241, 231, ${0.03 + rnd() * 0.06})`;
+        ctx.beginPath();
+        ctx.arc(rnd() * view.width, rnd() * view.height, 1 + rnd() * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const cx = view.width * (pose === "tilt" ? 0.53 : 0.5);
+      const cy = view.height * 0.48;
+      const rx = view.width * (pose === "wide" ? 0.19 : 0.155);
+      const ry = view.height * 0.255;
+      const tilt = pose === "tilt" ? -0.18 : 0;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(tilt);
+      ctx.fillStyle = "#d79d77";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#3c2621";
+      ctx.beginPath();
+      ctx.ellipse(0, -ry * 0.78, rx * 1.05, ry * 0.46, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#1d1c1a";
+      const eyeY = -ry * 0.2;
+      const eyeX = rx * 0.43;
+      [-eyeX, eyeX].forEach((x) => {
+        ctx.beginPath();
+        ctx.ellipse(x, eyeY, rx * 0.095, ry * 0.045, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.strokeStyle = "#915d4d";
+      ctx.lineWidth = 7;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, -ry * 0.08);
+      ctx.quadraticCurveTo(rx * 0.06, ry * 0.08, -rx * 0.03, ry * 0.18);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#762e36";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(-rx * 0.28, ry * 0.45);
+      ctx.quadraticCurveTo(0, ry * (0.55 + rnd() * 0.05), rx * 0.28, ry * 0.45);
+      ctx.stroke();
+
+      ctx.fillStyle = "#d79d77";
+      [-rx * 1.01, rx * 1.01].forEach((x) => {
+        ctx.beginPath();
+        ctx.ellipse(x, -ry * 0.02, rx * 0.14, ry * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(45, 153, 126, 0.18)";
+      ctx.fillRect(view.width * 0.08, view.height * 0.78, view.width * 0.84, 9);
+    }
+
+    function drawCameraFrame() {
+      if (!stream || camera.readyState < 2) return;
+      const sourceRatio = camera.videoWidth / camera.videoHeight;
+      const targetRatio = view.width / view.height;
+      let sx = 0;
+      let sy = 0;
+      let sw = camera.videoWidth;
+      let sh = camera.videoHeight;
+      if (sourceRatio > targetRatio) {
+        sw = sh * targetRatio;
+        sx = (camera.videoWidth - sw) / 2;
+      } else {
+        sh = sw / targetRatio;
+        sy = (camera.videoHeight - sh) / 2;
+      }
+      ctx.drawImage(camera, sx, sy, sw, sh, 0, 0, view.width, view.height);
+    }
+
+    function fallbackDetect() {
+      const image = ctx.getImageData(0, 0, view.width, view.height);
+      const data = image.data;
+      let minX = view.width;
+      let minY = view.height;
+      let maxX = 0;
+      let maxY = 0;
+      let count = 0;
+      const step = 4;
+      for (let y = 0; y < view.height; y += step) {
+        for (let x = 0; x < view.width; x += step) {
+          const index = (y * view.width + x) * 4;
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          const skinLike = r > 120 && g > 70 && b > 45 && r > g * 1.08 && g > b * 1.08 && r - b > 45;
+          if (skinLike) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+            count += 1;
+          }
+        }
+      }
+
+      if (!count) return [];
+      const width = maxX - minX;
+      const height = maxY - minY;
+      const areaRatio = (count * step * step) / (view.width * view.height);
+      const aspect = width / Math.max(1, height);
+      const aspectScore = Math.max(0, 1 - Math.abs(aspect - 0.72));
+      const confidence = Math.min(0.96, Math.max(0.12, areaRatio * 6.2 + aspectScore * 0.34));
+      if (confidence < Number(thresholdEl.value)) return [];
+
+      const box = { originX: minX, originY: minY, width, height };
+      const keypoints = [
+        { x: minX + width * 0.34, y: minY + height * 0.38, label: "leftEye" },
+        { x: minX + width * 0.66, y: minY + height * 0.38, label: "rightEye" },
+        { x: minX + width * 0.5, y: minY + height * 0.54, label: "nose" },
+        { x: minX + width * 0.5, y: minY + height * 0.72, label: "mouth" },
+        { x: minX + width * 0.18, y: minY + height * 0.5, label: "leftTragion" },
+        { x: minX + width * 0.82, y: minY + height * 0.5, label: "rightTragion" }
+      ];
+      return [{ box, keypoints, score: confidence, source: "fallback" }];
+    }
+
+    function normalizeDetections(result) {
+      const detections = result?.detections || [];
+      return detections.map((detection) => {
+        const box = detection.boundingBox || {};
+        const category = detection.categories?.[0] || {};
+        const keypoints = (detection.keypoints || []).map((point) => ({
+          x: point.x * view.width,
+          y: point.y * view.height,
+          label: point.label || ""
+        }));
+        return {
+          box: {
+            originX: box.originX ?? box.origin_x ?? 0,
+            originY: box.originY ?? box.origin_y ?? 0,
+            width: box.width ?? 0,
+            height: box.height ?? 0
+          },
+          keypoints,
+          score: category.score ?? 0,
+          source: "mediapipe"
+        };
+      }).filter((item) => item.score >= Number(thresholdEl.value));
+    }
+
+    async function runDetection() {
+      const start = performance.now();
+      if (sourceEl.value === "synthetic") drawSyntheticPortrait();
+      else drawCameraFrame();
+
+      let detections = [];
+      if (detector) {
+        try {
+          if (sourceEl.value === "camera" && stream) {
+            await detector.setOptions({ runningMode: "VIDEO", minDetectionConfidence: Number(thresholdEl.value) });
+            const result = detector.detectForVideo(camera, performance.now());
+            detections = normalizeDetections(result);
+            modeMetric.textContent = "video";
+          } else {
+            await detector.setOptions({ runningMode: "IMAGE", minDetectionConfidence: Number(thresholdEl.value) });
+            detections = normalizeDetections(detector.detect(view));
+            modeMetric.textContent = "image";
+          }
+        } catch (error) {
+          log(`MediaPipe failed: ${error.message}`);
+        }
+      }
+
+      if (!detections.length) {
+        detections = fallbackDetect();
+        if (!detector) modeMetric.textContent = "image";
+      }
+
+      const elapsed = Math.max(1, Math.round(performance.now() - start));
+      renderDetections(detections, elapsed);
+    }
+
+    function renderDetections(detections, elapsed) {
+      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      overlayCtx.lineWidth = 4;
+      overlayCtx.font = "18px Inter, system-ui, sans-serif";
+      detections.forEach((item, index) => {
+        const { box } = item;
+        overlayCtx.strokeStyle = item.source === "mediapipe" ? "#2d997e" : "#da6854";
+        overlayCtx.fillStyle = "rgba(16, 20, 22, 0.72)";
+        overlayCtx.strokeRect(box.originX, box.originY, box.width, box.height);
+        overlayCtx.fillRect(box.originX, Math.max(0, box.originY - 30), 170, 28);
+        overlayCtx.fillStyle = "#f6f1e7";
+        overlayCtx.fillText(`${index + 1}: ${item.score.toFixed(2)}`, box.originX + 8, Math.max(21, box.originY - 10));
+
+        overlayCtx.fillStyle = "#f6f1e7";
+        item.keypoints.forEach((point) => {
+          overlayCtx.beginPath();
+          overlayCtx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+          overlayCtx.fill();
+        });
+      });
+
+      facesMetric.textContent = String(detections.length);
+      latencyMetric.textContent = `${elapsed}ms`;
+      gateMetric.textContent = detections.length ? "open" : "closed";
+      detectionsEl.innerHTML = detections.length ? detections.map((item, index) => `
+        <div class="row">
+          <span>#${index + 1}</span>
+          <div class="track"><div class="fill" style="width:${Math.round(item.score * 100)}%"></div></div>
+          <span class="score">${item.score.toFixed(2)}</span>
+        </div>
+      `).join("") : "<p>閾値を通過した顔候補はありません。</p>";
+      statusEl.textContent = detections.length
+        ? `${detections[0].source} で ${detections.length} 件の顔候補を表示中。`
+        : "顔候補なし。閾値、ポーズ、カメラ位置を調整してください。";
+    }
+
+    async function loadMediaPipe() {
+      loadBtn.disabled = true;
+      statusEl.textContent = "MediaPipe Tasks Vision を読み込み中。";
+      try {
+        const visionModule = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VERSION}/vision_bundle.mjs`);
+        const vision = await visionModule.FilesetResolver.forVisionTasks(
+          `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VERSION}/wasm`
+        );
+        detector = await visionModule.FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: MODEL_URL,
+            delegate: "CPU"
+          },
+          runningMode: "IMAGE",
+          minDetectionConfidence: Number(thresholdEl.value),
+          minSuppressionThreshold: 0.3
+        });
+        runtime = "mediapipe";
+        runtimeChip.textContent = "mediapipe";
+        log(`MediaPipe FaceDetector loaded: tasks-vision@${TASKS_VERSION}`);
+        await runDetection();
+      } catch (error) {
+        runtime = "fallback";
+        runtimeChip.textContent = "fallback";
+        statusEl.textContent = "MediaPipe 読み込みに失敗。fallback で継続します。";
+        log(`Load failed: ${error.message}`);
+        loadBtn.disabled = false;
+      }
+    }
+
+    async function startCamera() {
+      if (stream) return;
+      cameraBtn.disabled = true;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 960, height: 720, facingMode: "user" },
+          audio: false
+        });
+        camera.srcObject = stream;
+        await camera.play();
+        sourceEl.value = "camera";
+        log("Camera started.");
+        loop();
+      } catch (error) {
+        stream = null;
+        sourceEl.value = "synthetic";
+        log(`Camera unavailable: ${error.message}`);
+      } finally {
+        cameraBtn.disabled = false;
+      }
+    }
+
+    function loop() {
+      cancelAnimationFrame(rafId);
+      const tick = async () => {
+        if (sourceEl.value === "camera" && stream) {
+          if (camera.currentTime !== lastVideoTime) {
+            lastVideoTime = camera.currentTime;
+            await runDetection();
+          }
+          rafId = requestAnimationFrame(tick);
+        }
+      };
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function refreshSynthetic() {
+      cancelAnimationFrame(rafId);
+      if (sourceEl.value === "synthetic") runDetection();
+      else if (stream) loop();
+    }
+
+    thresholdEl.addEventListener("input", () => {
+      thresholdValue.textContent = Number(thresholdEl.value).toFixed(2);
+      runDetection();
+    });
+    seedEl.addEventListener("input", () => {
+      seedValue.textContent = seedEl.value;
+      refreshSynthetic();
+    });
+    poseEl.addEventListener("change", refreshSynthetic);
+    sourceEl.addEventListener("change", refreshSynthetic);
+    detectBtn.addEventListener("click", runDetection);
+    loadBtn.addEventListener("click", loadMediaPipe);
+    cameraBtn.addEventListener("click", startCamera);
+
+    drawSyntheticPortrait();
+    runDetection();
+    log("Ready with generated portrait and fallback detector.");
+  </script>
+</body>
+</html>
