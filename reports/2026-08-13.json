@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-13",
+  "category": "MediaPipe",
+  "headline": "Holistic Landmarker で全身入力の準備度メーターを作る",
+  "headlineEn": "Build a full-body input readiness meter with Holistic Landmarker",
+  "summary": "MediaPipe Holistic Landmarker の一次情報を参考に、生成した全身ポーズまたはカメラ入力から pose、face、hand のそろい具合を readiness score に変換する自作サンプルを追加しました。MediaPipe を読み込める環境では HolisticLandmarker を試し、読み込めない環境でも合成ランドマークで同じ UI とスコアリングを検証できます。",
+  "summaryEn": "This adds an original sample based on MediaPipe Holistic Landmarker primary sources, turning pose, face, and hand completeness from a generated full-body pose or camera input into a readiness score. When MediaPipe loads, it tries HolisticLandmarker; otherwise synthetic landmarks keep the same UI and scoring path testable.",
+  "keyTopics": [
+    "Holistic Landmarker は pose、face、hand landmarker の構成要素を組み合わせ、全身のジェスチャ、姿勢、動作分析に使える統合 Task として説明されている。",
+    "公式 guide は出力を合計 543 landmarks、つまり 33 pose、468 face、21 hand landmarks x2 と整理している。",
+    "JavaScript API は `HolisticLandmarker.createFromOptions()`、`detect()`、`detectForVideo()`、`setOptions()` を提供し、image / video の running mode に応じて使い分ける。",
+    "API reference は callback 形式の結果 lifetime と、同期 detect 形式の mask copy / high-throughput 注意点を示しており、連続処理ではデータの寿命管理が重要になる。",
+    "MediaPipe Tasks Vision Web README の Holistic snippet は現時点で 404 になる model path を含んでいたため、今日の実装では HTTP 200 を確認した `holistic_landmarker.task` を使う。"
+  ],
+  "keyTopicsEn": [
+    "Holistic Landmarker is described as a combined Task using pose, face, and hand landmarker components for full-body gestures, poses, and actions.",
+    "The official guide frames the output as 543 total landmarks: 33 pose, 468 face, and 21 hand landmarks for each hand.",
+    "The JavaScript API provides `HolisticLandmarker.createFromOptions()`, `detect()`, `detectForVideo()`, and `setOptions()` for image and video running modes.",
+    "The API reference calls out callback result lifetimes and synchronous detect mask-copy behavior, making data lifetime management important for continuous processing.",
+    "The MediaPipe Tasks Vision Web README Holistic snippet currently includes a model path that returned 404, so today's sample uses the HTTP-200 `holistic_landmarker.task` path."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Holistic Landmark Readiness Meter",
+      "url": "../outputs/2026-08-13_holistic_landmark_readiness_meter.html"
+    },
+    {
+      "label": "Holistic landmarks detection task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/holistic_landmarker"
+    },
+    {
+      "label": "HolisticLandmarker JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.holisticlandmarker"
+    },
+    {
+      "label": "MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe samples web Holistic task",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/holistic-landmarker.ts"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Holistic Landmarker を「全身ランドマークを全部描くデモ」ではなく、下流の操作を始めてよいかを判定する readiness meter として使うことです。公式 guide は pose、face、hand をまとめた 543 landmarks の統合 Task と説明しています。自作サンプルでは生成した人物ポーズを初期入力にし、必要ならカメラに切り替え、pose / face / hand のそろい具合を1つのスコアに畳み込みます。",
+      "bodyEn": "Today's notable angle is using Holistic Landmarker not as a demo that draws every full-body landmark, but as a readiness meter deciding whether downstream interactions should start. The official guide describes it as a 543-landmark combined Task across pose, face, and hands. The original sample starts with a generated human pose, optionally switches to camera, and collapses pose / face / hand completeness into one score.",
+      "links": [
+        {
+          "label": "Holistic landmarks detection task guide",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/holistic_landmarker"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "UI では open arms、cross body、side reach の生成ポーズ、hand visibility、face visibility、ready threshold を動かせます。ランドマーク群が十分そろうと READY、足りないと WAIT に変わるため、ジェスチャ UI、アバター入力、フィットネス判定の前段として「今の映像は使えるか」を表現できます。外部デモ一覧ではなく、生成入力と独自スコアリングを中心に置いています。",
+      "bodyEn": "The UI lets you change generated poses between open arms, cross body, and side reach, plus hand visibility, face visibility, and ready threshold. It flips between READY and WAIT depending on whether landmark groups are complete enough, making it useful before gesture UI, avatar input, or fitness scoring. The focus is generated input plus custom scoring, not a list of external demos."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは入力種別、pose shape、hand / face visibility、threshold、pose / face / hand のランドマーク数、group score、balance score、最終 readiness、latency、runtime です。Gesture Recognizer と組み合わせれば READY のときだけ手ジェスチャを採用できます。Face Landmarker の blendshapes とつなぐと avatar 制御に、Pose Landmarker の world landmarks とつなぐと距離や姿勢補正に、Web Audio とつなぐと入力品質の音フィードバックに発展します。",
+      "bodyEn": "The sample can accumulate input type, pose shape, hand / face visibility, threshold, pose / face / hand landmark counts, group score, balance score, final readiness, latency, and runtime. Combined with Gesture Recognizer, hand gestures can be accepted only when READY. Connected to Face Landmarker blendshapes it can drive avatars, to Pose Landmarker world landmarks it can correct distance and posture, and to Web Audio it can provide input-quality sound feedback."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `@mediapipe/tasks-vision@1.0.1` の `FilesetResolver` と `HolisticLandmarker` を任意 import し、HTTP 200 を確認した `holistic_landmarker.task` を `baseOptions.modelAssetPath` に渡します。読み込み前や失敗時は、33 pose、簡易 face ring、左右 21 hand の合成ランドマークを使って同じ overlay とスコアリングを動かします。公式 README の Holistic snippet にある `hand_landmark.task` は今回 404 だったため、model URL は実際に HEAD 確認してから固定しました。",
+      "bodyEn": "The implementation optionally imports `FilesetResolver` and `HolisticLandmarker` from `@mediapipe/tasks-vision@1.0.1`, passing the HTTP-200 `holistic_landmarker.task` URL to `baseOptions.modelAssetPath`. Before loading or after failure, synthetic landmarks for 33 pose points, a simple face ring, and left / right 21-point hands keep the same overlay and scoring active. The `hand_landmark.task` path shown in the official README Holistic snippet returned 404 in this run, so the model URL was fixed only after a HEAD check.",
+      "links": [
+        {
+          "label": "HolisticLandmarker JavaScript API",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.holisticlandmarker"
+        },
+        {
+          "label": "MediaPipe Tasks Vision Web README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Holistic の upgraded solution、Face Stylizer、Face Landmarker blendshapes、Gesture Recognizer との gate 接続、Worker / OffscreenCanvas での連続実行、Tasks の model path と CDN export の変更を見ます。MediaPipe releases と mediapipe-samples-web の更新では、Holistic の Web guide、model URL、サンプル実装、result callback の扱いが変わっていないかを継続して追います。",
+      "bodyEn": "Next watch the upgraded Holistic solution, Face Stylizer, Face Landmarker blendshapes, gating Gesture Recognizer, continuous execution with Worker / OffscreenCanvas, and changes to Tasks model paths or CDN exports. Continue tracking MediaPipe releases and mediapipe-samples-web for Holistic Web guide, model URL, sample implementation, and result callback changes.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず合成入力のまま hand visibility と face visibility を下げ、readiness が READY から WAIT に落ちる境目を見ます。次に Load MediaPipe を押し、読み込みに成功した場合は実 HolisticLandmarker、失敗した場合は fallback のまま score が更新されることを確認します。カメラ環境では Start camera に切り替え、手や顔をフレーム外に出したときの group balance を観察します。",
+      "bodyEn": "First keep the synthetic input and lower hand visibility and face visibility to find the threshold where readiness drops from READY to WAIT. Next press Load MediaPipe and confirm that scoring updates via the real HolisticLandmarker when loading succeeds or via fallback when it does not. In a camera environment, switch to Start camera and observe group balance when hands or face leave the frame.",
+      "links": [
+        {
+          "label": "Open Holistic Landmark Readiness Meter",
+          "url": "../outputs/2026-08-13_holistic_landmark_readiness_meter.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Holistic task guide、HolisticLandmarker JS API、Tasks Vision Web README、公式 samples web の Holistic 実装、公式 Web Task Demo、MediaPipe releases を確認。設計: 公式デモ再掲ではなく、全身ランドマークの completeness を readiness に変換する自作 UI にする。実装: generated body、camera path、optional MediaPipe loader、fallback landmarks、overlay、group balance、threshold gate、event log を追加。検証: JSON parse、HTML marker、CDN / WASM / model URL HEAD、gallery build、publish command、公開 URL を確認する。",
+      "bodyEn": "Research: checked the Holistic task guide, HolisticLandmarker JS API, Tasks Vision Web README, the official samples web Holistic implementation, the official Web Task Demo, and MediaPipe releases. Design: build an original UI that converts full-body landmark completeness into readiness instead of reposting the official demo. Implementation: added a generated body, camera path, optional MediaPipe loader, fallback landmarks, overlay, group balance, threshold gate, and event log. Validation: check JSON parse, HTML markers, CDN / WASM / model URL HEAD, gallery build, publish command, and public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまで分類、検出、分割、埋め込み、顔、姿勢、音、テキストの単体 Task を試し、今日はそれらを横断する Holistic の準備度という形に寄せました。今後の価値は、各 Task の結果を単独で表示することより、ランドマーク、bbox、mask、embedding を共通の状態として扱い、UI の受理条件や演出条件に変換することです。",
+      "bodyEn": "The archive has covered individual Tasks across classification, detection, segmentation, embeddings, face, pose, audio, and text; today shifts toward cross-cutting Holistic readiness. The next value is less about showing each Task result in isolation and more about treating landmarks, boxes, masks, and embeddings as shared state for UI acceptance and effects."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Holistic Landmark Readiness Meter` です。実際に動く部分は生成全身ポーズ、pose shape 切り替え、hand / face visibility、ready threshold、optional MediaPipe Holistic load、任意カメラ入力、fallback 合成ランドマーク、pose / face / hand overlay、group balance、READY / WAIT 判定です。次に足すなら Gesture Recognizer の受理 gate、Face blendshape avatar、Worker 化、ランドマーク履歴の CSV / JSON 保存、複数人入力の分離を追加します。",
+      "bodyEn": "The selected prototype is `Holistic Landmark Readiness Meter`. The working parts are generated full-body poses, pose shape switching, hand / face visibility, ready threshold, optional MediaPipe Holistic loading, optional camera input, fallback synthetic landmarks, pose / face / hand overlay, group balance, and READY / WAIT decision. Next additions should include a Gesture Recognizer acceptance gate, Face blendshape avatar, Worker execution, landmark history CSV / JSON export, and multi-person separation."
+    }
+  ]
+}

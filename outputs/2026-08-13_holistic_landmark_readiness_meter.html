@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holistic Landmark Readiness Meter</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b1012;
+      color: #f5f7ef;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(88, 184, 157, 0.16), transparent 36%),
+        linear-gradient(315deg, rgba(231, 160, 89, 0.13), transparent 42%),
+        #0b1012;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(245, 247, 239, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 3.4vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #c6c9bd;
+      line-height: 1.62;
+    }
+
+    button, select, input {
+      min-height: 38px;
+      border: 1px solid rgba(245, 247, 239, 0.16);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.055);
+      color: #f5f7ef;
+      font: inherit;
+    }
+
+    button {
+      padding: 8px 11px;
+      cursor: pointer;
+      border-color: rgba(88, 184, 157, 0.48);
+      background: rgba(88, 184, 157, 0.16);
+    }
+
+    button.secondary {
+      border-color: rgba(231, 160, 89, 0.44);
+      background: rgba(231, 160, 89, 0.13);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #58b89d;
+    }
+
+    .stage, .side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid rgba(245, 247, 239, 0.14);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(11, 16, 18, 0.84);
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    .viewer {
+      position: relative;
+      overflow: hidden;
+      padding: 0;
+      aspect-ratio: 4 / 3;
+      min-height: 320px;
+      background: #151a1c;
+    }
+
+    canvas, video {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #view {
+      object-fit: cover;
+    }
+
+    #camera {
+      display: none;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    label, .metric-label {
+      color: #9fa395;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid rgba(245, 247, 239, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 1.35rem;
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+
+    .meter {
+      height: 18px;
+      border: 1px solid rgba(245, 247, 239, 0.14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+
+    .meter > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #e7a059, #58b89d);
+      transition: width 180ms ease;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr) 52px;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.86rem;
+    }
+
+    .track {
+      height: 13px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      width: 0%;
+      background: #58b89d;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      border: 1px solid rgba(231, 160, 89, 0.34);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(231, 160, 89, 0.1);
+      color: #f5f7ef;
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .log {
+      max-height: 148px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+      color: #b9c9c3;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 880px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Holistic Landmark Readiness Meter</h1>
+        <p>生成した全身ポーズまたはカメラ入力から、pose・face・hand のそろい具合を readiness score にまとめる自作の最小サンプル。</p>
+      </div>
+      <div class="actions">
+        <button id="load">Load MediaPipe</button>
+        <button id="cameraBtn" class="secondary">Start camera</button>
+      </div>
+    </header>
+
+    <section class="stage">
+      <div class="panel viewer">
+        <video id="camera" playsinline muted></video>
+        <canvas id="view" width="960" height="720"></canvas>
+        <canvas id="overlay" class="overlay" width="960" height="720"></canvas>
+      </div>
+
+      <div class="panel controls">
+        <div class="control">
+          <label for="pose">pose shape</label>
+          <select id="pose">
+            <option value="open">open arms</option>
+            <option value="cross">cross body</option>
+            <option value="side">side reach</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="hand">hand visibility</label>
+          <input id="hand" type="range" min="0" max="100" value="82">
+        </div>
+        <div class="control">
+          <label for="face">face visibility</label>
+          <input id="face" type="range" min="0" max="100" value="74">
+        </div>
+        <div class="control">
+          <label for="threshold">ready threshold</label>
+          <input id="threshold" type="range" min="20" max="95" value="68">
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Readiness</h2>
+        <div class="meter"><span id="meter"></span></div>
+        <p><strong id="decision">WAIT</strong> <span id="decisionText">landmark groups are incomplete</span></p>
+        <div class="chips">
+          <span class="chip" id="runtime">fallback landmarks</span>
+          <span class="chip" id="mode">synthetic input</span>
+        </div>
+      </div>
+
+      <div class="panel metrics">
+        <div class="metric"><span class="metric-label">score</span><strong id="score">0%</strong></div>
+        <div class="metric"><span class="metric-label">latency</span><strong id="latency">0 ms</strong></div>
+        <div class="metric"><span class="metric-label">pose</span><strong id="poseCount">0</strong></div>
+        <div class="metric"><span class="metric-label">face / hand</span><strong id="faceHand">0 / 0</strong></div>
+      </div>
+
+      <div class="panel">
+        <h2>Group balance</h2>
+        <div class="list" id="breakdown"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Event log</h2>
+        <div id="log" class="log"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    const view = document.querySelector("#view");
+    const overlay = document.querySelector("#overlay");
+    const camera = document.querySelector("#camera");
+    const ctx = view.getContext("2d", { willReadFrequently: true });
+    const ox = overlay.getContext("2d");
+    const ui = {
+      load: document.querySelector("#load"),
+      cameraBtn: document.querySelector("#cameraBtn"),
+      pose: document.querySelector("#pose"),
+      hand: document.querySelector("#hand"),
+      face: document.querySelector("#face"),
+      threshold: document.querySelector("#threshold"),
+      meter: document.querySelector("#meter"),
+      decision: document.querySelector("#decision"),
+      decisionText: document.querySelector("#decisionText"),
+      runtime: document.querySelector("#runtime"),
+      mode: document.querySelector("#mode"),
+      score: document.querySelector("#score"),
+      latency: document.querySelector("#latency"),
+      poseCount: document.querySelector("#poseCount"),
+      faceHand: document.querySelector("#faceHand"),
+      breakdown: document.querySelector("#breakdown"),
+      log: document.querySelector("#log")
+    };
+
+    const modelUrl = "https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/1/holistic_landmarker.task";
+    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
+    let holistic = null;
+    let cameraStream = null;
+    let useCamera = false;
+    let lastFrame = 0;
+    let tick = 0;
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      ui.log.textContent = `[${time}] ${message}\n${ui.log.textContent}`.slice(0, 1200);
+    }
+
+    function point(x, y, visibility = 1) {
+      return { x, y, z: 0, visibility };
+    }
+
+    function syntheticLandmarks() {
+      const poseMode = ui.pose.value;
+      const handVisibility = Number(ui.hand.value) / 100;
+      const faceVisibility = Number(ui.face.value) / 100;
+      const sway = Math.sin(tick * 0.035) * 0.018;
+      const shoulderY = 0.35;
+      const hipY = 0.62;
+      const leftHand = poseMode === "cross" ? [0.58, 0.50] : poseMode === "side" ? [0.24, 0.42] : [0.22, 0.32];
+      const rightHand = poseMode === "cross" ? [0.42, 0.50] : poseMode === "side" ? [0.78, 0.28] : [0.78, 0.32];
+      const pose = Array.from({ length: 33 }, () => point(0.5, 0.5, 0.18));
+      pose[0] = point(0.5 + sway, 0.23, faceVisibility);
+      pose[11] = point(0.39 + sway, shoulderY, 0.92);
+      pose[12] = point(0.61 + sway, shoulderY, 0.92);
+      pose[13] = point((0.39 + leftHand[0]) / 2, (shoulderY + leftHand[1]) / 2, handVisibility);
+      pose[14] = point((0.61 + rightHand[0]) / 2, (shoulderY + rightHand[1]) / 2, handVisibility);
+      pose[15] = point(leftHand[0], leftHand[1], handVisibility);
+      pose[16] = point(rightHand[0], rightHand[1], handVisibility);
+      pose[23] = point(0.43 + sway, hipY, 0.9);
+      pose[24] = point(0.57 + sway, hipY, 0.9);
+      pose[25] = point(0.42, 0.78, 0.78);
+      pose[26] = point(0.58, 0.78, 0.78);
+      pose[27] = point(0.40, 0.94, 0.72);
+      pose[28] = point(0.60, 0.94, 0.72);
+
+      const face = [];
+      for (let i = 0; i < 36; i += 1) {
+        const a = (Math.PI * 2 * i) / 36;
+        face.push(point(0.5 + Math.cos(a) * 0.075 + sway, 0.225 + Math.sin(a) * 0.095, faceVisibility));
+      }
+
+      const handShape = (baseX, baseY, flip) => Array.from({ length: 21 }, (_, i) => {
+        const finger = Math.floor(i / 4);
+        const joint = i % 4;
+        return point(baseX + flip * (finger - 2) * 0.014, baseY - joint * 0.018, handVisibility);
+      });
+
+      return {
+        poseLandmarks: [pose],
+        faceLandmarks: faceVisibility > 0.12 ? [face] : [],
+        leftHandLandmarks: handVisibility > 0.08 ? [handShape(leftHand[0], leftHand[1], -1)] : [],
+        rightHandLandmarks: handVisibility > 0.08 ? [handShape(rightHand[0], rightHand[1], 1)] : []
+      };
+    }
+
+    function drawSyntheticPerson() {
+      const w = view.width;
+      const h = view.height;
+      ctx.clearRect(0, 0, w, h);
+      const bg = ctx.createLinearGradient(0, 0, w, h);
+      bg.addColorStop(0, "#182225");
+      bg.addColorStop(1, "#0b1012");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = "rgba(245, 247, 239, 0.08)";
+      ctx.lineWidth = 1;
+      for (let x = 80; x < w; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 80; y < h; y += 80) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      const lm = syntheticLandmarks();
+      const pose = lm.poseLandmarks[0];
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      drawBone(ctx, pose[11], pose[12], 16, "#f5f7ef");
+      drawBone(ctx, pose[11], pose[13], 14, "#58b89d");
+      drawBone(ctx, pose[13], pose[15], 14, "#58b89d");
+      drawBone(ctx, pose[12], pose[14], 14, "#58b89d");
+      drawBone(ctx, pose[14], pose[16], 14, "#58b89d");
+      drawBone(ctx, pose[11], pose[23], 16, "#d8d0bf");
+      drawBone(ctx, pose[12], pose[24], 16, "#d8d0bf");
+      drawBone(ctx, pose[23], pose[24], 16, "#d8d0bf");
+      drawBone(ctx, pose[23], pose[25], 15, "#e7a059");
+      drawBone(ctx, pose[25], pose[27], 15, "#e7a059");
+      drawBone(ctx, pose[24], pose[26], 15, "#e7a059");
+      drawBone(ctx, pose[26], pose[28], 15, "#e7a059");
+
+      ctx.fillStyle = `rgba(245, 225, 194, ${0.22 + Number(ui.face.value) / 145})`;
+      ctx.beginPath();
+      ctx.ellipse((0.5 + Math.sin(tick * 0.035) * 0.018) * w, 0.225 * h, 58, 72, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(11, 16, 18, 0.7)";
+      ctx.fillRect(0.46 * w, 0.215 * h, 9, 7);
+      ctx.fillRect(0.53 * w, 0.215 * h, 9, 7);
+      ctx.fillRect(0.474 * w, 0.262 * h, 50, 6);
+      return lm;
+    }
+
+    function drawBone(target, a, b, width, color) {
+      target.strokeStyle = color;
+      target.lineWidth = width;
+      target.beginPath();
+      target.moveTo(a.x * view.width, a.y * view.height);
+      target.lineTo(b.x * view.width, b.y * view.height);
+      target.stroke();
+    }
+
+    function drawConnections(landmarks, connections, color, width = 2) {
+      ox.strokeStyle = color;
+      ox.lineWidth = width;
+      for (const [a, b] of connections) {
+        const p = landmarks[a];
+        const q = landmarks[b];
+        if (!p || !q) continue;
+        ox.beginPath();
+        ox.moveTo(p.x * overlay.width, p.y * overlay.height);
+        ox.lineTo(q.x * overlay.width, q.y * overlay.height);
+        ox.stroke();
+      }
+    }
+
+    function drawPoints(landmarks, color, radius = 3) {
+      ox.fillStyle = color;
+      for (const p of landmarks) {
+        ox.beginPath();
+        ox.arc(p.x * overlay.width, p.y * overlay.height, radius, 0, Math.PI * 2);
+        ox.fill();
+      }
+    }
+
+    function analyze(result, latency) {
+      const pose = result.poseLandmarks?.[0] || [];
+      const face = result.faceLandmarks?.[0] || [];
+      const left = result.leftHandLandmarks?.[0] || [];
+      const right = result.rightHandLandmarks?.[0] || [];
+      const visible = (list) => list.length ? list.filter((p) => (p.visibility ?? 1) > 0.45).length / list.length : 0;
+      const poseScore = Math.min(1, visible(pose) * 1.12);
+      const faceScore = Math.min(1, face.length / 36);
+      const handScore = Math.min(1, (visible(left) + visible(right)) / 2);
+      const balance = 1 - Math.min(1, Math.abs((poseScore + faceScore) / 2 - handScore));
+      const score = Math.round((poseScore * 0.42 + faceScore * 0.25 + handScore * 0.25 + balance * 0.08) * 100);
+      const threshold = Number(ui.threshold.value);
+
+      ui.meter.style.width = `${score}%`;
+      ui.score.textContent = `${score}%`;
+      ui.latency.textContent = `${Math.round(latency)} ms`;
+      ui.poseCount.textContent = String(pose.length);
+      ui.faceHand.textContent = `${face.length} / ${left.length + right.length}`;
+      ui.decision.textContent = score >= threshold ? "READY" : "WAIT";
+      ui.decision.style.color = score >= threshold ? "#58b89d" : "#e7a059";
+      ui.decisionText.textContent = score >= threshold ? "pose, face, and hands are balanced" : "raise visibility or simplify the pose";
+      ui.breakdown.innerHTML = [
+        ["pose", poseScore],
+        ["face", faceScore],
+        ["hands", handScore],
+        ["balance", balance]
+      ].map(([label, value]) => `<div class="row"><span>${label}</span><div class="track"><div class="fill" style="width:${Math.round(value * 100)}%"></div></div><span>${Math.round(value * 100)}%</span></div>`).join("");
+    }
+
+    function drawResult(result) {
+      ox.clearRect(0, 0, overlay.width, overlay.height);
+      const pose = result.poseLandmarks?.[0] || [];
+      const face = result.faceLandmarks?.[0] || [];
+      const left = result.leftHandLandmarks?.[0] || [];
+      const right = result.rightHandLandmarks?.[0] || [];
+      const poseConnections = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]];
+      const handConnections = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [0, 9], [9, 10], [10, 11], [11, 12], [0, 13], [13, 14], [14, 15], [15, 16], [0, 17], [17, 18], [18, 19], [19, 20]];
+      drawConnections(pose, poseConnections, "#f5f7ef", 3);
+      drawPoints(pose, "#58b89d", 3);
+      drawPoints(face, "rgba(231, 160, 89, 0.78)", 2);
+      drawConnections(left, handConnections, "#58b89d", 2);
+      drawConnections(right, handConnections, "#58b89d", 2);
+      drawPoints(left, "#f5f7ef", 2);
+      drawPoints(right, "#f5f7ef", 2);
+    }
+
+    async function loadMediaPipe() {
+      ui.load.disabled = true;
+      try {
+        const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs");
+        const fileset = await vision.FilesetResolver.forVisionTasks(wasmUrl);
+        holistic = await vision.HolisticLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: modelUrl },
+          runningMode: "IMAGE"
+        });
+        ui.runtime.textContent = "MediaPipe Holistic";
+        log("MediaPipe HolisticLandmarker loaded");
+      } catch (error) {
+        ui.runtime.textContent = "fallback landmarks";
+        log(`MediaPipe load failed: ${error.message}`);
+      } finally {
+        ui.load.disabled = false;
+      }
+    }
+
+    async function toggleCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+        cameraStream = null;
+        useCamera = false;
+        camera.style.display = "none";
+        view.style.display = "block";
+        ui.cameraBtn.textContent = "Start camera";
+        ui.mode.textContent = "synthetic input";
+        log("Camera stopped");
+        return;
+      }
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        camera.srcObject = cameraStream;
+        await camera.play();
+        useCamera = true;
+        camera.style.display = "block";
+        view.style.display = "none";
+        ui.cameraBtn.textContent = "Stop camera";
+        ui.mode.textContent = "camera input";
+        log("Camera started");
+      } catch (error) {
+        log(`Camera unavailable: ${error.message}`);
+      }
+    }
+
+    function frame(now) {
+      tick += 1;
+      let result;
+      const started = performance.now();
+      if (useCamera && camera.videoWidth) {
+        view.width = camera.videoWidth;
+        view.height = camera.videoHeight;
+        overlay.width = camera.videoWidth;
+        overlay.height = camera.videoHeight;
+        ctx.drawImage(camera, 0, 0, view.width, view.height);
+      } else {
+        view.width = 960;
+        view.height = 720;
+        overlay.width = 960;
+        overlay.height = 720;
+        result = drawSyntheticPerson();
+      }
+
+      if (holistic && now - lastFrame > 140) {
+        try {
+          const detected = holistic.detect(view);
+          if (detected && (detected.poseLandmarks?.length || detected.faceLandmarks?.length || detected.leftHandLandmarks?.length || detected.rightHandLandmarks?.length)) {
+            result = detected;
+          }
+          lastFrame = now;
+        } catch (error) {
+          if (!ui.log.textContent.includes("detect failed")) log(`detect failed, fallback used: ${error.message}`);
+        }
+      }
+
+      if (!result) result = syntheticLandmarks();
+      const latency = performance.now() - started;
+      drawResult(result);
+      analyze(result, latency);
+      requestAnimationFrame(frame);
+    }
+
+    ui.load.addEventListener("click", loadMediaPipe);
+    ui.cameraBtn.addEventListener("click", toggleCamera);
+    for (const input of [ui.pose, ui.hand, ui.face, ui.threshold]) {
+      input.addEventListener("input", () => {
+        log(`${input.id} = ${input.value}`);
+      });
+    }
+
+    log("Fallback synthetic holistic landmarks ready");
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
