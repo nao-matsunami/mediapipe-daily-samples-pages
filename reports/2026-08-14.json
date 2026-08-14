@@ -1,0 +1,140 @@
+{
+  "date": "2026-08-14",
+  "category": "MediaPipe",
+  "headline": "Text Classifier で短文コピーの採用ゲートを作る",
+  "headlineEn": "Build a short-copy acceptance gate with Text Classifier",
+  "summary": "MediaPipe Text Classifier の Web ガイドと JavaScript API を参考に、3本の短い文言をその場で編集し、positive / negative の差分を採用ゲートとして使う自作サンプルを追加しました。MediaPipe を読み込める環境では BERT Text Classifier を使い、読み込めない環境でもローカル fallback で同じ UI と判定フローを検証できます。",
+  "summaryEn": "This adds an original sample based on the MediaPipe Text Classifier Web guide and JavaScript API. It edits three short drafts and uses the positive / negative margin as an acceptance gate. When MediaPipe loads it uses the BERT Text Classifier; otherwise a local fallback keeps the same UI and decision flow testable.",
+  "keyTopics": [
+    "Text Classifier は text input をモデル定義のカテゴリに分類する MediaPipe Text Task で、公式ガイドは sentiment の positive / negative 分類を代表例としている。",
+    "Web 実装では `@mediapipe/tasks-text`、`FilesetResolver.forTextTasks()`、`TextClassifier.createFromOptions()`、`classify(text)` を中心に使う。",
+    "公式ガイドは tokenization と tensor preprocessing が `classify()` 内で処理されると説明しているため、UI 側は文章編集と判定ロジックに集中できる。",
+    "設定には `maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` があり、出力カテゴリの扱いをアプリ側の品質ゲートへ変換しやすい。",
+    "`@mediapipe/tasks-text@latest` は 2026-08-14 時点で package.json が 1.0.1 を返し、BERT classifier model URL も HTTP 200 を確認した。"
+  ],
+  "keyTopicsEn": [
+    "Text Classifier is a MediaPipe Text Task that classifies text input into model-defined categories, with the official guide using positive / negative sentiment as a representative example.",
+    "The Web implementation centers on `@mediapipe/tasks-text`, `FilesetResolver.forTextTasks()`, `TextClassifier.createFromOptions()`, and `classify(text)`.",
+    "The official guide says tokenization and tensor preprocessing are handled inside `classify()`, so the UI can focus on text editing and decision logic.",
+    "Options such as `maxResults`, `scoreThreshold`, `categoryAllowlist`, and `categoryDenylist` make it natural to convert output categories into an app-side quality gate.",
+    "`@mediapipe/tasks-text@latest` resolved to package version 1.0.1 on 2026-08-14, and the BERT classifier model URL returned HTTP 200."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Text Classifier Prompt Tuner",
+      "url": "../outputs/2026-08-14_text_classifier_prompt_tuner.html"
+    },
+    {
+      "label": "Text classification guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/text/text_classifier/web_js"
+    },
+    {
+      "label": "Text Classifier task overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/text/text_classifier"
+    },
+    {
+      "label": "tasks-text package API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text"
+    },
+    {
+      "label": "TextClassifier JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.textclassifier"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Text Classifier を単なる sentiment 表示ではなく、短いプロダクト文言を採用してよいかの gate に変換することです。公式ガイドは positive / negative のようなモデル定義カテゴリを返す Task と説明しています。自作サンプルでは3本の draft を同時に編集し、positive score から negative score を引いた margin がしきい値を超えたものだけ PASS にします。",
+      "bodyEn": "Today's notable angle is turning Text Classifier from a sentiment display into a gate for deciding whether short product copy is acceptable. The official guide describes the task as returning model-defined categories such as positive / negative. The original sample edits three drafts at once and marks only drafts whose positive-minus-negative margin clears the threshold as PASS.",
+      "links": [
+        {
+          "label": "Text classification guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/text/text_classifier/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "UI では release notes、support reply、onboarding の preset を切り替え、3本の文言を textarea で直接編集できます。Positive gate、rewrite pressure、max results を動かすと、PASS / REWRITE、positive / negative bar、best margin、accepted count が即時に変わります。外部デモ一覧ではなく、文言調整と採用判定という自作の作業面を中心にしました。",
+      "bodyEn": "The UI switches between release notes, support reply, and onboarding presets, with three editable textareas. Moving positive gate, rewrite pressure, and max results updates PASS / REWRITE, positive / negative bars, best margin, and accepted count immediately. The focus is the original copy-tuning workspace and acceptance decision, not an external demo list."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは draft text、preset、positive / negative score、margin、threshold、rewrite pressure、採用可否、runtime、編集イベントです。Language Detector と組み合わせれば言語別 gate、Text Embedder と組み合わせればブランド文言との近さ、LLM と組み合わせれば REWRITE の文案生成、IndexedDB と組み合わせれば日次のコピー品質ログにできます。Web Speech API で読み上げを足すと、音声案内のトーン検証にも広がります。",
+      "bodyEn": "The sample can accumulate draft text, preset, positive / negative score, margin, threshold, rewrite pressure, acceptance, runtime, and edit events. Combined with Language Detector it can create locale-specific gates, with Text Embedder it can measure closeness to brand copy, with an LLM it can generate rewrite candidates, and with IndexedDB it can keep daily copy-quality logs. Adding Web Speech API would extend this to tone checks for spoken guidance."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `@mediapipe/tasks-text@latest/text_bundle.js` を読み込み、`FilesetResolver.forTextTasks()` に latest wasm root を渡し、BERT classifier model を `baseOptions.modelAssetPath` に指定します。`classify(text)` の戻り値から categories を取り出し、positive と negative の score 差を margin に変換します。2026-08-14 の確認では `@latest` は 1.0.1、wasm root と model は HTTP 200、`@mediapipe/tasks-text@0.10.22` は 404 でした。",
+      "bodyEn": "The implementation loads `@mediapipe/tasks-text@latest/text_bundle.js`, passes the latest wasm root to `FilesetResolver.forTextTasks()`, and points `baseOptions.modelAssetPath` at the BERT classifier model. It extracts categories from `classify(text)` and converts the positive / negative score difference into a margin. On 2026-08-14, `@latest` resolved to 1.0.1, the wasm root and model returned HTTP 200, and `@mediapipe/tasks-text@0.10.22` returned 404.",
+      "links": [
+        {
+          "label": "TextClassifier JavaScript API",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.textclassifier"
+        },
+        {
+          "label": "tasks-text package API",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は Text Proofreading、Text Summarization、LLM Inference Web、RAG、Text Classifier の custom model path、MediaPipe samples web の worker 構成を見ます。MediaPipe releases では Tasks Text の wasm / package export、metrics privacy notice、Text task の API shape に変更がないかを継続して追います。",
+      "bodyEn": "Next watch Text Proofreading, Text Summarization, LLM Inference Web, RAG, custom model paths for Text Classifier, and the worker structure in MediaPipe samples web. Continue tracking MediaPipe releases for Tasks Text wasm / package exports, the metrics privacy notice, and Text task API shape changes.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず fallback のまま preset を切り替え、Positive gate を上げて PASS が REWRITE に変わる境目を見ます。次に Load MediaPipe Text Classifier を押し、BERT model が読める環境では実分類に切り替わることを確認します。最後に Soften weak drafts を押し、低 margin の文言が少しだけ前向きな表現に寄るかを見ます。",
+      "bodyEn": "First stay in fallback mode, switch presets, and raise Positive gate to see where PASS turns into REWRITE. Then press Load MediaPipe Text Classifier and confirm that environments able to load the BERT model switch to real classification. Finally press Soften weak drafts and see whether low-margin copy shifts slightly more positive.",
+      "links": [
+        {
+          "label": "Open Text Classifier Prompt Tuner",
+          "url": "../outputs/2026-08-14_text_classifier_prompt_tuner.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Text classification Web guide、Text Classifier overview、tasks-text API、TextClassifier JS API、MediaPipe Tasks overview、MediaPipe samples web、MediaPipe releases を確認。設計: 公式 sentiment demo の再掲ではなく、短文コピーの品質 gate として使う自作 UI にする。実装: draft preset、3本編集、optional MediaPipe loader、fallback classifier、score bars、margin gate、rewrite assist、event log を追加。検証: JSON parse、HTML marker、CDN / wasm / model HEAD、gallery build、publish command、公開 URL を確認する。",
+      "bodyEn": "Research: checked the Text classification Web guide, Text Classifier overview, tasks-text API, TextClassifier JS API, MediaPipe Tasks overview, MediaPipe samples web, and MediaPipe releases. Design: build an original short-copy quality gate rather than reposting the official sentiment demo. Implementation: added draft presets, three editable drafts, optional MediaPipe loading, fallback classification, score bars, margin gate, rewrite assist, and event log. Validation: check JSON parse, HTML markers, CDN / wasm / model HEAD, gallery build, publish command, and public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまで text 系は Language Detector と Text Embedder を試してきました。今日は Text Classifier により、文字列をラベルやベクトルだけでなく、編集判断の状態として扱う流れを追加しました。MediaPipe Tasks の価値は個別 Task の結果表示だけでなく、各 Task の出力を UI の受理条件、修正候補、保存ログへ変換するところにあります。",
+      "bodyEn": "The text track had already covered Language Detector and Text Embedder. Today Text Classifier adds a flow where strings become editing-decision state, not just labels or vectors. The value of MediaPipe Tasks is not only displaying individual task outputs, but converting those outputs into UI acceptance conditions, rewrite candidates, and saved logs."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Text Classifier Prompt Tuner` です。実際に動く部分は preset 切り替え、3本の短文編集、positive gate、rewrite pressure、max results、optional MediaPipe Text Classifier load、fallback 判定、positive / negative bar、PASS / REWRITE 判定、簡易 rewrite assist、event log です。次に足すなら Language Detector による locale gate、Text Embedder によるブランド文言類似度、LLM rewrite、IndexedDB 保存、複数モデル切り替えを追加します。",
+      "bodyEn": "The selected prototype is `Text Classifier Prompt Tuner`. The working parts are preset switching, three editable short drafts, positive gate, rewrite pressure, max results, optional MediaPipe Text Classifier loading, fallback judgment, positive / negative bars, PASS / REWRITE decision, simple rewrite assist, and event log. Next additions should include Language Detector locale gates, Text Embedder brand-copy similarity, LLM rewrites, IndexedDB storage, and multi-model switching."
+    }
+  ]
+}

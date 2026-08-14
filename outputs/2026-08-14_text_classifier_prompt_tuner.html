@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Classifier Prompt Tuner</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@latest/text_bundle.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #08100f;
+      color: #f6fbf8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(51, 190, 150, 0.16), transparent 34%),
+        linear-gradient(315deg, rgba(236, 190, 76, 0.12), transparent 44%),
+        #08100f;
+    }
+
+    main {
+      width: min(1200px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 350px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 248, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.4vw, 3.05rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #b8c9c2;
+      line-height: 1.55;
+    }
+
+    button, textarea, input, select {
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(51, 190, 150, 0.48);
+      background: rgba(51, 190, 150, 0.13);
+      color: #f6fbf8;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: #33be96;
+      border-color: #33be96;
+      color: #04110c;
+    }
+
+    button.warn {
+      border-color: rgba(236, 190, 76, 0.6);
+      background: rgba(236, 190, 76, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      border: 1px solid rgba(246, 251, 248, 0.14);
+      background: rgba(255, 255, 255, 0.055);
+      color: #f6fbf8;
+    }
+
+    textarea {
+      min-height: 154px;
+      padding: 11px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    input, select { min-height: 38px; padding: 8px; }
+    input[type="range"] { padding: 0; accent-color: #33be96; }
+
+    .stage, .side {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .panel {
+      border: 1px solid rgba(246, 251, 248, 0.14);
+      background: rgba(8, 16, 15, 0.82);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .controls, .preset-row, .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .preset-row button { flex: 1 1 132px; }
+    .actions button { flex: 1 1 150px; }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(236, 190, 76, 0.28);
+      background: rgba(236, 190, 76, 0.08);
+      color: #ffe9b6;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .drafts {
+      display: grid;
+      gap: 10px;
+    }
+
+    .draft {
+      display: grid;
+      gap: 10px;
+      border: 1px solid rgba(246, 251, 248, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .draft-head, .metric-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .label, .hint, .small {
+      color: #91a8a0;
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .pill {
+      min-width: 82px;
+      min-height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(246, 251, 248, 0.14);
+      border-radius: 6px;
+      color: #b8c9c2;
+      font-size: 0.82rem;
+    }
+
+    .pill.pass {
+      color: #04110c;
+      background: #33be96;
+      border-color: #33be96;
+    }
+
+    .pill.rewrite {
+      color: #251a02;
+      background: #ecbe4c;
+      border-color: #ecbe4c;
+    }
+
+    .scores {
+      display: grid;
+      gap: 8px;
+    }
+
+    .score-row {
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr) 58px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bar {
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .fill {
+      width: var(--w);
+      height: 100%;
+      background: linear-gradient(90deg, #33be96, #ecbe4c);
+    }
+
+    .fill.negative {
+      background: linear-gradient(90deg, #e25f5f, #ecbe4c);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      min-height: 84px;
+      border: 1px solid rgba(246, 251, 248, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .metric b {
+      display: block;
+      color: #f9f1da;
+      font-size: clamp(1.25rem, 3vw, 2.1rem);
+      line-height: 1.05;
+    }
+
+    .word-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .word {
+      border: 1px solid rgba(51, 190, 150, 0.22);
+      background: rgba(51, 190, 150, 0.08);
+      color: #dce9e2;
+      padding: 4px 7px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+    }
+
+    .log {
+      min-height: 132px;
+      max-height: 220px;
+      overflow: auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    .log div {
+      border-left: 2px solid rgba(51, 190, 150, 0.48);
+      padding-left: 8px;
+      color: #b8c9c2;
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    @media (max-width: 880px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .metrics { grid-template-columns: 1fr; }
+      .score-row { grid-template-columns: 72px minmax(0, 1fr) 52px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Text Classifier Prompt Tuner</h1>
+        <p>Draft three short messages, classify their sentiment on-device when MediaPipe loads, and gate each copy by confidence margin instead of using an external demo list.</p>
+      </div>
+      <div class="status" id="runtimeStatus">Local fallback is ready.</div>
+    </header>
+
+    <section class="stage">
+      <div class="panel">
+        <h2>Draft set</h2>
+        <div class="preset-row">
+          <button class="active" data-preset="release">Release notes</button>
+          <button data-preset="support">Support reply</button>
+          <button data-preset="onboarding">Onboarding</button>
+        </div>
+      </div>
+
+      <div class="drafts" id="drafts"></div>
+
+      <div class="panel">
+        <h2>Batch result</h2>
+        <div class="metrics">
+          <div class="metric">
+            <span class="label">Accepted drafts</span>
+            <b id="acceptedCount">0/3</b>
+            <span class="small">positive score clears the gate</span>
+          </div>
+          <div class="metric">
+            <span class="label">Best margin</span>
+            <b id="bestMargin">0.00</b>
+            <span class="small">positive minus negative</span>
+          </div>
+          <div class="metric">
+            <span class="label">Runtime</span>
+            <b id="runtimeName">fallback</b>
+            <span class="small">MediaPipe or local heuristic</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Classifier controls</h2>
+        <div class="controls">
+          <label class="label">Positive gate <input id="gateInput" type="range" min="0.05" max="0.75" step="0.05" value="0.25"></label>
+          <label class="label">Rewrite pressure <input id="pressureInput" type="range" min="0" max="1" step="0.05" value="0.35"></label>
+          <label class="label">Max results <select id="maxResultsInput"><option>2</option><option>3</option><option>5</option></select></label>
+        </div>
+        <p class="hint" id="gateLabel">Gate: +0.25 margin, pressure: 0.35</p>
+        <div class="actions">
+          <button id="loadButton">Load MediaPipe Text Classifier</button>
+          <button class="warn" id="rewriteButton">Soften weak drafts</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Signal words</h2>
+        <div class="word-grid" id="signalWords"></div>
+        <p class="hint">Fallback mode uses these words only to keep the interaction testable when the model or CDN is unavailable.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Event log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const modelUrl = "https://storage.googleapis.com/mediapipe-tasks/text_classifier/bert_text_classifier.tflite";
+    const wasmRoot = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@latest/wasm/";
+    const presets = {
+      release: [
+        "The new canvas probe is stable, quick to load, and easier to tune for a live workshop.",
+        "This build fixes the threshold bug but still has a few rough edges in the first run.",
+        "The update is confusing and slow, although the new diagnostics are helpful."
+      ],
+      support: [
+        "Thanks for the clear report. We found the issue and shipped a focused fix today.",
+        "The workaround should help for now, but the camera permission path still needs care.",
+        "Sorry, this is broken in some browsers and the current error message is not good enough."
+      ],
+      onboarding: [
+        "Start with a generated sample, then switch to your own camera when you are ready.",
+        "The classifier can guide edits, but every final message still needs human review.",
+        "This flow may feel noisy at first because the model reports uncertain text honestly."
+      ]
+    };
+    const positiveWords = ["stable", "quick", "easier", "fixes", "helpful", "thanks", "clear", "shipped", "focused", "help", "ready", "guide", "good"];
+    const negativeWords = ["rough", "confusing", "slow", "sorry", "broken", "error", "not good", "uncertain", "noisy", "needs care", "bug"];
+    const state = {
+      preset: "release",
+      classifier: null,
+      runtime: "fallback",
+      results: []
+    };
+
+    const draftsEl = document.getElementById("drafts");
+    const statusEl = document.getElementById("runtimeStatus");
+    const logEl = document.getElementById("log");
+    const gateInput = document.getElementById("gateInput");
+    const pressureInput = document.getElementById("pressureInput");
+    const maxResultsInput = document.getElementById("maxResultsInput");
+    const gateLabel = document.getElementById("gateLabel");
+    const runtimeName = document.getElementById("runtimeName");
+
+    function addLog(message) {
+      const line = document.createElement("div");
+      line.textContent = `${new Date().toLocaleTimeString()} ${message}`;
+      logEl.prepend(line);
+    }
+
+    function clamp(value, min = 0, max = 1) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function fallbackClassify(text) {
+      const lower = text.toLowerCase();
+      const positive = positiveWords.reduce((sum, word) => sum + (lower.includes(word) ? 1 : 0), 0);
+      const negative = negativeWords.reduce((sum, word) => sum + (lower.includes(word) ? 1 : 0), 0);
+      const lengthBalance = clamp(1 - Math.abs(text.length - 105) / 170, 0, 1) * 0.12;
+      const positiveScore = clamp(0.48 + positive * 0.09 - negative * 0.075 + lengthBalance);
+      const negativeScore = clamp(1 - positiveScore);
+      return [
+        { categoryName: "positive", score: positiveScore },
+        { categoryName: "negative", score: negativeScore }
+      ].sort((a, b) => b.score - a.score);
+    }
+
+    function categoriesFromResult(result) {
+      return result?.classifications?.[0]?.categories || [];
+    }
+
+    function normalizedScores(categories) {
+      const positive = categories.find((item) => item.categoryName.toLowerCase().includes("positive"))?.score ?? 0;
+      const negative = categories.find((item) => item.categoryName.toLowerCase().includes("negative"))?.score ?? 0;
+      return { positive, negative, margin: positive - negative };
+    }
+
+    async function classifyText(text) {
+      if (state.classifier) {
+        const result = state.classifier.classify(text);
+        return categoriesFromResult(result).slice(0, Number(maxResultsInput.value));
+      }
+      return fallbackClassify(text).slice(0, Number(maxResultsInput.value));
+    }
+
+    async function analyze() {
+      const fields = [...document.querySelectorAll(".draft textarea")];
+      const gate = Number(gateInput.value);
+      const rows = await Promise.all(fields.map(async (field, index) => {
+        const categories = await classifyText(field.value);
+        const scores = normalizedScores(categories);
+        return { index, text: field.value, categories, ...scores, pass: scores.margin >= gate };
+      }));
+      state.results = rows;
+      renderResults();
+    }
+
+    function renderResults() {
+      let accepted = 0;
+      let best = -1;
+      state.results.forEach((result) => {
+        accepted += result.pass ? 1 : 0;
+        best = Math.max(best, result.margin);
+        const card = document.querySelector(`[data-draft="${result.index}"]`);
+        const pill = card.querySelector(".pill");
+        pill.textContent = result.pass ? "PASS" : "REWRITE";
+        pill.className = `pill ${result.pass ? "pass" : "rewrite"}`;
+        card.querySelector(".scores").innerHTML = result.categories.map((item) => {
+          const name = item.categoryName || "unknown";
+          const negative = name.toLowerCase().includes("negative") ? " negative" : "";
+          return `<div class="score-row"><span class="small">${name}</span><div class="bar"><div class="fill${negative}" style="--w:${Math.round(item.score * 100)}%"></div></div><span class="small">${item.score.toFixed(2)}</span></div>`;
+        }).join("");
+        card.querySelector(".margin").textContent = `margin ${result.margin.toFixed(2)}`;
+      });
+      document.getElementById("acceptedCount").textContent = `${accepted}/${state.results.length || 3}`;
+      document.getElementById("bestMargin").textContent = best < -0.9 ? "0.00" : best.toFixed(2);
+      runtimeName.textContent = state.runtime;
+    }
+
+    function renderDrafts() {
+      draftsEl.innerHTML = presets[state.preset].map((text, index) => `
+        <article class="draft" data-draft="${index}">
+          <div class="draft-head">
+            <div>
+              <span class="label">Draft ${index + 1}</span>
+              <p class="small margin">margin 0.00</p>
+            </div>
+            <span class="pill">WAIT</span>
+          </div>
+          <textarea aria-label="Draft ${index + 1}">${text}</textarea>
+          <div class="scores"></div>
+        </article>
+      `).join("");
+      [...document.querySelectorAll(".draft textarea")].forEach((field) => field.addEventListener("input", analyze));
+      analyze();
+    }
+
+    async function loadMediaPipe() {
+      const button = document.getElementById("loadButton");
+      button.disabled = true;
+      statusEl.textContent = "Loading MediaPipe Text Classifier...";
+      try {
+        if (!window.Text?.FilesetResolver || !window.Text?.TextClassifier) {
+          throw new Error("Text bundle did not expose the expected globals.");
+        }
+        const fileset = await window.Text.FilesetResolver.forTextTasks(wasmRoot);
+        state.classifier = await window.Text.TextClassifier.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: modelUrl },
+          maxResults: Number(maxResultsInput.value)
+        });
+        state.runtime = "mediapipe";
+        statusEl.textContent = "MediaPipe Text Classifier is running.";
+        button.textContent = "MediaPipe loaded";
+        addLog("Loaded BERT Text Classifier model.");
+      } catch (error) {
+        state.classifier = null;
+        state.runtime = "fallback";
+        statusEl.textContent = "MediaPipe failed; local fallback is running.";
+        button.disabled = false;
+        addLog(`Fallback kept active: ${error.message}`);
+      }
+      analyze();
+    }
+
+    function softenWeakDrafts() {
+      const pressure = Number(pressureInput.value);
+      [...document.querySelectorAll(".draft textarea")].forEach((field, index) => {
+        const result = state.results[index];
+        if (!result || result.pass) return;
+        const prefix = pressure > 0.5 ? "Thanks for flagging this clearly. " : "Good catch. ";
+        const suffix = pressure > 0.5 ? " We will keep the next step focused and measurable." : " The next step is small and testable.";
+        field.value = `${prefix}${field.value.replace(/\b(confusing|slow|broken|noisy)\b/gi, "rough")}${suffix}`;
+      });
+      addLog("Softened drafts below the positive margin gate.");
+      analyze();
+    }
+
+    function updateLabels() {
+      gateLabel.textContent = `Gate: +${Number(gateInput.value).toFixed(2)} margin, pressure: ${Number(pressureInput.value).toFixed(2)}`;
+      analyze();
+    }
+
+    document.querySelectorAll("[data-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-preset]").forEach((item) => item.classList.toggle("active", item === button));
+        state.preset = button.dataset.preset;
+        addLog(`Switched preset to ${state.preset}.`);
+        renderDrafts();
+      });
+    });
+    document.getElementById("loadButton").addEventListener("click", loadMediaPipe);
+    document.getElementById("rewriteButton").addEventListener("click", softenWeakDrafts);
+    [gateInput, pressureInput, maxResultsInput].forEach((input) => input.addEventListener("input", updateLabels));
+    document.getElementById("signalWords").innerHTML = [...positiveWords.slice(0, 8), ...negativeWords.slice(0, 7)].map((word) => `<span class="word">${word}</span>`).join("");
+    addLog("Initialized with local fallback classifier.");
+    updateLabels();
+    renderDrafts();
+  </script>
+</body>
+</html>
