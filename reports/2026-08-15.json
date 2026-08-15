@@ -1,0 +1,138 @@
+{
+  "date": "2026-08-15",
+  "category": "Google AI Edge",
+  "headline": "LiteRT-LM.js 移行前に WebGPU とプロンプト予算を測る",
+  "headlineEn": "Measure WebGPU and prompt budget before migrating to LiteRT-LM.js",
+  "summary": "MediaPipe LLM Inference Web ガイドの maintenance-only 通知と LiteRT-LM JavaScript API を参考に、モデルを同梱せずに動く自作サンプルを追加しました。WebGPU 対応、LiteRT-LM.js の import 確認、プロンプト・履歴・出力トークンの予算見積もりをブラウザ上で試せます。",
+  "summaryEn": "This adds an original runnable sample based on the MediaPipe LLM Inference Web maintenance-only notice and the LiteRT-LM JavaScript API. Without bundling a model, it checks WebGPU support, optionally imports LiteRT-LM.js, and estimates prompt, history, and output token budgets in the browser.",
+  "keyTopics": [
+    "LiteRT-LM Overview は LiteRT-LM を Android、iOS、Web、Desktop、IoT 向けの on-device LLM orchestration layer と位置づけている。",
+    "LiteRT-LM API Overview は JavaScript で `@litert-lm/core` の `Engine` を作り、conversation を作成して `sendMessage()` する流れを示している。",
+    "同 API Overview は Web SDK では WebGPU acceleration が既定で使われ、現時点の Web SDK は text-in / text-out に限ると説明している。",
+    "MediaPipe LLM Inference Web ガイドには、MediaPipe LLM Inference API は maintenance-only mode で、Web projects は LiteRT-LM JavaScript API へ移行推奨という重要な注意がある。",
+    "公式デモをカード化するのではなく、今日は大容量モデルを落とす前の readiness と context budget を測る自作 UI に落とし込んだ。"
+  ],
+  "keyTopicsEn": [
+    "The LiteRT-LM Overview positions LiteRT-LM as an on-device LLM orchestration layer for Android, iOS, Web, Desktop, and IoT.",
+    "The LiteRT-LM API Overview shows the JavaScript flow of creating an `Engine` from `@litert-lm/core`, creating a conversation, and calling `sendMessage()`.",
+    "The same API Overview says WebGPU acceleration is enabled by default in the Web SDK, while the current Web SDK is limited to text-in / text-out.",
+    "The MediaPipe LLM Inference Web guide contains an important note that the MediaPipe LLM Inference API is in maintenance-only mode and Web projects should migrate to the LiteRT-LM JavaScript API.",
+    "Instead of carding an official demo, today's original UI measures readiness and context budget before downloading a large model."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: LiteRT-LM WebGPU Prompt Budget",
+      "url": "../outputs/2026-08-15_litert_lm_webgpu_prompt_budget.html"
+    },
+    {
+      "label": "LiteRT-LM Overview",
+      "url": "https://developers.google.com/edge/litert-lm/overview"
+    },
+    {
+      "label": "LiteRT-LM API Overview",
+      "url": "https://developers.google.com/edge/litert-lm/api_overview"
+    },
+    {
+      "label": "MediaPipe LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Google Developers Blog: Blazing fast on-device GenAI with LiteRT-LM",
+      "url": "https://developers.googleblog.com/blazing-fast-on-device-genai-with-litert-lm/"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe LLM Inference の Web ガイドに maintenance-only と LiteRT-LM.js への移行推奨が明記されている点です。大きな `.litertlm` モデルをいきなり配布する前に、ブラウザが WebGPU を使えるか、プロンプトと履歴が context に収まるかを測る道具が必要になります。自作サンプルでは推論そのものではなく、移行前の判断面を最小 UI にしました。",
+      "bodyEn": "Today's notable point is that the MediaPipe LLM Inference Web guide explicitly marks that API as maintenance-only and recommends moving Web projects to LiteRT-LM.js. Before distributing a large `.litertlm` model, developers need a way to check whether the browser can use WebGPU and whether the prompt plus history fits the context. The original sample focuses on that pre-migration decision surface rather than inference itself.",
+      "links": [
+        {
+          "label": "MediaPipe LLM Inference guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "UI は prompt workspace、generation settings、budget readout、runtime route の4面に分けました。preset を切り替え、履歴 turn、max output tokens、temperature、top K、safety reserve を動かすと、prompt tokens、estimated total、memory hint、readiness score が即時に変わります。`Check LiteRT-LM.js` はモデルを落とさず CDN module import だけを試すため、公開ページでも軽く検証できます。",
+      "bodyEn": "The UI is split into prompt workspace, generation settings, budget readout, and runtime route. Switching presets and moving history turns, max output tokens, temperature, top K, and safety reserve updates prompt tokens, estimated total, memory hint, and readiness score immediately. `Check LiteRT-LM.js` only tests the CDN module import without downloading a model, keeping the public page lightweight.",
+      "links": [
+        {
+          "label": "Open LiteRT-LM WebGPU Prompt Budget",
+          "url": "../outputs/2026-08-15_litert_lm_webgpu_prompt_budget.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは prompt text、preset、rough token count、history turns、max output tokens、temperature、top K、reserve、WebGPU adapter、LiteRT-LM.js import result、readiness score、compact 操作です。Text Classifier で危険な入力を gate し、Text Embedder で既存ナレッジとの近さを見て、IndexedDB にセッション予算を保存すると、ローカル LLM の導入前診断ツールになります。将来は実モデル選択、Storage quota、Battery Status、Web Worker 分離、RAG chunk 設計にも広げられます。",
+      "bodyEn": "The sample can accumulate prompt text, preset, rough token count, history turns, max output tokens, temperature, top K, reserve, WebGPU adapter, LiteRT-LM.js import result, readiness score, and compact actions. Combined with Text Classifier for unsafe-input gates, Text Embedder for knowledge proximity, and IndexedDB for session budgets, it becomes a preflight tool for local LLM adoption. It can later expand to real model selection, storage quota, battery state, Web Worker isolation, and RAG chunk design."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "LiteRT-LM API Overview は JavaScript で `@litert-lm/core` から `Engine.create({ model })`、`createConversation()`、`sendMessage()` へ進む流れを示しています。Web SDK は WebGPU acceleration が既定で、現時点では text-in / text-out と説明されています。サンプルでは `navigator.gpu.requestAdapter()` で WebGPU を確認し、`import('https://cdn.jsdelivr.net/npm/@litert-lm/core/+esm')` で `Engine` export の有無だけを検証します。実モデルの取得はユーザー同意、容量、ライセンス確認が必要なので今日は行いません。",
+      "bodyEn": "The LiteRT-LM API Overview shows the JavaScript path from `Engine.create({ model })` through `createConversation()` to `sendMessage()` using `@litert-lm/core`. It says the Web SDK uses WebGPU acceleration by default and currently supports text-in / text-out. The sample checks WebGPU via `navigator.gpu.requestAdapter()` and verifies only the `Engine` export with `import('https://cdn.jsdelivr.net/npm/@litert-lm/core/+esm')`. Downloading an actual model needs user consent, capacity checks, and license review, so it is intentionally out of scope today.",
+      "links": [
+        {
+          "label": "LiteRT-LM API Overview",
+          "url": "https://developers.google.com/edge/litert-lm/api_overview"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "LiteRT-LM v0.16.0 以降の JavaScript API、`@litert-lm/core` の CDN export、WebGPU 対応ブラウザ、Gemma-4-E2B や Gemma-3n Web 形式モデル、Google AI Edge Gallery の実装、MediaPipe LLM Inference guide の migration note を継続して見ます。特に Web SDK の multimodal attachment と function calling が Web に来るかを追います。",
+      "bodyEn": "Watch the LiteRT-LM JavaScript API after v0.16.0, `@litert-lm/core` CDN exports, WebGPU-capable browsers, Gemma-4-E2B and Gemma-3n Web-format models, Google AI Edge Gallery implementation, and the MediaPipe LLM Inference migration note. In particular, track whether multimodal attachment and function calling support arrive in the Web SDK.",
+      "links": [
+        {
+          "label": "LiteRT-LM Overview",
+          "url": "https://developers.google.com/edge/litert-lm/overview"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まずサンプルを開いて WebGPU status を見ます。次に preset を Vision note に切り替え、history turns と max output tokens を上げて readiness score がどこで下がるかを確認します。最後に `Compact prompt` で budget が戻るか、`Check LiteRT-LM.js` で `Engine` export を import できるかを試します。",
+      "bodyEn": "Open the sample and check the WebGPU status first. Then switch to the Vision note preset, raise history turns and max output tokens, and see when the readiness score drops. Finally use `Compact prompt` to see whether the budget recovers, and `Check LiteRT-LM.js` to test whether the `Engine` export imports successfully.",
+      "links": [
+        {
+          "label": "Open today's sample",
+          "url": "../outputs/2026-08-15_litert_lm_webgpu_prompt_budget.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: LiteRT-LM Overview、LiteRT-LM API Overview、MediaPipe LLM Inference Web guide、MediaPipe samples web、公式 Web Task demo、Google Developers Blog を確認。設計: 公式 LLM demo の再掲ではなく、導入前の WebGPU / context / memory 予算を測る自作 UI にする。実装: prompt preset、rough token counter、slider settings、readiness score、WebGPU check、LiteRT-LM.js import check、runtime route、event log を追加。検証: HTML marker、JSON parse、gallery build、publish command、公開 URL を確認する。",
+      "bodyEn": "Research: checked the LiteRT-LM Overview, LiteRT-LM API Overview, MediaPipe LLM Inference Web guide, MediaPipe samples web, official Web Task demo, and Google Developers Blog. Design: build an original preflight UI for WebGPU, context, and memory budget rather than reposting an official LLM demo. Implementation: added prompt presets, rough token counter, slider settings, readiness score, WebGPU check, LiteRT-LM.js import check, runtime route, and event log. Validation: check HTML marker, JSON parse, gallery build, publish command, and public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでのサンプルは Vision / Text / Audio の Task 出力を UI 判断へ変換してきました。今日は Google AI Edge の on-device GenAI へ視野を広げ、推論結果ではなく実行前の環境・容量・文脈長を扱いました。Web ML の現場では、モデルを動かすコードだけでなく、動かせる条件をユーザーに見せる小さな診断 UI が重要になります。",
+      "bodyEn": "Previous samples converted Vision, Text, and Audio Task outputs into UI decisions. Today broadens the scope to Google AI Edge on-device GenAI and handles environment, capacity, and context length before inference rather than inference outputs. In Web ML, small diagnostic UIs that show whether a model can run are as important as the model invocation code."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `LiteRT-LM WebGPU Prompt Budget` です。実際に動く部分は preset 切り替え、prompt 編集、rough token count、history / output / temperature / top K / reserve sliders、WebGPU adapter check、LiteRT-LM.js CDN import check、readiness score、runtime route、event log です。次に足すなら `.litertlm` model picker、Storage quota check、実際の `Engine.create()`、streaming 表示、Text Classifier safety gate、RAG chunk budget を追加します。",
+      "bodyEn": "The selected prototype is `LiteRT-LM WebGPU Prompt Budget`. The working parts are preset switching, prompt editing, rough token count, history / output / temperature / top K / reserve sliders, WebGPU adapter check, LiteRT-LM.js CDN import check, readiness score, runtime route, and event log. Next additions should include a `.litertlm` model picker, storage quota check, real `Engine.create()`, streaming display, Text Classifier safety gate, and RAG chunk budget."
+    }
+  ]
+}

@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LiteRT-LM WebGPU Prompt Budget</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #07100f;
+      color: #f7fbf6;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(76, 202, 160, 0.14), transparent 35%),
+        linear-gradient(315deg, rgba(248, 188, 88, 0.12), transparent 42%),
+        #07100f;
+    }
+
+    main {
+      width: min(1220px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: end;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(247, 251, 246, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.5vw, 3.15rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #b7c7c0;
+      line-height: 1.55;
+    }
+
+    button, textarea, input, select {
+      border-radius: 6px;
+      font: inherit;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(76, 202, 160, 0.48);
+      background: rgba(76, 202, 160, 0.13);
+      color: #f7fbf6;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: #4ccaa0;
+      border-color: #4ccaa0;
+      color: #03130e;
+    }
+
+    button.warn {
+      border-color: rgba(248, 188, 88, 0.62);
+      background: rgba(248, 188, 88, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      border: 1px solid rgba(247, 251, 246, 0.14);
+      background: rgba(255, 255, 255, 0.055);
+      color: #f7fbf6;
+    }
+
+    textarea {
+      min-height: 248px;
+      padding: 11px;
+      resize: vertical;
+      line-height: 1.46;
+    }
+
+    input, select { min-height: 38px; padding: 8px; }
+    input[type="range"] { padding: 0; accent-color: #4ccaa0; }
+
+    .stage, .side {
+      min-width: 0;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .panel {
+      border: 1px solid rgba(247, 251, 246, 0.14);
+      background: rgba(7, 16, 15, 0.83);
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .preset-row, .actions, .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .preset-row button { flex: 1 1 130px; }
+    .actions button { flex: 1 1 150px; }
+
+    .status {
+      min-height: 38px;
+      border: 1px solid rgba(248, 188, 88, 0.28);
+      background: rgba(248, 188, 88, 0.08);
+      color: #ffe8b2;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .settings {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .label, .hint, .small {
+      color: #91a79e;
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .metric {
+      flex: 1 1 142px;
+      min-height: 88px;
+      border: 1px solid rgba(247, 251, 246, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 1.55rem;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .fill {
+      width: var(--w);
+      height: 100%;
+      background: linear-gradient(90deg, #4ccaa0, #f8bc58);
+    }
+
+    .fill.bad { background: linear-gradient(90deg, #f8bc58, #ee6b5a); }
+
+    .readiness {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .dial {
+      width: 92px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at center, #07100f 0 56%, transparent 57%),
+        conic-gradient(#4ccaa0 var(--angle), rgba(255, 255, 255, 0.1) 0);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .route {
+      display: grid;
+      gap: 8px;
+    }
+
+    .route-step {
+      border: 1px solid rgba(247, 251, 246, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .route-step strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .route-step.ok { border-color: rgba(76, 202, 160, 0.42); }
+    .route-step.warn { border-color: rgba(248, 188, 88, 0.42); }
+
+    .log {
+      min-height: 132px;
+      max-height: 210px;
+      overflow: auto;
+      border: 1px solid rgba(247, 251, 246, 0.12);
+      background: rgba(0, 0, 0, 0.18);
+      padding: 10px;
+      border-radius: 8px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      color: #b7c7c0;
+      white-space: pre-wrap;
+    }
+
+    a { color: #8ef0c8; }
+
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .settings { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>LiteRT-LM WebGPU Prompt Budget</h1>
+        <p>Plan a browser-side LiteRT-LM session before downloading a multi-GB model: check WebGPU, estimate prompt and history pressure, and keep a migration note from MediaPipe LLM Inference.</p>
+      </div>
+      <div class="status" id="runtimeStatus">Checking browser capabilities...</div>
+    </header>
+
+    <section class="stage">
+      <div class="panel">
+        <h2>Prompt workspace</h2>
+        <div class="preset-row">
+          <button type="button" data-preset="summarize" class="active">Summarize</button>
+          <button type="button" data-preset="vision">Vision note</button>
+          <button type="button" data-preset="agent">Tool plan</button>
+        </div>
+        <textarea id="prompt" spellcheck="false"></textarea>
+        <p class="hint">This sample does not ship a model file. It keeps the planning UI runnable, then optionally checks whether the LiteRT-LM JavaScript module can be imported.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Generation settings</h2>
+        <div class="settings">
+          <label class="control">
+            <span class="label">Target model</span>
+            <select id="model">
+              <option value="2583,4096,gemma4-e2b">Gemma-4-E2B style / 4k context</option>
+              <option value="4096,8192,gemma3n-e4b">Gemma-3n E4B style / 8k context</option>
+              <option value="768,2048,small-local">Small local draft / 2k context</option>
+            </select>
+          </label>
+          <label class="control">
+            <span class="label">History turns: <b id="turnsValue">4</b></span>
+            <input id="turns" type="range" min="0" max="12" value="4">
+          </label>
+          <label class="control">
+            <span class="label">Max output tokens: <b id="maxTokensValue">512</b></span>
+            <input id="maxTokens" type="range" min="128" max="2048" step="64" value="512">
+          </label>
+          <label class="control">
+            <span class="label">Temperature: <b id="temperatureValue">0.7</b></span>
+            <input id="temperature" type="range" min="0" max="1.4" step="0.1" value="0.7">
+          </label>
+          <label class="control">
+            <span class="label">Top K: <b id="topKValue">40</b></span>
+            <input id="topK" type="range" min="1" max="80" step="1" value="40">
+          </label>
+          <label class="control">
+            <span class="label">Safety reserve: <b id="reserveValue">20%</b></span>
+            <input id="reserve" type="range" min="5" max="35" step="5" value="20">
+          </label>
+        </div>
+        <div class="actions" style="margin-top: 12px;">
+          <button id="compactPrompt" type="button">Compact prompt</button>
+          <button id="loadLiteRt" type="button" class="warn">Check LiteRT-LM.js</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Budget readout</h2>
+        <div class="metrics">
+          <div class="metric">
+            <span class="label">Prompt tokens</span>
+            <strong id="promptTokens">0</strong>
+            <div class="bar"><div class="fill" id="promptFill"></div></div>
+          </div>
+          <div class="metric">
+            <span class="label">Estimated total</span>
+            <strong id="totalTokens">0</strong>
+            <div class="bar"><div class="fill" id="totalFill"></div></div>
+          </div>
+          <div class="metric">
+            <span class="label">Memory hint</span>
+            <strong id="memoryHint">0 GB</strong>
+            <div class="bar"><div class="fill" id="memoryFill"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel readiness">
+        <div class="dial" id="dial">0</div>
+        <div>
+          <h2>Readiness score</h2>
+          <p id="readinessCopy">Waiting for browser checks.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Runtime route</h2>
+        <div class="route" id="route"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Event log</h2>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Primary references</h2>
+        <p><a href="https://developers.google.com/edge/litert-lm/overview" target="_blank" rel="noreferrer">LiteRT-LM Overview</a></p>
+        <p><a href="https://developers.google.com/edge/litert-lm/api_overview" target="_blank" rel="noreferrer">LiteRT-LM API Overview</a></p>
+        <p><a href="https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js" target="_blank" rel="noreferrer">MediaPipe LLM Inference Web guide</a></p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    const presets = {
+      summarize: `Summarize the local notes into three product decisions.\n\nContext:\n- The app must run fully on device when possible.\n- The user can choose a model file later.\n- The browser should report WebGPU readiness before inference.\n\nReturn:\n1. keep\n2. change\n3. watch next`,
+      vision: `Describe how an on-device multimodal model could explain a camera frame without sending pixels to a server.\n\nInclude:\n- privacy boundary\n- latency expectation\n- when to fall back to a smaller text-only workflow`,
+      agent: `Draft a tool-use plan for an edge assistant.\n\nAvailable client tools:\n- getSelectedText()\n- summarizeLocalFile(path)\n- saveDraft(title, body)\n\nReturn a short tool route and the final user-facing answer.`
+    };
+
+    const state = {
+      webgpu: false,
+      adapter: "not checked",
+      liteRtModule: false,
+      liteRtError: "",
+      preset: "summarize"
+    };
+
+    const els = {
+      prompt: document.querySelector("#prompt"),
+      model: document.querySelector("#model"),
+      turns: document.querySelector("#turns"),
+      maxTokens: document.querySelector("#maxTokens"),
+      temperature: document.querySelector("#temperature"),
+      topK: document.querySelector("#topK"),
+      reserve: document.querySelector("#reserve"),
+      turnsValue: document.querySelector("#turnsValue"),
+      maxTokensValue: document.querySelector("#maxTokensValue"),
+      temperatureValue: document.querySelector("#temperatureValue"),
+      topKValue: document.querySelector("#topKValue"),
+      reserveValue: document.querySelector("#reserveValue"),
+      promptTokens: document.querySelector("#promptTokens"),
+      totalTokens: document.querySelector("#totalTokens"),
+      memoryHint: document.querySelector("#memoryHint"),
+      promptFill: document.querySelector("#promptFill"),
+      totalFill: document.querySelector("#totalFill"),
+      memoryFill: document.querySelector("#memoryFill"),
+      dial: document.querySelector("#dial"),
+      readinessCopy: document.querySelector("#readinessCopy"),
+      runtimeStatus: document.querySelector("#runtimeStatus"),
+      route: document.querySelector("#route"),
+      log: document.querySelector("#log")
+    };
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      els.log.textContent = `[${time}] ${message}\n${els.log.textContent}`.slice(0, 1800);
+    }
+
+    function roughTokens(text) {
+      const compact = text.trim();
+      if (!compact) return 0;
+      const asciiWords = compact.match(/[A-Za-z0-9_]+/g) || [];
+      const nonAscii = compact.match(/[^\x00-\x7F]/g) || [];
+      const punctuation = compact.match(/[.,:;!?()[\]{}'"`-]/g) || [];
+      return Math.max(1, Math.ceil(asciiWords.length * 1.15 + nonAscii.length * 0.75 + punctuation.length * 0.2));
+    }
+
+    function modelParts() {
+      const [sizeMb, context, id] = els.model.value.split(",");
+      return { sizeMb: Number(sizeMb), context: Number(context), id };
+    }
+
+    function setFill(el, ratio, bad = false) {
+      el.style.setProperty("--w", `${Math.max(0, Math.min(100, ratio * 100)).toFixed(1)}%`);
+      el.classList.toggle("bad", bad);
+    }
+
+    function renderRoute(score, totalRatio) {
+      const steps = [
+        {
+          title: state.webgpu ? "WebGPU available" : "WebGPU missing",
+          body: state.webgpu ? `Adapter: ${state.adapter}` : "LiteRT-LM Web acceleration needs a WebGPU-capable browser.",
+          ok: state.webgpu
+        },
+        {
+          title: state.liteRtModule ? "LiteRT-LM.js import ready" : "LiteRT-LM.js not loaded",
+          body: state.liteRtModule ? "The browser imported @litert-lm/core successfully." : "Press the check button to test the JavaScript package without downloading a model.",
+          ok: state.liteRtModule
+        },
+        {
+          title: totalRatio < 0.78 ? "Prompt budget fits" : "Prompt budget tight",
+          body: totalRatio < 0.78 ? "There is enough room for history and output tokens." : "Compact the prompt or reduce output tokens before running a local model.",
+          ok: totalRatio < 0.78
+        },
+        {
+          title: "Migration note",
+          body: "MediaPipe LLM Inference Web remains useful for legacy samples, but new browser GenAI work should be planned around LiteRT-LM.js.",
+          ok: score >= 65
+        }
+      ];
+
+      els.route.innerHTML = steps.map((step) => `
+        <div class="route-step ${step.ok ? "ok" : "warn"}">
+          <strong>${step.title}</strong>
+          <span class="small">${step.body}</span>
+        </div>
+      `).join("");
+    }
+
+    function update() {
+      const model = modelParts();
+      const promptTokens = roughTokens(els.prompt.value);
+      const historyTokens = Number(els.turns.value) * Math.max(80, Math.round(promptTokens * 0.22));
+      const maxTokens = Number(els.maxTokens.value);
+      const reserveTokens = Math.round(model.context * Number(els.reserve.value) / 100);
+      const total = promptTokens + historyTokens + maxTokens + reserveTokens;
+      const promptRatio = promptTokens / model.context;
+      const totalRatio = total / model.context;
+      const memoryGb = (model.sizeMb * 1.18 + total * 0.0009).toFixed(1);
+      const memoryRatio = Number(memoryGb) / 6;
+      const score = Math.max(0, Math.min(100, Math.round(
+        (state.webgpu ? 32 : 4) +
+        (state.liteRtModule ? 20 : 8) +
+        (totalRatio < 0.7 ? 28 : totalRatio < 0.9 ? 16 : 4) +
+        (memoryRatio < 0.7 ? 20 : memoryRatio < 1 ? 12 : 5)
+      )));
+
+      els.turnsValue.textContent = els.turns.value;
+      els.maxTokensValue.textContent = els.maxTokens.value;
+      els.temperatureValue.textContent = Number(els.temperature.value).toFixed(1);
+      els.topKValue.textContent = els.topK.value;
+      els.reserveValue.textContent = `${els.reserve.value}%`;
+      els.promptTokens.textContent = promptTokens.toLocaleString();
+      els.totalTokens.textContent = total.toLocaleString();
+      els.memoryHint.textContent = `${memoryGb} GB`;
+      setFill(els.promptFill, promptRatio, promptRatio > 0.5);
+      setFill(els.totalFill, totalRatio, totalRatio > 0.82);
+      setFill(els.memoryFill, memoryRatio, memoryRatio > 0.9);
+      els.dial.textContent = score;
+      els.dial.style.setProperty("--angle", `${score * 3.6}deg`);
+      els.readinessCopy.textContent = score >= 80
+        ? "Ready to try a local model file after user consent and storage checks."
+        : score >= 55
+          ? "Usable for planning; trim budget or confirm LiteRT-LM.js before inference."
+          : "Keep this as a planning view until WebGPU and runtime checks pass.";
+      els.runtimeStatus.textContent = state.webgpu
+        ? `WebGPU ready: ${state.adapter}`
+        : "WebGPU not available in this browser session.";
+      renderRoute(score, totalRatio);
+    }
+
+    async function checkWebGpu() {
+      if (!("gpu" in navigator)) {
+        state.webgpu = false;
+        state.adapter = "navigator.gpu unavailable";
+        log("WebGPU check failed: navigator.gpu unavailable.");
+        update();
+        return;
+      }
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        state.webgpu = Boolean(adapter);
+        state.adapter = adapter?.info ? [adapter.info.vendor, adapter.info.architecture, adapter.info.device].filter(Boolean).join(" ") || "adapter granted" : "adapter granted";
+        log(state.webgpu ? `WebGPU adapter granted: ${state.adapter}` : "WebGPU adapter request returned null.");
+      } catch (error) {
+        state.webgpu = false;
+        state.adapter = error.message || "adapter request error";
+        log(`WebGPU check error: ${state.adapter}`);
+      }
+      update();
+    }
+
+    document.querySelectorAll("[data-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.preset = button.dataset.preset;
+        document.querySelectorAll("[data-preset]").forEach((item) => item.classList.toggle("active", item === button));
+        els.prompt.value = presets[state.preset];
+        log(`Loaded preset: ${state.preset}`);
+        update();
+      });
+    });
+
+    document.querySelector("#compactPrompt").addEventListener("click", () => {
+      els.prompt.value = els.prompt.value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !/^context:$/i.test(line))
+        .slice(0, 9)
+        .join("\n");
+      log("Compacted prompt lines for a smaller local context.");
+      update();
+    });
+
+    document.querySelector("#loadLiteRt").addEventListener("click", async (event) => {
+      event.currentTarget.disabled = true;
+      log("Importing @litert-lm/core from jsDelivr...");
+      try {
+        const module = await import("https://cdn.jsdelivr.net/npm/@litert-lm/core/+esm");
+        state.liteRtModule = typeof module.Engine === "function";
+        state.liteRtError = "";
+        log(state.liteRtModule ? "LiteRT-LM.js Engine export is available." : "Module loaded, but Engine export was not found.");
+      } catch (error) {
+        state.liteRtModule = false;
+        state.liteRtError = error.message;
+        log(`LiteRT-LM.js import failed: ${error.message}`);
+      } finally {
+        event.currentTarget.disabled = false;
+        update();
+      }
+    });
+
+    [els.prompt, els.model, els.turns, els.maxTokens, els.temperature, els.topK, els.reserve].forEach((el) => {
+      el.addEventListener("input", update);
+      el.addEventListener("change", update);
+    });
+
+    els.prompt.value = presets.summarize;
+    log("Sample initialized with a runnable planning fallback.");
+    update();
+    checkWebGpu();
+  </script>
+</body>
+</html>
