@@ -1,0 +1,138 @@
+{
+  "date": "2026-08-16",
+  "category": "MediaPipe Tasks",
+  "headline": "Face Stylizer の結果を Canvas 差分で読む",
+  "headlineEn": "Read Face Stylizer output through Canvas diffs",
+  "summary": "MediaPipe Tasks Vision の FaceStylizer API と公式デモを参考に、スタイル変換そのものを公開カードにするのではなく、変換後にどの程度画像が変わったかを Canvas で測る自作サンプルを追加しました。公式モデルを選んで読み込み、ポートレートまたはローカル画像に適用し、差分ヒートマップ、平均色差、変更ピクセル率、実行ログを確認できます。",
+  "summaryEn": "Based on the MediaPipe Tasks Vision FaceStylizer API and official demo, this adds an original sample that measures how much the image changed after stylization instead of simply reposting the official style demo. It loads a selected official model, applies it to a portrait or local image, and shows a diff heatmap, mean color delta, changed-pixel ratio, and run log.",
+  "keyTopics": [
+    "MediaPipe Tasks Vision の JavaScript API には `FaceStylizer` が含まれ、`stylize()` は画像入力から `MPImage` または `null` を返せる。",
+    "FaceStylizer の公式 Web 実装例は `FilesetResolver.forVisionTasks()` と `.task` モデル URL を組み合わせ、`getAsImageData()` で Canvas に出力する構成になっている。",
+    "公開モデルには color sketch、color ink、oil painting の Face Stylizer bundle があり、ブラウザ上でモデルを差し替えながら比較できる。",
+    "Face Stylizer customization guide は Model Maker による転移学習と `.task` export を説明しているが、Model Maker 自体は no longer actively maintained と明記されている。",
+    "MediaPipe v0.10.35 の release notes では JavaScript package export 修正や Vite worker 互換の記述があり、Web サンプルではバージョン固定と読み込み失敗ログが重要になる。"
+  ],
+  "keyTopicsEn": [
+    "The MediaPipe Tasks Vision JavaScript API includes `FaceStylizer`, and `stylize()` can return an `MPImage` or `null` from an image input.",
+    "The official Web implementation pattern combines `FilesetResolver.forVisionTasks()` with `.task` model URLs and draws output to Canvas through `getAsImageData()`.",
+    "Public Face Stylizer bundles include color sketch, color ink, and oil painting, making browser-side model switching practical.",
+    "The Face Stylizer customization guide explains transfer learning and `.task` export with Model Maker, while noting that Model Maker is no longer actively maintained.",
+    "MediaPipe v0.10.35 release notes mention JavaScript package export fixes and Vite worker compatibility, so Web samples benefit from version pinning and load-failure logs."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Face Stylizer Style Compare Lab",
+      "url": "../outputs/2026-08-16_face_stylizer_style_compare_lab.html"
+    },
+    {
+      "label": "MediaPipe tasks-vision JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "FaceStylizer JavaScript API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.facestylizer"
+    },
+    {
+      "label": "Face stylizer customization guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/customization/face_stylizer"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Face Stylizer です。公式デモは顔画像をクリックしてスタイル変換を確認する流れですが、自作サンプルでは一歩進めて、変換後の `MPImage` を Canvas に描き、元画像とのピクセル差分をヒートマップ化しました。スタイル変換を「見た目が変わった」で終わらせず、平均色差や変更ピクセル率として比較できる点が面白いところです。",
+      "bodyEn": "Today's notable example is Face Stylizer. The official demo focuses on clicking a face image and viewing the stylized result, while this original sample draws the returned `MPImage` to Canvas and turns pixel differences from the source into a heatmap. The interesting point is treating stylization not only as a visual effect but also as measurable mean color delta and changed-pixel ratio.",
+      "links": [
+        {
+          "label": "FaceStylizer JavaScript API reference",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.facestylizer"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "UI は style route、source portrait、stylized output、change heatmap、diff metrics、run log に分けました。モデルを color sketch / color ink / oil painting から選び、読み込み後に `Stylize` を押すと、出力と差分が並んで更新されます。ローカル画像も投入できるので、顔が検出されない場合の `null` 経路も試せます。",
+      "bodyEn": "The UI is split into style route, source portrait, stylized output, change heatmap, diff metrics, and run log. After choosing color sketch, color ink, or oil painting and loading the model, `Stylize` updates the output and diff side by side. Local images are supported too, so the `null` path for no detected face can be tested.",
+      "links": [
+        {
+          "label": "Open Face Stylizer Style Compare Lab",
+          "url": "../outputs/2026-08-16_face_stylizer_style_compare_lab.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは選択モデル、読み込み成功/失敗、入力画像サイズ、出力サイズ、実行時間、平均色差、変更ピクセル率、差分ヒートマップ、no-face の失敗ログです。Face Detector で事前に顔の有無を gate し、Face Landmarker の blendshape と組み合わせると、表情ごとにどのスタイルが強く変化するかを測れます。Image Embedder を足すと、変換前後の近さをピクセル差分とは別軸で比較できます。",
+      "bodyEn": "The sample can accumulate selected model, load success or failure, input image size, output size, runtime, mean color delta, changed-pixel ratio, diff heatmap, and no-face failure logs. Adding Face Detector as a preflight gate and Face Landmarker blendshapes would make it possible to measure which expressions are strongly affected by each style. Image Embedder could add a semantic similarity axis beyond pixel differences."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "`@mediapipe/tasks-vision@0.10.35` を CDN import し、`FilesetResolver.forVisionTasks()` で WASM を解決してから `FaceStylizer.createFromOptions()` に modelAssetPath を渡します。`stylize(image)` の戻り値は `MPImage | null` なので、`null` のときは Canvas を更新せずログに残します。結果がある場合は `getAsImageData()` で描画し、同じサイズに crop した元画像と RGB 差分を取ります。",
+      "bodyEn": "The sample imports `@mediapipe/tasks-vision@0.10.35` from a CDN, resolves WASM with `FilesetResolver.forVisionTasks()`, and passes `modelAssetPath` to `FaceStylizer.createFromOptions()`. Because `stylize(image)` returns `MPImage | null`, the `null` case is logged without updating Canvas. When a result exists, `getAsImageData()` draws it, and RGB differences are computed against a same-size source crop.",
+      "links": [
+        {
+          "label": "MediaPipe v0.10.35 release notes",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Face Stylizer の Web ドキュメント追加、`tasks-vision` の npm export 変更、公式 samples web に Face Stylizer が入るか、Model Maker の後継導線、ブラウザでの `.task` モデルキャッシュ、Worker での画像処理分離を見ます。特に公開ページでは初回モデルロードが重いため、モデルサイズ表示とユーザー同意 UI を足せるかを追います。",
+      "bodyEn": "Watch for dedicated Face Stylizer Web documentation, `tasks-vision` npm export changes, whether the official samples web app adds Face Stylizer, successors to Model Maker customization, browser `.task` model caching, and Worker-based image processing separation. For public pages, model download size and user consent UI are especially important.",
+      "links": [
+        {
+          "label": "Official MediaPipe samples web repository",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず color sketch を読み込んで `Stylize` を押し、出力と heatmap を確認します。次に color ink と oil painting に切り替えてモデルを再読み込みし、平均色差と変更ピクセル率を比べます。最後にローカル画像を入れて、顔が小さい画像や横顔で no-face 経路が出るかを確認します。",
+      "bodyEn": "Load color sketch first, press `Stylize`, and inspect the output and heatmap. Then switch to color ink and oil painting, reload each model, and compare mean color delta and changed-pixel ratio. Finally try local images to see whether small faces or profile faces trigger the no-face path.",
+      "links": [
+        {
+          "label": "Open today's sample",
+          "url": "../outputs/2026-08-16_face_stylizer_style_compare_lab.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: tasks-vision API、FaceStylizer API reference、Face Stylizer customization guide、MediaPipe releases、official samples web、公式デモ実装を確認。設計: 公式デモをカード化せず、出力画像を定量比較する検証 UI にする。実装: モデル選択、WASM 解決、モデル再読み込み、スタイル実行、Canvas 描画、差分ヒートマップ、メトリクス、ローカル画像、失敗ログを追加。検証: HTML marker、JSON parse、gallery build、publish command、公開ページ生成を確認する。",
+      "bodyEn": "Research: checked the tasks-vision API, FaceStylizer API reference, Face Stylizer customization guide, MediaPipe releases, official samples web, and official demo implementation. Design: avoid carding the official demo and instead build a validation UI that quantifies output images. Implementation: added model selection, WASM resolution, model reload, stylization run, Canvas drawing, diff heatmap, metrics, local images, and failure logging. Validation: check HTML marker, JSON parse, gallery build, publish command, and generated public pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの Vision サンプルは検出・分類・埋め込み・セグメンテーションを扱ってきました。今日は生成寄りの Vision Task として、入力画像を別の表現に変換する Face Stylizer を扱いました。Web ML のミニアプリでは、推論結果をただ表示するだけでなく、変換量・失敗経路・モデル差し替えを観察できる形にすると、後続の品質評価や UX 判断に接続しやすくなります。",
+      "bodyEn": "Previous Vision samples covered detection, classification, embedding, and segmentation. Today covers Face Stylizer as a more generative Vision Task that transforms an input image into another visual expression. In Web ML mini apps, showing inference output is not enough; making change amount, failure paths, and model switching observable connects the sample to later quality evaluation and UX decisions."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Face Stylizer Style Compare Lab` です。実際に動く部分は公式 Face Stylizer モデルの選択と読み込み、ポートレートまたはローカル画像への stylize、`MPImage.getAsImageData()` からの Canvas 描画、差分ヒートマップ、平均色差、変更ピクセル率、実行時間、ログです。次に足すなら Face Detector による事前 gate、Face Landmarker blendshape 別の変化量、IndexedDB モデルキャッシュ、Worker 分離、複数スタイル一括比較を追加します。",
+      "bodyEn": "The selected prototype is `Face Stylizer Style Compare Lab`. The working parts are selecting and loading official Face Stylizer models, stylizing a portrait or local image, drawing Canvas output from `MPImage.getAsImageData()`, diff heatmap, mean color delta, changed-pixel ratio, runtime, and logs. Next additions should include a Face Detector preflight gate, Face Landmarker blendshape-based change metrics, IndexedDB model caching, Worker isolation, and multi-style batch comparison."
+    }
+  ]
+}
