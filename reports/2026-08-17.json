@@ -1,0 +1,142 @@
+{
+  "date": "2026-08-17",
+  "category": "MediaPipe Tasks",
+  "headline": "Hand Landmarker のピンチ量を奥行きカーソルにする",
+  "headlineEn": "Turn Hand Landmarker pinch depth into a cursor gate",
+  "summary": "Google AI Edge の Hand Landmarker Web guide と API reference、公式サンプル Web、GitHub releases を参考に、21 点ランドマークをそのまま表示するのではなく、親指と人差し指のピンチ距離、z 差分、直近フレームの安定度から Canvas カーソルを押し込む自作最小サンプルを追加しました。カメラ入力で `detectForVideo()` を使い、カメラなしでもデモ軌跡で変換ロジックを確認できます。",
+  "summaryEn": "Based on the Google AI Edge Hand Landmarker Web guide and API reference, the official samples web app, and GitHub releases, this adds an original minimal sample that converts 21 hand landmarks into a Canvas cursor gate using thumb-index pinch distance, z delta, and recent-frame stability instead of simply displaying landmarks. It uses `detectForVideo()` with camera input and includes a demo trace so the transformation logic can be inspected without camera permission.",
+  "keyTopics": [
+    "Hand Landmarker の Web guide は `@mediapipe/tasks-vision`、`FilesetResolver.forVisionTasks()`、`HandLandmarker.createFromOptions()`、`runningMode`、信頼度しきい値、画像向け `detect()` と動画向け `detectForVideo()` を説明している。",
+    "Hand Landmarker の結果には handedness、21 個の正規化画像ランドマーク、21 個の world landmarks が含まれ、正規化 `z` は概ね `x` と同じスケールとして扱える。",
+    "JavaScript API reference には `HandLandmarker.HAND_CONNECTIONS` があり、接続定義を自前で複製せず Canvas 上に骨格を描ける。",
+    "MediaPipe Tasks の privacy notice では、入力データはデバイス上で処理される一方、性能や利用状況のメトリクスは Google に送信される場合があると説明されている。",
+    "GitHub releases では 2026-08-17 時点で MediaPipe v1.0.0 が最新のリリース項目として表示され、IIFE bundle、Tasks Privacy Notice、VisionTaskRunner の running mode cache、Text Embedder Gecko support などの JavaScript 関連更新が含まれている。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide explains `@mediapipe/tasks-vision`, `FilesetResolver.forVisionTasks()`, `HandLandmarker.createFromOptions()`, `runningMode`, confidence thresholds, `detect()` for images, and `detectForVideo()` for video.",
+    "Hand Landmarker results include handedness, 21 normalized image landmarks, and 21 world landmarks, and normalized `z` can be treated as roughly the same scale as `x`.",
+    "The JavaScript API reference exposes `HandLandmarker.HAND_CONNECTIONS`, allowing Canvas skeleton drawing without duplicating the connection list.",
+    "The MediaPipe Tasks privacy notice explains that input data is processed on device, while performance and usage metrics may be sent to Google.",
+    "On 2026-08-17, GitHub releases showed MediaPipe v1.0.0 as the latest release page item, with JavaScript-related updates such as IIFE bundles, the Tasks Privacy Notice, cached running mode in `VisionTaskRunner`, and Text Embedder Gecko support."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Hand Landmarker Pinch Depth Cursor",
+      "url": "../outputs/2026-08-17_hand_landmarker_pinch_depth_cursor.html"
+    },
+    {
+      "label": "Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "HandLandmarker JavaScript API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.handlandmarker"
+    },
+    {
+      "label": "MediaPipe tasks-vision JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "MediaPipe Tasks privacy notice",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/tasks"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Hand Landmarker です。公式サンプルはカメラ映像上に手のランドマークを描く確認に向いていますが、自作サンプルでは 21 点のうち親指先と人差し指先、手首、中指付け根を使い、ピンチ距離を手のサイズで正規化しました。さらに z 差分と直近フレームのばらつきを見て、単なる点描画から「押したかどうか」を判断する入力部品に変換しています。",
+      "bodyEn": "Today's notable example is Hand Landmarker. The official sample is useful for checking landmarks on camera video, while this original sample uses the thumb tip, index tip, wrist, and middle-finger MCP among the 21 points to normalize pinch distance by hand size. It also reads z delta and recent-frame variance, turning raw landmark drawing into an input component that decides whether the cursor is pressed.",
+      "links": [
+        {
+          "label": "Hand landmarks detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "UI は camera stage、threshold controls、readout、pinch gate、recent pinches、run log に分けました。`Load Model` 後に `Start Camera` を押すと `detectForVideo()` の結果からカーソルが動き、ピンチ量がしきい値を下回り、かつ安定度が十分低い場合だけ Pressed になります。カメラ許可前でも `Demo Trace` で同じ変換を確認できるので、サンプルの動作意図をすぐに見られます。",
+      "bodyEn": "The UI is split into camera stage, threshold controls, readout, pinch gate, recent pinches, and run log. After `Load Model`, pressing `Start Camera` moves the cursor from `detectForVideo()` results, and it becomes Pressed only when normalized pinch is below the threshold and stability is low enough. `Demo Trace` runs the same transformation before camera permission, making the sample's interaction visible immediately.",
+      "links": [
+        {
+          "label": "Open Hand Landmarker Pinch Depth Cursor",
+          "url": "../outputs/2026-08-17_hand_landmarker_pinch_depth_cursor.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは delegate、numHands、信頼度しきい値、親指-人差し指距離、手のサイズで割った正規化ピンチ量、z 差分、安定度、Pressed/Tracking 状態、カーソル軌跡、モデルロード失敗やカメラ拒否ログです。Gesture Recognizer と組み合わせると静的ジェスチャー名と連続ピンチ量を併用できます。Web Audio を足すと奥行き差を音量やフィルターに割り当てられ、WebXR や Canvas editor ではクリック前の hover、押し込み、ドラッグの分離に使えます。",
+      "bodyEn": "The sample can accumulate delegate, numHands, confidence thresholds, thumb-index distance, hand-size-normalized pinch, z delta, stability, Pressed or Tracking state, cursor trail, and model-load or camera-denial logs. Combined with Gesture Recognizer, static gesture labels can be used alongside continuous pinch values. Adding Web Audio could map depth delta to volume or filters, while WebXR or Canvas editors could separate hover, press, and drag states."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "`@mediapipe/tasks-vision@0.10.35` の `vision_bundle.mjs` を CDN import し、`FilesetResolver.forVisionTasks()` で WASM を解決してから、公式 hand landmarker `.task` モデルを `HandLandmarker.createFromOptions()` に渡します。動画では `runningMode: \"VIDEO\"` と `detectForVideo(video, performance.now())` を使い、`HandLandmarker.HAND_CONNECTIONS` と `DrawingUtils` で骨格を描画します。ピンチ量は `distance(thumb_tip, index_tip) / distance(wrist, middle_mcp)` として手の大きさに対して正規化しました。",
+      "bodyEn": "The sample imports `vision_bundle.mjs` from `@mediapipe/tasks-vision@0.10.35`, resolves WASM with `FilesetResolver.forVisionTasks()`, and passes the official hand landmarker `.task` model to `HandLandmarker.createFromOptions()`. For video, it uses `runningMode: \"VIDEO\"` and `detectForVideo(video, performance.now())`, then draws the skeleton with `HandLandmarker.HAND_CONNECTIONS` and `DrawingUtils`. Pinch is normalized as `distance(thumb_tip, index_tip) / distance(wrist, middle_mcp)` so it scales with hand size.",
+      "links": [
+        {
+          "label": "HandLandmarker JavaScript API reference",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.handlandmarker"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe v1.0.0 以降の JavaScript package と CDN 配布、IIFE bundle の使い勝手、`tasks-vision` の API 差分、Hand Landmarker の world landmarks を Web サンプルでどう扱うか、公式 samples web の更新、Privacy Notice の表現、Worker 分離とモデルキャッシュを見ます。特にハンド入力は UX 側の誤作動が目立つため、しきい値 UI とヒステリシス設計を継続して確認します。",
+      "bodyEn": "Watch JavaScript package and CDN distribution after MediaPipe v1.0.0, IIFE bundle ergonomics, `tasks-vision` API changes, how world landmarks are handled in Web samples, updates to the official samples web app, Privacy Notice wording, Worker isolation, and model caching. Hand input is sensitive to UX false positives, so threshold UI and hysteresis design should remain a focus.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず `Demo Trace` のまま readout を見て、pinch、depth delta、stability、Pressed 状態がどう変化するか確認します。次に `Load Model`、`Start Camera` の順に押し、親指と人差し指を近づけてゲートが入るかを見ます。誤検出が多い場合は pinch threshold を少し下げ、Pressed になりにくい場合は stable threshold を上げます。",
+      "bodyEn": "Start with `Demo Trace` and watch how pinch, depth delta, stability, and Pressed state change. Then press `Load Model` and `Start Camera`, and move thumb and index finger together to see whether the gate activates. If there are false positives, lower the pinch threshold; if Pressed is too hard to trigger, raise the stable threshold.",
+      "links": [
+        {
+          "label": "Open today's sample",
+          "url": "../outputs/2026-08-17_hand_landmarker_pinch_depth_cursor.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Hand Landmarker Web guide、JavaScript API reference、tasks-vision reference、MediaPipe Tasks privacy notice、official samples web、samples web GitHub repository、MediaPipe releases を確認。設計: 公式デモ一覧を公開カード化せず、自作サンプルの中心をピンチ量、奥行き、安定度の入力変換に置く。実装: モデル読み込み、delegate/numHands controls、カメラ開始、`detectForVideo()`、骨格描画、デモ軌跡、正規化ピンチ、z 差分、安定度、ゲートメーター、履歴、ログを追加。検証: HTML marker、JSON parse、gallery build、publish command、公開ページ生成を確認する。",
+      "bodyEn": "Research: checked the Hand Landmarker Web guide, JavaScript API reference, tasks-vision reference, MediaPipe Tasks privacy notice, official samples web, samples web GitHub repository, and MediaPipe releases. Design: avoid turning official demos into public cards and center the original sample on pinch, depth, and stability input conversion. Implementation: added model loading, delegate and numHands controls, camera start, `detectForVideo()`, skeleton drawing, demo trace, normalized pinch, z delta, stability, gate meter, history, and logs. Validation: check HTML marker, JSON parse, gallery build, publish command, and generated public pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの Hand Landmarker サンプルはレイテンシ観察に寄っていました。今日は同じ MediaPipe Task を、ユーザー入力として扱うための最小変換に寄せました。Web ML では、推論結果を「見える」状態から「使える」状態に変えるために、正規化、時間方向の安定度、状態遷移、失敗時の代替表示をセットで設計する必要があります。",
+      "bodyEn": "The earlier Hand Landmarker sample focused on latency observation. Today uses the same MediaPipe Task but shifts it toward a minimal transformation for user input. In Web ML, making inference results usable rather than merely visible requires normalization, temporal stability, state transitions, and fallback display to be designed together."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Hand Landmarker Pinch Depth Cursor` です。実際に動く部分はデモ軌跡、公式モデルの読み込み、カメラ映像への `detectForVideo()`、21 点骨格描画、ピンチ量の正規化、z 差分表示、安定度表示、Pressed gate、Canvas カーソル軌跡、実行ログです。次に足すなら Gesture Recognizer との併用、world landmarks ベースの奥行き校正、押し込み開始/終了のヒステリシス、Web Audio 操作、WebXR の手元 UI、IndexedDB モデルキャッシュを追加します。",
+      "bodyEn": "The selected prototype is `Hand Landmarker Pinch Depth Cursor`. The working parts are demo trace, official model loading, `detectForVideo()` on camera video, 21-point skeleton drawing, normalized pinch, z-delta display, stability display, Pressed gate, Canvas cursor trail, and run log. Next additions should include Gesture Recognizer pairing, world-landmark depth calibration, press-start and press-end hysteresis, Web Audio control, WebXR hand UI, and IndexedDB model caching."
+    }
+  ]
+}
