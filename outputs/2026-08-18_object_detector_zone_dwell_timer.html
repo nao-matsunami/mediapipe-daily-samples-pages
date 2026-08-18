@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Object Detector Zone Dwell Timer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #10130f;
+      color: #f7f2e8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(63, 157, 136, 0.18), transparent 34%),
+        linear-gradient(315deg, rgba(223, 177, 77, 0.15), transparent 42%),
+        #10130f;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 342px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(247, 242, 232, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.5vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #c9c0b0;
+      line-height: 1.62;
+    }
+
+    button, input, select {
+      min-height: 38px;
+      border: 1px solid rgba(247, 242, 232, 0.16);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #f7f2e8;
+      font: inherit;
+    }
+
+    button {
+      padding: 8px 11px;
+      cursor: pointer;
+      border-color: rgba(63, 157, 136, 0.5);
+      background: rgba(63, 157, 136, 0.18);
+    }
+
+    button.secondary {
+      border-color: rgba(223, 177, 77, 0.48);
+      background: rgba(223, 177, 77, 0.13);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #3f9d88;
+    }
+
+    .stage, .side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid rgba(247, 242, 232, 0.14);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(16, 19, 15, 0.84);
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    .viewer {
+      position: relative;
+      overflow: hidden;
+      padding: 0;
+      aspect-ratio: 4 / 3;
+      min-height: 330px;
+      background: #171b16;
+    }
+
+    canvas, video {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #camera {
+      display: none;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    label, .metric-label {
+      color: #9f9787;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      min-width: 0;
+      min-height: 78px;
+      border: 1px solid rgba(247, 242, 232, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 1.35rem;
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+
+    .meter {
+      height: 18px;
+      border: 1px solid rgba(247, 242, 232, 0.14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+
+    .meter > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #dfb14d, #3f9d88);
+      transition: width 140ms ease;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 54px;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.86rem;
+    }
+
+    .track {
+      height: 13px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .track > span {
+      display: block;
+      width: 0%;
+      height: 100%;
+      background: #3f9d88;
+    }
+
+    .log {
+      display: grid;
+      gap: 6px;
+      max-height: 188px;
+      overflow: auto;
+      padding-right: 4px;
+      color: #c9c0b0;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .log div {
+      border-top: 1px solid rgba(247, 242, 232, 0.1);
+      padding-top: 6px;
+    }
+
+    .badge {
+      border: 1px solid rgba(63, 157, 136, 0.36);
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: #b7f0df;
+      white-space: nowrap;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 8px;
+      color: #f7f2e8;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #dfb14d;
+      box-shadow: 0 0 16px rgba(223, 177, 77, 0.55);
+    }
+
+    .dot.hot {
+      background: #3f9d88;
+      box-shadow: 0 0 16px rgba(63, 157, 136, 0.65);
+    }
+
+    footer {
+      grid-column: 1 / -1;
+      color: #9f9787;
+      font-size: 0.84rem;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Object Detector Zone Dwell Timer</h1>
+        <p>MediaPipe Object Detector の bbox を、ゾーン侵入、滞在秒数、警告ゲートへ変換する自作ミニサンプル。カメラがなくても合成検出で動きます。</p>
+      </div>
+      <div class="badge">2026-08-18 original sample</div>
+    </header>
+
+    <section class="stage">
+      <div class="panel viewer">
+        <video id="camera" playsinline muted></video>
+        <canvas id="view" width="960" height="720" aria-label="Object detector zone dwell visualization"></canvas>
+      </div>
+      <div class="panel controls">
+        <div class="control">
+          <label for="zoneSize">Zone width</label>
+          <input id="zoneSize" type="range" min="22" max="58" value="36">
+        </div>
+        <div class="control">
+          <label for="threshold">Score threshold</label>
+          <input id="threshold" type="range" min="20" max="90" value="48">
+        </div>
+        <div class="control">
+          <label for="dwell">Dwell alert sec</label>
+          <input id="dwell" type="range" min="1" max="8" value="3">
+        </div>
+        <div class="control">
+          <label for="speed">Synthetic speed</label>
+          <input id="speed" type="range" min="20" max="140" value="78">
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>Run controls</h2>
+        <div class="actions">
+          <button id="demoBtn" type="button">Demo stream</button>
+          <button id="loadBtn" type="button" class="secondary">Load model</button>
+          <button id="cameraBtn" type="button" class="secondary">Start camera</button>
+        </div>
+        <p class="status"><span id="statusDot" class="dot"></span><span id="statusText">synthetic detections</span></p>
+      </section>
+
+      <section class="panel">
+        <h2>Readout</h2>
+        <div class="metrics">
+          <div class="metric"><span class="metric-label">visible detections</span><strong id="countReadout">0</strong></div>
+          <div class="metric"><span class="metric-label">in zone</span><strong id="zoneReadout">0</strong></div>
+          <div class="metric"><span class="metric-label">max dwell</span><strong id="dwellReadout">0.0s</strong></div>
+          <div class="metric"><span class="metric-label">runtime</span><strong id="runtimeReadout">demo</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Zone dwell</h2>
+        <div class="meter"><span id="dwellMeter"></span></div>
+        <p id="gateText">ゾーン内の object が alert 秒数を超えると HOLD として記録します。</p>
+      </section>
+
+      <section class="panel">
+        <h2>Tracked objects</h2>
+        <div id="rows" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Run log</h2>
+        <div id="log" class="log"></div>
+      </section>
+    </aside>
+
+    <footer>References: Google AI Edge Object Detector Web guide, ObjectDetector JS API, MediaPipe Tasks Vision docs, and google-ai-edge/mediapipe-samples-web.</footer>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById("view");
+    const ctx = canvas.getContext("2d");
+    const video = document.getElementById("camera");
+    const zoneSize = document.getElementById("zoneSize");
+    const threshold = document.getElementById("threshold");
+    const dwell = document.getElementById("dwell");
+    const speed = document.getElementById("speed");
+    const demoBtn = document.getElementById("demoBtn");
+    const loadBtn = document.getElementById("loadBtn");
+    const cameraBtn = document.getElementById("cameraBtn");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const countReadout = document.getElementById("countReadout");
+    const zoneReadout = document.getElementById("zoneReadout");
+    const dwellReadout = document.getElementById("dwellReadout");
+    const runtimeReadout = document.getElementById("runtimeReadout");
+    const dwellMeter = document.getElementById("dwellMeter");
+    const gateText = document.getElementById("gateText");
+    const rows = document.getElementById("rows");
+    const log = document.getElementById("log");
+
+    const modelUrl = "https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite";
+    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
+    const bundleUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs";
+    const colors = ["#3f9d88", "#dfb14d", "#d97568", "#78a7d8", "#b184d6"];
+    const dwellById = new Map();
+    const lastSeen = new Map();
+    let detector = null;
+    let mode = "demo";
+    let raf = 0;
+    let lastVideoTime = -1;
+    let lastTs = performance.now();
+
+    function addLog(message) {
+      const item = document.createElement("div");
+      item.textContent = `${new Date().toLocaleTimeString()} ${message}`;
+      log.prepend(item);
+      while (log.children.length > 9) log.lastElementChild.remove();
+    }
+
+    function setStatus(text, hot = false) {
+      statusText.textContent = text;
+      statusDot.classList.toggle("hot", hot);
+    }
+
+    function zoneRect() {
+      const width = canvas.width * (Number(zoneSize.value) / 100);
+      return {
+        x: canvas.width * 0.5 - width * 0.5,
+        y: canvas.height * 0.14,
+        width,
+        height: canvas.height * 0.72
+      };
+    }
+
+    function intersects(a, b) {
+      return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    }
+
+    function centerOf(box) {
+      return { x: box.x + box.width * 0.5, y: box.y + box.height * 0.5 };
+    }
+
+    function syntheticDetections(t) {
+      const s = Number(speed.value) / 100;
+      const items = [
+        { id: "person-a", label: "person", score: 0.82, w: 142, h: 250, y: 290, phase: 0 },
+        { id: "cup-b", label: "cup", score: 0.66, w: 74, h: 92, y: 430, phase: 2.1 },
+        { id: "chair-c", label: "chair", score: 0.57, w: 156, h: 154, y: 388, phase: 4.2 }
+      ];
+      return items.map((item) => {
+        const wave = Math.sin(t * 0.00042 * s + item.phase);
+        const drift = Math.cos(t * 0.00027 * s + item.phase) * 28;
+        return {
+          id: item.id,
+          label: item.label,
+          score: Math.max(0.22, Math.min(0.95, item.score + Math.sin(t * 0.001 + item.phase) * 0.08)),
+          box: {
+            x: canvas.width * (0.48 + wave * 0.34) - item.w * 0.5,
+            y: item.y + drift,
+            width: item.w,
+            height: item.h
+          }
+        };
+      });
+    }
+
+    function normalizeResult(result, sourceWidth = canvas.width, sourceHeight = canvas.height) {
+      const scaleX = canvas.width / Math.max(1, sourceWidth);
+      const scaleY = canvas.height / Math.max(1, sourceHeight);
+      return (result?.detections || []).map((detection, index) => {
+        const box = detection.boundingBox || {};
+        const category = detection.categories?.[0] || {};
+        const label = category.categoryName || category.displayName || `object-${index + 1}`;
+        const score = Number(category.score || 0);
+        return {
+          id: `${label}-${index}`,
+          label,
+          score,
+          box: {
+            x: Number(box.originX || 0) * scaleX,
+            y: Number(box.originY || 0) * scaleY,
+            width: Number(box.width || 0) * scaleX,
+            height: Number(box.height || 0) * scaleY
+          }
+        };
+      });
+    }
+
+    function drawBackdrop() {
+      ctx.fillStyle = "#171b16";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(247, 242, 232, 0.07)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 48) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawSyntheticScene(t) {
+      drawBackdrop();
+      ctx.fillStyle = "rgba(63, 157, 136, 0.13)";
+      ctx.fillRect(0, canvas.height * 0.62, canvas.width, canvas.height * 0.38);
+      ctx.fillStyle = "rgba(223, 177, 77, 0.1)";
+      ctx.beginPath();
+      ctx.arc(canvas.width * 0.22, canvas.height * 0.26, 72 + Math.sin(t * 0.001) * 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawZone(zone, alert) {
+      ctx.save();
+      ctx.fillStyle = alert ? "rgba(217, 117, 104, 0.18)" : "rgba(63, 157, 136, 0.12)";
+      ctx.strokeStyle = alert ? "#d97568" : "#3f9d88";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([12, 8]);
+      ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+      ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f7f2e8";
+      ctx.font = "700 24px Inter, system-ui, sans-serif";
+      ctx.fillText(alert ? "HOLD ZONE" : "WATCH ZONE", zone.x + 18, zone.y + 34);
+      ctx.restore();
+    }
+
+    function drawDetection(det, index, inZone, dwellSec) {
+      const color = inZone ? "#dfb14d" : colors[index % colors.length];
+      const { box } = det;
+      const c = centerOf(box);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = "rgba(16, 19, 15, 0.66)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.fillStyle = "rgba(16, 19, 15, 0.86)";
+      ctx.fillRect(box.x, Math.max(0, box.y - 30), Math.min(230, box.width + 72), 28);
+      ctx.fillStyle = "#f7f2e8";
+      ctx.font = "700 16px Inter, system-ui, sans-serif";
+      ctx.fillText(`${det.label} ${(det.score * 100).toFixed(0)}% ${dwellSec.toFixed(1)}s`, box.x + 8, Math.max(20, box.y - 10));
+      ctx.restore();
+    }
+
+    function updateRows(visible) {
+      rows.innerHTML = "";
+      visible.slice(0, 5).forEach((item) => {
+        const pct = Math.min(100, (item.dwellSec / Number(dwell.value)) * 100);
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `<span>${item.label}</span><span class="track"><span style="width:${pct}%"></span></span><span>${item.dwellSec.toFixed(1)}s</span>`;
+        rows.append(row);
+      });
+      if (!visible.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "threshold を超えた object はまだありません。";
+        rows.append(empty);
+      }
+    }
+
+    function updateState(detections, ts) {
+      const minScore = Number(threshold.value) / 100;
+      const dt = Math.min(0.1, Math.max(0, (ts - lastTs) / 1000));
+      lastTs = ts;
+      const zone = zoneRect();
+      const visible = detections
+        .filter((det) => det.score >= minScore && det.box.width > 0 && det.box.height > 0)
+        .map((det) => {
+          const inZone = intersects(det.box, zone);
+          const previous = dwellById.get(det.id) || 0;
+          const dwellSec = inZone ? previous + dt : Math.max(0, previous - dt * 1.8);
+          dwellById.set(det.id, dwellSec);
+          lastSeen.set(det.id, ts);
+          return { ...det, inZone, dwellSec };
+        });
+
+      for (const [id, seenAt] of lastSeen) {
+        if (ts - seenAt > 1600) {
+          lastSeen.delete(id);
+          dwellById.delete(id);
+        }
+      }
+
+      const maxDwell = visible.reduce((max, det) => Math.max(max, det.dwellSec), 0);
+      const alert = maxDwell >= Number(dwell.value);
+      countReadout.textContent = String(visible.length);
+      zoneReadout.textContent = String(visible.filter((det) => det.inZone).length);
+      dwellReadout.textContent = `${maxDwell.toFixed(1)}s`;
+      dwellMeter.style.width = `${Math.min(100, (maxDwell / Number(dwell.value)) * 100)}%`;
+      gateText.textContent = alert ? "HOLD: ゾーン内の滞在が alert 秒数を超えました。" : "WATCH: bbox 中心と重なりを監視中です。";
+      setStatus(mode === "camera" ? "camera object detection" : "synthetic detections", alert);
+      updateRows(visible);
+      return { visible, zone, alert };
+    }
+
+    function render(detections, ts) {
+      if (mode === "camera" && video.readyState >= 2) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      } else {
+        drawSyntheticScene(ts);
+      }
+      const state = updateState(detections, ts);
+      drawZone(state.zone, state.alert);
+      state.visible.forEach((det, index) => drawDetection(det, index, det.inZone, det.dwellSec));
+    }
+
+    async function loadModel() {
+      if (detector) return detector;
+      loadBtn.disabled = true;
+      setStatus("loading MediaPipe model");
+      try {
+        const visionModule = await import(bundleUrl);
+        const vision = await visionModule.FilesetResolver.forVisionTasks(wasmUrl);
+        detector = await visionModule.ObjectDetector.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: modelUrl, delegate: "CPU" },
+          scoreThreshold: Number(threshold.value) / 100,
+          maxResults: 6,
+          runningMode: "VIDEO"
+        });
+        addLog("ObjectDetector model loaded.");
+        setStatus("model ready", true);
+        return detector;
+      } catch (error) {
+        addLog(`Model load failed: ${error.message}`);
+        setStatus("model unavailable, demo active");
+        throw error;
+      } finally {
+        loadBtn.disabled = false;
+      }
+    }
+
+    async function startCamera() {
+      try {
+        await loadModel();
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        mode = "camera";
+        runtimeReadout.textContent = "camera";
+        addLog("Camera started; detectForVideo is running.");
+      } catch (error) {
+        mode = "demo";
+        runtimeReadout.textContent = "demo";
+        addLog(`Camera path unavailable: ${error.message}`);
+      }
+    }
+
+    async function tick(ts) {
+      let detections = syntheticDetections(ts);
+      if (mode === "camera" && detector && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+        try {
+          await detector.setOptions({ scoreThreshold: Number(threshold.value) / 100 });
+          const result = detector.detectForVideo(video, ts);
+          detections = normalizeResult(result, video.videoWidth, video.videoHeight);
+          lastVideoTime = video.currentTime;
+        } catch (error) {
+          addLog(`detectForVideo failed: ${error.message}`);
+          mode = "demo";
+          runtimeReadout.textContent = "demo";
+        }
+      }
+      render(detections, ts);
+      raf = requestAnimationFrame(tick);
+    }
+
+    demoBtn.addEventListener("click", () => {
+      mode = "demo";
+      runtimeReadout.textContent = "demo";
+      setStatus("synthetic detections");
+      addLog("Switched to synthetic detection stream.");
+    });
+
+    loadBtn.addEventListener("click", () => {
+      loadModel().catch(() => {});
+    });
+
+    cameraBtn.addEventListener("click", startCamera);
+
+    addLog("Demo stream ready.");
+    raf = requestAnimationFrame(tick);
+    window.addEventListener("beforeunload", () => cancelAnimationFrame(raf));
+  </script>
+</body>
+</html>
