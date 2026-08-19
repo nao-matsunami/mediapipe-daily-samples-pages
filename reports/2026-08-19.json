@@ -1,0 +1,138 @@
+{
+  "date": "2026-08-19",
+  "category": "MediaPipe Tasks / Web ML",
+  "headline": "detectForVideo の前にフレーム予算を決める Governor",
+  "headlineEn": "A frame-budget governor before detectForVideo loops",
+  "summary": "Google AI Edge の Hand / Face / Object Web guides と公式 MediaPipe samples web を参考に、連続 `detectForVideo()` を何 fps で回すべきかを試す自作ミニサンプルを追加しました。カメラ FPS、推論コスト、Worker lane、キュー上限、adaptive skip を動かすと、UI thread ブロック、古いフレーム処理、drop の関係を 60 フレームのタイムラインで確認できます。",
+  "summaryEn": "Based on the Google AI Edge Hand / Face / Object Web guides and the official MediaPipe samples web app, this adds an original mini sample for testing what FPS a continuous `detectForVideo()` loop should use. Adjust camera FPS, inference cost, Worker lane, queue limits, and adaptive skipping to inspect UI-thread blocking, stale-frame processing, and drops on a 60-frame timeline.",
+  "keyTopics": [
+    "Hand Landmarker Web guide は `@mediapipe/tasks-vision`、CDN import、`FilesetResolver.forVisionTasks()`、`createFromOptions()`、`detect()` / `detectForVideo()` の使い分けを説明している。",
+    "Hand / Face / Object の Web guide は、`detect()` と `detectForVideo()` が同期的に実行され UI thread をブロックし得るため、カメラ連続処理では Web Worker への退避を検討すべきだと示している。",
+    "Hand Landmarker の video mode では tracking confidence により重い palm detection を毎フレーム走らせない考え方があり、フレーム予算設計の参考になる。",
+    "Object Detector Web guide は `runningMode: VIDEO`、`scoreThreshold`、`maxResults`、allowlist / denylist など、連続ループで処理量を制御する設定を整理している。",
+    "公式 MediaPipe samples web はブラウザ内で複数 Task を動かす実装参考になるが、今日の公開カードは公式デモ一覧ではなく、自作の frame-budget governor を中心にした。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide explains `@mediapipe/tasks-vision`, CDN imports, `FilesetResolver.forVisionTasks()`, `createFromOptions()`, and the `detect()` / `detectForVideo()` split.",
+    "The Hand / Face / Object Web guides state that `detect()` and `detectForVideo()` run synchronously and can block the UI thread, so continuous camera processing should consider Web Workers.",
+    "Hand Landmarker video mode uses tracking confidence so heavier palm detection does not need to run every frame, which is a useful concept for frame-budget design.",
+    "The Object Detector Web guide documents `runningMode: VIDEO`, `scoreThreshold`, `maxResults`, and allowlist / denylist options that help control work in continuous loops.",
+    "The official MediaPipe samples web app is a browser Task implementation reference, while today's public card centers the original frame-budget governor rather than an external demo list."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: Vision Task Frame Budget Governor",
+      "url": "../outputs/2026-08-19_vision_task_frame_budget_governor.html"
+    },
+    {
+      "label": "Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Face landmark detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
+    },
+    {
+      "label": "Object detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/object_detector/web_js"
+    },
+    {
+      "label": "Official MediaPipe Web Task Demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe samples repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe Task の結果描画ではなく、結果を得る前段の「何 fps で推論を投げるか」を UI として扱うことです。公式 Web guide は `detectForVideo()` が同期実行で UI thread を塞ぎ得ると説明しているため、実アプリでは Worker、間引き、キュー上限、古いフレーム破棄の方針が必要になります。自作サンプルでは推論コストと jitter を動かし、古いフレームが積み上がる状況と、最新フレーム優先で drop する状況を見比べられます。",
+      "bodyEn": "Today's notable angle is not rendering MediaPipe Task results, but treating the pre-result question, 'what FPS should inference run at?', as an interface. The official Web guides explain that `detectForVideo()` is synchronous and may block the UI thread, so real apps need policies for Workers, throttling, queue limits, and stale-frame dropping. The original sample lets you adjust inference cost and jitter, then compare stale-frame buildup with latest-frame-first dropping.",
+      "links": [
+        {
+          "label": "Hand landmarks detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "UI は synthetic camera stream、live budget、last 60 frames、governor controls、decision hint、run log に分けました。Camera source fps、target inference fps、median inference cost、jitter、max queued frames、Worker lane、adaptive skip を操作すると、draw only、inference finished、queued、dropped がタイムライン上で色分けされます。任意の `tasks-vision` CDN / WASM resolver probe もあり、モデルやカメラを要求せずに MediaPipe Web の読み込み面だけ確認できます。",
+      "bodyEn": "The UI is split into synthetic camera stream, live budget, last 60 frames, governor controls, decision hint, and run log. Adjust camera source FPS, target inference FPS, median inference cost, jitter, max queued frames, Worker lane, and adaptive skip, and the timeline separates draw-only, inference-finished, queued, and dropped frames by color. An optional `tasks-vision` CDN / WASM resolver probe checks the MediaPipe Web loading surface without requiring a model or camera.",
+      "links": [
+        {
+          "label": "Open Vision Task Frame Budget Governor",
+          "url": "../outputs/2026-08-19_vision_task_frame_budget_governor.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは camera fps、target inference fps、推論 cost、jitter、Worker mode、adaptive skip、queue length、drop count、completed inference count、60 フレームの状態列、CDN probe の成否です。Hand / Face / Pose / Object の各 `detectForVideo()` 実測 ms をこの UI に流し込めば、端末別の推奨 fps、低電力モード、録画中だけの高精度モード、IndexedDB への perf log、Web Worker / OffscreenCanvas 比較に発展できます。",
+      "bodyEn": "The sample can accumulate camera FPS, target inference FPS, inference cost, jitter, Worker mode, adaptive skip, queue length, drop count, completed inference count, a 60-frame state sequence, and CDN probe results. Feeding real `detectForVideo()` timings from Hand, Face, Pose, or Object tasks into this UI could lead to device-specific recommended FPS, low-power modes, high-accuracy recording modes, IndexedDB performance logs, and Web Worker / OffscreenCanvas comparisons."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "公式 guide の `requestAnimationFrame()` ループは入口として分かりやすい一方、毎フレーム同期推論を呼ぶと描画と入力の応答を巻き込みます。実装では `lastInferAt` で target fps を守り、Worker lane では pending queue を 1 本だけ処理、上限超過時は drop、adaptive skip 有効時は queue が伸びる前に推論投入を抑制します。実モデルに置き換える場合は、`detectForVideo(video, timestamp)` の前後で `performance.now()` を測り、median cost と jitter に反映します。",
+      "bodyEn": "The official guide's `requestAnimationFrame()` loop is a clear entry point, but calling synchronous inference every frame can drag rendering and input responsiveness with it. The implementation keeps target FPS via `lastInferAt`, processes one pending job in the Worker lane, drops when the queue exceeds the limit, and suppresses new inference before the queue grows when adaptive skip is enabled. With a real model, measure around `detectForVideo(video, timestamp)` using `performance.now()` and feed the median cost and jitter back into the governor.",
+      "links": [
+        {
+          "label": "Face landmark detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は mediapipe-samples-web の Worker 実装、各 Task の `runningMode` 差分、`@mediapipe/tasks-vision` CDN version、MediaPipe releases、Hand Landmarker の tracking confidence、Object Detector の allowlist / denylist、OffscreenCanvas と transfer 可能な frame / bitmap の扱いを追います。特に Worker 化は、推論結果の返却タイミングと古いフレーム破棄の設計が実装品質に直結します。",
+      "bodyEn": "Next watch Worker implementations in mediapipe-samples-web, `runningMode` differences across Tasks, `@mediapipe/tasks-vision` CDN versions, MediaPipe releases, Hand Landmarker tracking confidence, Object Detector allowlists / denylists, and OffscreenCanvas plus transferable frame / bitmap handling. Worker execution especially ties implementation quality to result-return timing and stale-frame dropping.",
+      "links": [
+        {
+          "label": "Official MediaPipe samples web repository",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Worker lane をオフにして、median inference cost を 50ms 以上、target inference fps を 20fps 以上に上げ、main thread lane busy の状態を確認します。次に Worker lane と adaptive skip をオンにし、drop は増えても queue が短く保たれることを見ます。最後に Check tasks-vision CDN を押して、`@mediapipe/tasks-vision@0.10.35` と WASM resolver が到達可能かを確認します。",
+      "bodyEn": "First turn Worker lane off, raise median inference cost above 50 ms and target inference FPS above 20 FPS, and observe the main-thread-busy state. Then turn Worker lane and adaptive skip on and confirm that the queue stays short even if drops increase. Finally press Check tasks-vision CDN to verify that `@mediapipe/tasks-vision@0.10.35` and the WASM resolver are reachable.",
+      "links": [
+        {
+          "label": "Open today's sample",
+          "url": "../outputs/2026-08-19_vision_task_frame_budget_governor.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Hand Landmarker Web guide、Face Landmarker Web guide、Object Detector Web guide、公式 MediaPipe Web Task Demo、google-ai-edge/mediapipe-samples-web、google-ai-edge/mediapipe-samples を確認。設計: 公式デモをカード化せず、自作サンプルの中心をフレーム予算、Worker lane、queue、drop、adaptive skip に置く。実装: synthetic frame stream、60-frame timeline、budget metrics、sliders、decision hint、run log、tasks-vision CDN probe を追加。検証: JSON parse、HTML 生成、gallery build、publish command、公開 URL の HTTP 応答を確認する。",
+      "bodyEn": "Research: checked the Hand Landmarker Web guide, Face Landmarker Web guide, Object Detector Web guide, official MediaPipe Web Task Demo, google-ai-edge/mediapipe-samples-web, and google-ai-edge/mediapipe-samples. Design: avoid making official demos into public cards and center the original sample on frame budgets, Worker lane, queues, drops, and adaptive skip. Implementation: added a synthetic frame stream, 60-frame timeline, budget metrics, sliders, decision hint, run log, and tasks-vision CDN probe. Validation: check JSON parse, HTML generation, gallery build, publish command, and public URL HTTP responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの日次サンプルは、Hand、Face、Pose、Object、Segmentation、Text、Audio などの Task 結果を UI イベントに変換してきました。今日はその共通基盤である連続推論ループの設計を扱いました。Web ML の体験品質は、モデル精度だけでなく、どのフレームを処理し、どのフレームを捨て、結果をどの遅延で UI に戻すかで大きく変わります。",
+      "bodyEn": "Previous daily samples converted Task results from Hand, Face, Pose, Object, Segmentation, Text, and Audio into UI events. Today handles the shared foundation: continuous inference-loop design. Web ML experience quality depends not only on model accuracy, but also on which frames are processed, which frames are discarded, and how quickly results return to the UI."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `Vision Task Frame Budget Governor` です。実際に動く部分は合成カメラフレーム、推論ジョブの queue / finish / drop シミュレーション、Worker lane 切り替え、adaptive skip、60 フレーム可視化、判断ヒント、`tasks-vision` CDN probe です。次に足すなら実カメラ + 実 `detectForVideo()` の計測、Worker 実装、OffscreenCanvas、IndexedDB perf log、端末別 preset、Task 別モデル cost profile を追加します。",
+      "bodyEn": "The selected prototype is `Vision Task Frame Budget Governor`. The working pieces are synthetic camera frames, inference job queue / finish / drop simulation, Worker lane switching, adaptive skip, 60-frame visualization, decision hints, and a `tasks-vision` CDN probe. Next additions should include real camera plus real `detectForVideo()` measurement, Worker implementation, OffscreenCanvas, IndexedDB performance logs, device-specific presets, and per-Task model cost profiles."
+    }
+  ]
+}

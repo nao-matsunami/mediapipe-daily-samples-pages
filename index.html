@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">OpenCV.js</span></p></div><p class="date">19 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">20 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-19</span><span class="badge">MediaPipe Tasks / Web ML</span></p>
+      <h2>detectForVideo の前にフレーム予算を決める Governor</h2>
+      <p class="en">A frame-budget governor before detectForVideo loops</p>
+      <p>Google AI Edge の Hand / Face / Object Web guides と公式 MediaPipe samples web を参考に、連続 `detectForVideo()` を何 fps で回すべきかを試す自作ミニサンプルを追加しました。カメラ FPS、推論コスト、Worker lane、キュー上限、adaptive skip を動かすと、UI thread ブロック、古いフレーム処理、drop の関係を 60 フレームのタイムラインで確認できます。</p>
+      <div class="actions">
+        <a href="days/2026-08-19.html">日付ページ</a>
+        <a href="outputs/2026-08-19_vision_task_frame_budget_governor.html">サンプル</a>
+      </div>
+      
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-18</span><span class="badge">MediaPipe Tasks</span></p>
       <h2>Object Detector の bbox をゾーン滞在タイマーにする</h2>
       <p class="en">Turn Object Detector boxes into a zone dwell timer</p>

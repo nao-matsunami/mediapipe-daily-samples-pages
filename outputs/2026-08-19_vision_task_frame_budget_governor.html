@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vision Task Frame Budget Governor</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0c1110;
+      color: #f4f7ef;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(77, 166, 132, 0.17), transparent 36%),
+        linear-gradient(315deg, rgba(221, 167, 74, 0.15), transparent 44%),
+        #0c1110;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(244, 247, 239, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 3.8vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #c8cebf;
+      line-height: 1.62;
+    }
+
+    button, input, select {
+      min-height: 38px;
+      border: 1px solid rgba(244, 247, 239, 0.16);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #f4f7ef;
+      font: inherit;
+    }
+
+    button {
+      padding: 8px 11px;
+      cursor: pointer;
+      border-color: rgba(77, 166, 132, 0.56);
+      background: rgba(77, 166, 132, 0.18);
+    }
+
+    button.secondary {
+      border-color: rgba(221, 167, 74, 0.52);
+      background: rgba(221, 167, 74, 0.13);
+    }
+
+    button:disabled {
+      opacity: 0.58;
+      cursor: wait;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #4da684;
+    }
+
+    .stage, .side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid rgba(244, 247, 239, 0.14);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(12, 17, 16, 0.86);
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    .viewport {
+      position: relative;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      min-height: 330px;
+      background: #151a18;
+      padding: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .toolbar, .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid rgba(244, 247, 239, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      min-width: 0;
+    }
+
+    .metric span, label span {
+      display: block;
+      color: #92a194;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 1.35rem;
+      white-space: nowrap;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: #dfe5d8;
+      font-size: 0.9rem;
+    }
+
+    .switch {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid rgba(244, 247, 239, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .switch input {
+      width: 18px;
+      min-height: 18px;
+      accent-color: #dda74a;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(60, minmax(3px, 1fr));
+      gap: 3px;
+      min-height: 58px;
+      align-items: end;
+    }
+
+    .tick {
+      height: 18px;
+      border-radius: 2px;
+      background: rgba(146, 161, 148, 0.34);
+    }
+
+    .tick.infer { background: #4da684; height: 38px; }
+    .tick.drop { background: #d96b55; height: 30px; }
+    .tick.queue { background: #dda74a; height: 46px; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: #b5bfae;
+      font-size: 0.82rem;
+    }
+
+    .legend i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 5px;
+      border-radius: 2px;
+      background: #92a194;
+    }
+
+    .legend .infer { background: #4da684; }
+    .legend .drop { background: #d96b55; }
+    .legend .queue { background: #dda74a; }
+
+    .log {
+      display: grid;
+      gap: 6px;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 4px;
+      font-size: 0.84rem;
+    }
+
+    .log div {
+      border-left: 3px solid rgba(77, 166, 132, 0.7);
+      padding: 6px 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #dbe2d4;
+    }
+
+    .status {
+      color: #f1c66c;
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .viewport { min-height: 250px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Vision Task Frame Budget Governor</h1>
+        <p>MediaPipe Tasks の連続 `detectForVideo()` を、何 fps で投げると詰まるかを可視化する自作ミニ検証器。</p>
+      </div>
+      <div class="toolbar">
+        <button id="toggle">Pause</button>
+        <button id="reset" class="secondary">Reset</button>
+      </div>
+    </header>
+
+    <section class="stage">
+      <div class="panel viewport">
+        <canvas id="scene" width="960" height="540" aria-label="frame budget simulation"></canvas>
+      </div>
+
+      <div class="panel">
+        <h2>Live budget</h2>
+        <div class="metric-grid">
+          <div class="metric"><span>Camera FPS</span><strong id="cameraFpsText">30</strong></div>
+          <div class="metric"><span>Inference FPS</span><strong id="inferFps">0</strong></div>
+          <div class="metric"><span>Queue</span><strong id="queueText">0</strong></div>
+          <div class="metric"><span>Dropped</span><strong id="dropText">0</strong></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Last 60 frames</h2>
+        <div id="timeline" class="timeline"></div>
+        <p class="legend">
+          <span><i></i>draw only</span>
+          <span><i class="infer"></i>inference finished</span>
+          <span><i class="queue"></i>queued</span>
+          <span><i class="drop"></i>dropped</span>
+        </p>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="panel">
+        <h2>Governor controls</h2>
+        <label><span>Camera source fps</span><input id="cameraFps" type="range" min="12" max="60" value="30"></label>
+        <label><span>Target inference fps</span><input id="targetFps" type="range" min="2" max="30" value="12"></label>
+        <label><span>Median inference cost ms</span><input id="cost" type="range" min="8" max="95" value="34"></label>
+        <label><span>Jitter ms</span><input id="jitter" type="range" min="0" max="42" value="12"></label>
+        <label><span>Max queued frames</span><input id="maxQueue" type="range" min="0" max="8" value="2"></label>
+        <label class="switch"><span>Run MediaPipe task in Worker lane</span><input id="workerMode" type="checkbox" checked></label>
+        <label class="switch"><span>Adaptive skip when queue grows</span><input id="adaptive" type="checkbox" checked></label>
+        <div class="row">
+          <button id="probe">Check tasks-vision CDN</button>
+        </div>
+        <p id="probeStatus" class="status">CDN probe has not run.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Decision hint</h2>
+        <p id="hint">推論コストと目標 fps を調整してください。</p>
+      </div>
+
+      <div class="panel">
+        <h2>Run log</h2>
+        <div id="log" class="log"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("scene");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      cameraFps: $("cameraFps"),
+      targetFps: $("targetFps"),
+      cost: $("cost"),
+      jitter: $("jitter"),
+      maxQueue: $("maxQueue"),
+      workerMode: $("workerMode"),
+      adaptive: $("adaptive")
+    };
+    const state = {
+      running: true,
+      frame: 0,
+      lastFrameAt: performance.now(),
+      lastInferAt: 0,
+      queue: [],
+      active: [],
+      dropped: 0,
+      completed: 0,
+      timeline: [],
+      fpsWindow: [],
+      particles: Array.from({ length: 18 }, (_, index) => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: 14 + (index % 5) * 3,
+        vx: 0.55 + (index % 4) * 0.18,
+        vy: 0.35 + (index % 3) * 0.14
+      }))
+    };
+
+    function log(message) {
+      const line = document.createElement("div");
+      line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
+      $("log").prepend(line);
+      while ($("log").children.length > 8) $("log").lastElementChild.remove();
+    }
+
+    function value(id) {
+      return Number(controls[id].value);
+    }
+
+    function reset() {
+      Object.assign(state, {
+        frame: 0,
+        lastFrameAt: performance.now(),
+        lastInferAt: 0,
+        queue: [],
+        active: [],
+        dropped: 0,
+        completed: 0,
+        timeline: [],
+        fpsWindow: []
+      });
+      log("Budget counters reset.");
+    }
+
+    function inferenceCost() {
+      const base = value("cost");
+      const jitter = value("jitter");
+      return Math.max(4, base + (Math.random() - 0.5) * jitter * 2);
+    }
+
+    function maybeSchedule(now) {
+      const interval = 1000 / value("targetFps");
+      const adaptiveSkip = controls.adaptive.checked && state.queue.length > Math.max(0, value("maxQueue") - 1);
+      if (now - state.lastInferAt < interval || adaptiveSkip) return "draw";
+
+      state.lastInferAt = now;
+      const job = { id: state.frame, start: now, finish: now + inferenceCost() };
+      const totalPending = state.queue.length + state.active.length;
+      const capacity = controls.workerMode.checked ? value("maxQueue") + 1 : 1;
+
+      if (totalPending >= capacity) {
+        state.dropped += 1;
+        return "drop";
+      }
+      if (controls.workerMode.checked && state.active.length > 0) {
+        state.queue.push(job);
+        return "queue";
+      }
+      state.active.push(job);
+      return "queue";
+    }
+
+    function completeJobs(now) {
+      const finished = [];
+      state.active = state.active.filter((job) => {
+        if (job.finish <= now) {
+          finished.push(job);
+          return false;
+        }
+        return true;
+      });
+      if (finished.length) {
+        state.completed += finished.length;
+        state.fpsWindow.push(...finished.map((job) => job.finish));
+      }
+      if (controls.workerMode.checked) {
+        while (state.active.length < 1 && state.queue.length) {
+          const next = state.queue.shift();
+          next.start = now;
+          next.finish = now + inferenceCost();
+          state.active.push(next);
+        }
+      }
+      state.fpsWindow = state.fpsWindow.filter((time) => now - time < 1000);
+      return finished.length;
+    }
+
+    function updateMetrics(now) {
+      $("cameraFpsText").textContent = value("cameraFps");
+      $("inferFps").textContent = state.fpsWindow.length;
+      $("queueText").textContent = String(state.queue.length + state.active.length);
+      $("dropText").textContent = String(state.dropped);
+      const budget = 1000 / value("targetFps");
+      const cost = value("cost");
+      const pending = state.queue.length + state.active.length;
+      if (!controls.workerMode.checked && cost > budget) {
+        $("hint").textContent = "main thread で目標 fps に対して推論コストが重く、UI 停止が出やすい設定です。Worker lane か target fps を下げるのが妥当です。";
+      } else if (pending > value("maxQueue")) {
+        $("hint").textContent = "queue が上限に近く、古いフレームを処理する危険があります。adaptive skip を有効にするか推論 fps を下げます。";
+      } else if (state.dropped > 0 && controls.adaptive.checked) {
+        $("hint").textContent = "drop は出ていますが adaptive skip で最新フレーム優先に寄せられています。履歴保存が必要なら drop event を JSONL 化します。";
+      } else {
+        $("hint").textContent = "現在の設定は連続 Vision Task の試作に使いやすい範囲です。実機では `detectForVideo()` の実測 ms で cost を置き換えます。";
+      }
+      const timeline = $("timeline");
+      timeline.replaceChildren(...state.timeline.slice(-60).map((type) => {
+        const tick = document.createElement("span");
+        tick.className = `tick ${type}`;
+        return tick;
+      }));
+    }
+
+    function draw(now, completed) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grad.addColorStop(0, "#141c19");
+      grad.addColorStop(1, "#202018");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = "rgba(244,247,239,.12)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 80) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      const speed = state.running ? 1 : 0;
+      state.particles.forEach((p, index) => {
+        p.x += p.vx * speed;
+        p.y += p.vy * speed;
+        if (p.x > canvas.width + p.r) p.x = -p.r;
+        if (p.y > canvas.height + p.r) p.y = -p.r;
+        ctx.fillStyle = index % 3 === 0 ? "#4da684" : index % 3 === 1 ? "#dda74a" : "#d96b55";
+        ctx.globalAlpha = 0.58;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      const activeWidth = Math.min(canvas.width - 120, (state.queue.length + state.active.length) * 80);
+      ctx.fillStyle = "rgba(221,167,74,.18)";
+      ctx.fillRect(60, canvas.height - 86, activeWidth, 22);
+      ctx.strokeStyle = completed ? "#4da684" : "rgba(244,247,239,.34)";
+      ctx.strokeRect(60, canvas.height - 86, canvas.width - 120, 22);
+      ctx.fillStyle = "#f4f7ef";
+      ctx.font = "16px system-ui";
+      ctx.fillText(`frame ${state.frame} / pending ${state.queue.length + state.active.length} / completed ${state.completed}`, 60, canvas.height - 102);
+
+      if (!controls.workerMode.checked && state.active.length) {
+        ctx.fillStyle = "rgba(217,107,85,.2)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#f4f7ef";
+        ctx.font = "28px system-ui";
+        ctx.fillText("main thread lane busy", 60, 72);
+      }
+    }
+
+    function tick(now) {
+      const frameInterval = 1000 / value("cameraFps");
+      const completed = completeJobs(now);
+      if (state.running && now - state.lastFrameAt >= frameInterval) {
+        state.lastFrameAt = now;
+        state.frame += 1;
+        let event = maybeSchedule(now);
+        if (completed) event = "infer";
+        state.timeline.push(event);
+        if (state.timeline.length > 60) state.timeline.shift();
+      } else if (completed && state.timeline.length) {
+        state.timeline[state.timeline.length - 1] = "infer";
+      }
+      draw(now, completed);
+      updateMetrics(now);
+      requestAnimationFrame(tick);
+    }
+
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Pause" : "Resume";
+      log(state.running ? "Simulation resumed." : "Simulation paused.");
+    });
+    $("reset").addEventListener("click", reset);
+    Object.values(controls).forEach((control) => {
+      control.addEventListener("input", () => {
+        log(`Controls changed: camera ${value("cameraFps")}fps, target ${value("targetFps")}fps, cost ${value("cost")}ms.`);
+      });
+    });
+    $("probe").addEventListener("click", async () => {
+      $("probe").disabled = true;
+      $("probeStatus").textContent = "Checking @mediapipe/tasks-vision and WASM resolver...";
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs");
+        await mod.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm");
+        $("probeStatus").textContent = "tasks-vision 0.10.35 CDN and WASM resolver are reachable.";
+        log("MediaPipe tasks-vision CDN probe succeeded.");
+      } catch (error) {
+        $("probeStatus").textContent = `CDN probe failed: ${error.message}`;
+        log("MediaPipe tasks-vision CDN probe failed.");
+      } finally {
+        $("probe").disabled = false;
+      }
+    });
+
+    log("Synthetic frame stream started.");
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
