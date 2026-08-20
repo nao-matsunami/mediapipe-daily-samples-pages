@@ -1,0 +1,134 @@
+{
+  "date": "2026-08-20",
+  "category": "MediaPipe Tasks GenAI / Web ML",
+  "headline": "生成ストリームを途中停止できる GenAI コンソール",
+  "headlineEn": "A GenAI console for cancellable response streams",
+  "summary": "Google AI Edge の LLM Inference Web guide と公式 LLM Inference sample を参考に、`generateResponse()` の streaming callback、`cancelProcessing()`、Gemma-3n の text / image / audio 入力構成をモデルなしで試せる自作ミニサンプルを追加しました。大容量モデルを同梱せず、partial result を残すか、入力片が maxTokens を圧迫するか、WebGPU / `@mediapipe/tasks-genai` CDN が到達可能かをブラウザ内で確認できます。",
+  "summaryEn": "Based on the Google AI Edge LLM Inference Web guide and the official LLM Inference sample, this adds an original mini sample for trying `generateResponse()` streaming callbacks, `cancelProcessing()`, and Gemma-3n text / image / audio input composition without bundling a model. It lets you inspect whether partial results are retained, how input pieces pressure `maxTokens`, and whether WebGPU / the `@mediapipe/tasks-genai` CDN are reachable.",
+  "keyTopics": [
+    "LLM Inference Web guide は、MediaPipe LLM Inference API が maintenance-only で、Web projects は LiteRT-LM JavaScript API への移行が推奨されていると明記している。",
+    "Web 版 LLM Inference は WebGPU compatible browser を前提にし、`@mediapipe/tasks-genai` と `FilesetResolver.forGenAiTasks()` から初期化する。",
+    "`generateResponse()` は Promise 形式だけでなく streaming callback 形式でも使え、partial result を UI に追記できる。",
+    "公式 LLM Inference sample は local model file を読み込み、streaming 中の cancel button から `llmInference.cancelProcessing()` を呼ぶ最小構成を示している。",
+    "Gemma-3n の Web API は `maxNumImages` と `supportAudio` により、text / image / audio を順序付き prompt array として扱える。"
+  ],
+  "keyTopicsEn": [
+    "The LLM Inference Web guide states that the MediaPipe LLM Inference API is maintenance-only and recommends migrating Web projects to the LiteRT-LM JavaScript API.",
+    "The Web LLM Inference path expects a WebGPU-compatible browser and initializes through `@mediapipe/tasks-genai` and `FilesetResolver.forGenAiTasks()`.",
+    "`generateResponse()` supports both a Promise form and a streaming callback form that can append partial results into the UI.",
+    "The official LLM Inference sample loads a local model file and uses a cancel button to call `llmInference.cancelProcessing()` while streaming.",
+    "Gemma-3n Web APIs can handle ordered prompt arrays containing text, image, and audio when `maxNumImages` and `supportAudio` are enabled."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: GenAI Stream Cancel Console",
+      "url": "../outputs/2026-08-20_genai_stream_cancel_console.html"
+    },
+    {
+      "label": "LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "Official LLM Inference Web sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples/blob/main/examples/llm_inference/js/index.html"
+    },
+    {
+      "label": "@mediapipe/tasks-genai on npm",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-genai"
+    },
+    {
+      "label": "MediaPipe Solutions guide",
+      "url": "https://www.mediapipe.dev/"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、LLM の回答内容そのものではなく、Web UI が生成途中の partial result と cancel をどう扱うかです。公式 LLM Inference Web guide は streaming callback と multimodal prompt を示し、公式 sample は local model file、partial append、`cancelProcessing()` を持つ最小構成になっています。自作サンプルでは大容量モデルを要求せず、生成中、完了、途中停止、partial result retained の状態を可視化し、実モデル導入前に UI 契約を決められるようにしました。",
+      "bodyEn": "Today's notable angle is not the generated answer itself, but how a Web UI handles partial results and cancellation during generation. The official LLM Inference Web guide shows streaming callbacks and multimodal prompts, while the official sample provides a compact local-model, partial-append, and `cancelProcessing()` flow. The original sample avoids requiring a large model and visualizes streaming, completion, cancellation, and retained partial results so the UI contract can be decided before real model integration.",
+      "links": [
+        {
+          "label": "LLM Inference guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "Prompt Packet、Generated Response、Token Timeline、Generation Options、Run Log に分け、text / image / audio の入力片が出力余地をどう圧迫するかを触れる構成にしました。Start simulated stream で partial result が増え、Cancel processing で途中停止状態に移ります。timeline は text、image、audio、cancel を色で分け、WebGPU / CDN probe は実行環境の入口だけを確認します。",
+      "bodyEn": "The interface is split into Prompt Packet, Generated Response, Token Timeline, Generation Options, and Run Log so users can feel how text / image / audio input pieces consume output budget. Start simulated stream grows partial results, and Cancel processing moves the run into a cancelled state. The timeline separates text, image, audio, and cancel events by color, while the WebGPU / CDN probe checks only the runtime entry point.",
+      "links": [
+        {
+          "label": "Open GenAI Stream Cancel Console",
+          "url": "../outputs/2026-08-20_genai_stream_cancel_console.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは prompt 長、template 使用有無、maxTokens、topK、temperature、simulated token rate、maxNumImages、supportAudio、partial token 数、cancel / complete 状態、timeline event、WebGPU / CDN probe 結果です。実モデルに置き換えれば、カメラ canvas、AudioBuffer、MediaPipe Vision Task の検出結果、Text Embedder の検索結果を ordered prompt array に混ぜ、途中停止可能な on-device assistant UI に発展できます。",
+      "bodyEn": "The sample can accumulate prompt length, template usage, `maxTokens`, `topK`, `temperature`, simulated token rate, `maxNumImages`, `supportAudio`, partial token count, cancel / complete state, timeline events, and WebGPU / CDN probe results. Replacing the simulator with a real model would allow camera canvases, AudioBuffers, MediaPipe Vision Task detections, and Text Embedder retrieval results to be mixed into an ordered prompt array for a cancellable on-device assistant UI."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "公式 sample のように local file から `modelAssetBuffer` を渡す形は、ユーザーが巨大モデルを自分で保持する検証 UI に向いています。一方で production では `modelAssetPath`、キャッシュ、進捗表示、WebGPU 非対応時の分岐が必要です。Streaming callback では partial result をそのまま DOM に追記するだけでなく、cancel 後に incomplete として保存するか破棄するかを state machine に入れておくと、誤って未完了出力を確定操作に使う事故を避けやすくなります。",
+      "bodyEn": "Passing `modelAssetBuffer` from a local file, as in the official sample, fits validation UIs where users bring their own large model. Production paths still need `modelAssetPath`, caching, progress display, and a branch for browsers without WebGPU. In a streaming callback, partial results should not only be appended to the DOM; the state machine should decide whether incomplete cancelled output is saved or discarded so it is not accidentally used as a finalized action.",
+      "links": [
+        {
+          "label": "Official LLM Inference Web sample",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples/blob/main/examples/llm_inference/js/index.html"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は LiteRT-LM JavaScript API の WebGPU API shape、MediaPipe LLM Inference からの移行差分、Gemma 4 prompt formatting、Gemma 3 turn template、Gemma-3n の canvas / video / AudioBuffer 入力、LoRA runtime loading、modelAssetPath と modelAssetBuffer の UX 差分を追います。特に maintenance-only の明記があるため、新規サンプルは GenAI の概念検証に留め、実装主軸は LiteRT-LM 側へ寄せていくのが妥当です。",
+      "bodyEn": "Next watch the LiteRT-LM JavaScript WebGPU API shape, migration differences from MediaPipe LLM Inference, Gemma 4 prompt formatting, the Gemma 3 turn template, Gemma-3n canvas / video / AudioBuffer inputs, LoRA runtime loading, and the UX differences between `modelAssetPath` and `modelAssetBuffer`. Since the guide explicitly marks the API as maintenance-only, new samples should keep GenAI concept validation here while shifting implementation focus toward LiteRT-LM.",
+      "links": [
+        {
+          "label": "LLM Inference guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Start simulated stream を押し、partial result が増える途中で Cancel processing を押してください。次に `maxNumImages` と `supportAudio` を増減し、maxTokens の残りがどう変わるかを見ます。最後に Probe WebGPU / CDN を押し、ブラウザが WebGPU と `@mediapipe/tasks-genai` の import に対応しているかを確認します。",
+      "bodyEn": "First press Start simulated stream, then press Cancel processing while partial results are still growing. Next adjust `maxNumImages` and `supportAudio` and observe how the remaining `maxTokens` budget changes. Finally press Probe WebGPU / CDN to check whether the browser supports WebGPU and importing `@mediapipe/tasks-genai`.",
+      "links": [
+        {
+          "label": "Open today's sample",
+          "url": "../outputs/2026-08-20_genai_stream_cancel_console.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: LLM Inference Web guide、公式 LLM Inference sample、`@mediapipe/tasks-genai` npm、MediaPipe Solutions guide、mediapipe-samples-web を確認。設計: 公式デモをカード化せず、自作サンプルの中心を streaming callback、cancel、multimodal input budget、probe に置く。実装: prompt packet、token estimate、simulated callback、cancel state、timeline、generation options、run log、WebGPU / CDN probe を追加。検証: JSON parse、gallery build、publish command、公開 URL の HTTP 応答を確認する。",
+      "bodyEn": "Research: checked the LLM Inference Web guide, official LLM Inference sample, `@mediapipe/tasks-genai` on npm, MediaPipe Solutions guide, and mediapipe-samples-web. Design: avoid making official demos into public cards and center the original sample on streaming callbacks, cancellation, multimodal input budget, and probes. Implementation: added a prompt packet, token estimate, simulated callback, cancel state, timeline, generation options, run log, and WebGPU / CDN probe. Validation: check JSON parse, gallery build, publish command, and public URL HTTP responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの日次サンプルは Vision / Text / Audio Task の出力を UI イベントに変換し、昨日は連続推論の frame budget を扱いました。今日は GenAI の出力ストリームを扱い、Web ML 体験の品質が「いつ出すか」「途中で止めるか」「未完了結果をどう見せるか」に強く依存することを確認しました。on-device LLM はモデル読み込みが重いため、UI 状態を先に固める最小試作は有効です。",
+      "bodyEn": "Previous daily samples converted Vision / Text / Audio Task outputs into UI events, and yesterday handled frame budgets for continuous inference. Today shifts to GenAI output streams and confirms that Web ML quality depends heavily on when output appears, whether it can be cancelled, and how incomplete results are shown. Since on-device LLM model loading is heavy, a small prototype that fixes UI states first is useful."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `GenAI Stream Cancel Console` です。実際に動く部分は prompt token 概算、image / audio 入力片の budget 表示、simulated streaming callback、途中停止、partial result retained 表示、token timeline、generation option sliders、WebGPU / `@mediapipe/tasks-genai` CDN probe です。次に足すなら、ローカル `.litertlm` / `.task` ファイル選択、実 `LlmInference.createFromOptions()`、実 streaming callback、Gemma 4 template 切替、AudioBuffer / canvas 入力、IndexedDB session log を追加します。",
+      "bodyEn": "The selected prototype is `GenAI Stream Cancel Console`. The working pieces are prompt-token estimation, image / audio input budget display, simulated streaming callback, cancellation, retained partial-result display, token timeline, generation-option sliders, and a WebGPU / `@mediapipe/tasks-genai` CDN probe. Next additions should include local `.litertlm` / `.task` file selection, real `LlmInference.createFromOptions()`, real streaming callbacks, Gemma 4 template switching, AudioBuffer / canvas inputs, and IndexedDB session logs."
+    }
+  ]
+}

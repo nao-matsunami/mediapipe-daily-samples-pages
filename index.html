@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">20 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">21 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-20</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span></p>
+      <h2>生成ストリームを途中停止できる GenAI コンソール</h2>
+      <p class="en">A GenAI console for cancellable response streams</p>
+      <p>Google AI Edge の LLM Inference Web guide と公式 LLM Inference sample を参考に、`generateResponse()` の streaming callback、`cancelProcessing()`、Gemma-3n の text / image / audio 入力構成をモデルなしで試せる自作ミニサンプルを追加しました。大容量モデルを同梱せず、partial result を残すか、入力片が maxTokens を圧迫するか、WebGPU / `@mediapipe/tasks-genai` CDN が到達可能かをブラウザ内で確認できます。</p>
+      <div class="actions">
+        <a href="days/2026-08-20.html">日付ページ</a>
+        <a href="outputs/2026-08-20_genai_stream_cancel_console.html">サンプル</a>
+      </div>
+      
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-19</span><span class="badge">MediaPipe Tasks / Web ML</span></p>
       <h2>detectForVideo の前にフレーム予算を決める Governor</h2>
       <p class="en">A frame-budget governor before detectForVideo loops</p>

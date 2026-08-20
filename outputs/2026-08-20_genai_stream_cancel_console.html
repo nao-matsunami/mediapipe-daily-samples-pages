@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GenAI Stream Cancel Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #10110f;
+      color: #f8f5ed;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(40, 171, 142, 0.18), transparent 36%),
+        linear-gradient(315deg, rgba(210, 102, 72, 0.16), transparent 42%),
+        #10110f;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 14px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(248, 245, 237, 0.14);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 3.7vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #cec8b8;
+      line-height: 1.62;
+    }
+
+    button, input, select, textarea {
+      border: 1px solid rgba(248, 245, 237, 0.17);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.055);
+      color: #f8f5ed;
+      font: inherit;
+    }
+
+    button, select, input {
+      min-height: 38px;
+    }
+
+    button {
+      padding: 8px 11px;
+      cursor: pointer;
+      border-color: rgba(40, 171, 142, 0.58);
+      background: rgba(40, 171, 142, 0.18);
+    }
+
+    button.warn {
+      border-color: rgba(210, 102, 72, 0.64);
+      background: rgba(210, 102, 72, 0.16);
+    }
+
+    button.secondary {
+      border-color: rgba(232, 190, 111, 0.52);
+      background: rgba(232, 190, 111, 0.12);
+    }
+
+    button:disabled {
+      opacity: 0.56;
+      cursor: wait;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 126px;
+      resize: vertical;
+      padding: 10px;
+      line-height: 1.5;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #28ab8e;
+    }
+
+    .stage, .side {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid rgba(248, 245, 237, 0.14);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(16, 17, 15, 0.88);
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+    }
+
+    .toolbar, .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .toolbar { margin-top: 10px; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid rgba(248, 245, 237, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      min-width: 0;
+    }
+
+    .metric span, label span {
+      display: block;
+      color: #a89f8c;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 1.28rem;
+      white-space: nowrap;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: #e7dfcf;
+      font-size: 0.9rem;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .switch {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid rgba(248, 245, 237, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .switch input {
+      width: 18px;
+      height: 18px;
+      accent-color: #28ab8e;
+    }
+
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .chip {
+      min-height: 74px;
+      border: 1px solid rgba(248, 245, 237, 0.12);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .chip strong {
+      display: block;
+      font-size: 0.92rem;
+    }
+
+    .chip span {
+      display: block;
+      margin-top: 5px;
+      color: #a89f8c;
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+
+    .output {
+      min-height: 266px;
+      border-radius: 8px;
+      padding: 14px;
+      background: #080b0a;
+      border: 1px solid rgba(248, 245, 237, 0.12);
+      font: 0.96rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      color: #f1eadb;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 0.55em;
+      height: 1em;
+      transform: translateY(0.16em);
+      background: #28ab8e;
+      animation: blink 0.8s steps(2, start) infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(32, minmax(0, 1fr));
+      gap: 4px;
+    }
+
+    .tick {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      border: 1px solid rgba(248, 245, 237, 0.1);
+      background: rgba(255, 255, 255, 0.055);
+    }
+
+    .tick.text { background: rgba(40, 171, 142, 0.72); }
+    .tick.image { background: rgba(232, 190, 111, 0.78); }
+    .tick.audio { background: rgba(210, 102, 72, 0.78); }
+    .tick.cancel { background: repeating-linear-gradient(45deg, rgba(210, 102, 72, 0.9), rgba(210, 102, 72, 0.9) 4px, rgba(255, 255, 255, 0.2) 4px, rgba(255, 255, 255, 0.2) 8px); }
+
+    .log {
+      display: grid;
+      gap: 6px;
+      max-height: 190px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .log div {
+      border-left: 3px solid rgba(40, 171, 142, 0.62);
+      padding: 6px 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #cfc6b5;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border: 1px solid rgba(40, 171, 142, 0.36);
+      color: #f8f5ed;
+      background: rgba(40, 171, 142, 0.1);
+      padding: 3px 8px;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+    }
+
+    .hint {
+      border-left: 3px solid rgba(232, 190, 111, 0.72);
+      padding: 10px 12px;
+      background: rgba(232, 190, 111, 0.08);
+      color: #eadfc9;
+    }
+
+    @media (max-width: 880px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .metric-grid, .chips {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 540px) {
+      .metric-grid, .chips {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="row"><span class="badge">MediaPipe Tasks GenAI</span><span class="badge">Streaming Callback</span></p>
+        <h1>GenAI Stream Cancel Console</h1>
+        <p>MediaPipe LLM Inference Web の streaming callback、cancel、Gemma-3n の multimodal 入力設定を、実モデルなしでも試せる自作ミニコンソールです。</p>
+      </div>
+      <button id="probeButton" class="secondary" type="button">Probe WebGPU / CDN</button>
+    </header>
+
+    <section class="stage">
+      <article class="panel">
+        <h2>Prompt Packet</h2>
+        <textarea id="prompt">今日のカメラ入力で見えている作業手順を、3つの短い箇条書きにしてください。最後に安全確認を1つ足してください。</textarea>
+        <div class="chips" aria-label="Prompt parts">
+          <div class="chip"><strong>Text turn</strong><span id="textTokens">0 estimated tokens</span></div>
+          <div class="chip"><strong>Image slot</strong><span id="imageStatus">enabled, 2 pieces max</span></div>
+          <div class="chip"><strong>Audio slot</strong><span id="audioStatus">mono clip enabled</span></div>
+        </div>
+        <div class="toolbar">
+          <button id="startButton" type="button">Start simulated stream</button>
+          <button id="cancelButton" class="warn" type="button" disabled>Cancel processing</button>
+          <button id="resetButton" class="secondary" type="button">Reset</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Generated Response</h2>
+        <div id="output" class="output">stream idle</div>
+      </article>
+
+      <article class="panel">
+        <h2>Token Timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p class="hint" id="decision">画像や音声を有効にしたまま maxTokens を小さくすると、出力余地が狭くなります。Streaming UI では cancel 後の partial result を保存するか破棄するかを先に決めると扱いやすくなります。</p>
+      </article>
+    </section>
+
+    <aside class="side">
+      <article class="panel metric-grid">
+        <div class="metric"><span>State</span><strong id="stateMetric">idle</strong></div>
+        <div class="metric"><span>Tokens</span><strong id="tokenMetric">0 / 512</strong></div>
+        <div class="metric"><span>Elapsed</span><strong id="elapsedMetric">0.0s</strong></div>
+        <div class="metric"><span>Probe</span><strong id="probeMetric">not run</strong></div>
+      </article>
+
+      <article class="panel controls">
+        <h2>Generation Options</h2>
+        <label><span>maxTokens</span><input id="maxTokens" type="range" min="128" max="1600" step="32" value="512"></label>
+        <label><span>topK</span><input id="topK" type="range" min="1" max="80" step="1" value="40"></label>
+        <label><span>temperature</span><input id="temperature" type="range" min="0" max="1.6" step="0.1" value="0.8"></label>
+        <label><span>simulated tokens / sec</span><input id="speed" type="range" min="3" max="22" step="1" value="10"></label>
+        <label><span>maxNumImages</span><input id="maxImages" type="range" min="0" max="5" step="1" value="2"></label>
+        <label class="switch"><span>supportAudio</span><input id="supportAudio" type="checkbox" checked></label>
+        <label class="switch"><span>use Gemma turn template</span><input id="useTemplate" type="checkbox" checked></label>
+      </article>
+
+      <article class="panel">
+        <h2>Run Log</h2>
+        <div id="log" class="log"></div>
+      </article>
+    </aside>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const controls = ["maxTokens", "topK", "temperature", "speed", "maxImages", "supportAudio", "useTemplate"].reduce((acc, id) => {
+      acc[id] = $(id);
+      return acc;
+    }, {});
+    const timeline = $("timeline");
+    const log = $("log");
+    const output = $("output");
+    let run = null;
+    let timer = null;
+    let ticks = [];
+
+    const sampleTokens = [
+      "観察: ", "手元", "の", "作業", "領域", "を", "先に", "固定", "し、", "不要", "な", "背景", "は", "読み飛ばす", "。\n",
+      "手順: ", "対象", "物", "を", "中央", "に", "置き、", "変化", "した", "瞬間", "だけ", "説明", "を", "更新", "する", "。\n",
+      "確認: ", "画像", "と", "音声", "を", "同じ", "順序", "で", "prompt", "配列", "に", "入れ、", "partial", "結果", "を", "UI", "に", "追記", "する", "。\n",
+      "安全: ", "キャンセル", "後", "は", "未完", "の", "応答", "として", "明示", "し、", "自動", "実行", "には", "使わない", "。"
+    ];
+
+    function estimateTokens(text) {
+      return Math.max(1, Math.ceil(text.trim().length / 3.2));
+    }
+
+    function appendLog(message) {
+      const item = document.createElement("div");
+      item.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
+      log.prepend(item);
+    }
+
+    function renderTimeline() {
+      timeline.innerHTML = "";
+      ticks.slice(-64).forEach((kind) => {
+        const cell = document.createElement("div");
+        cell.className = `tick ${kind}`;
+        timeline.append(cell);
+      });
+      for (let i = ticks.length; i < 64; i += 1) {
+        const cell = document.createElement("div");
+        cell.className = "tick";
+        timeline.append(cell);
+      }
+    }
+
+    function refreshMetrics() {
+      const promptTokens = estimateTokens($("prompt").value);
+      const maxTokens = Number(controls.maxTokens.value);
+      const imagePieces = Number(controls.maxImages.value);
+      const audioCost = controls.supportAudio.checked ? 96 : 0;
+      const imageCost = imagePieces * 72;
+      const templateCost = controls.useTemplate.checked ? 18 : 0;
+      const used = promptTokens + imageCost + audioCost + templateCost + (run?.tokens || 0);
+      $("textTokens").textContent = `${promptTokens} estimated tokens${controls.useTemplate.checked ? " + turn template" : ""}`;
+      $("imageStatus").textContent = imagePieces ? `enabled, ${imagePieces} pieces max` : "disabled";
+      $("audioStatus").textContent = controls.supportAudio.checked ? "mono clip enabled" : "disabled";
+      $("tokenMetric").textContent = `${Math.min(used, maxTokens)} / ${maxTokens}`;
+      $("stateMetric").textContent = run?.state || "idle";
+      $("elapsedMetric").textContent = run ? `${((performance.now() - run.startedAt) / 1000).toFixed(1)}s` : "0.0s";
+
+      const remaining = maxTokens - used;
+      if (remaining < 80) {
+        $("decision").textContent = "出力余地がかなり少ない状態です。Gemma-3n の画像・音声入力を使う場合は maxTokens を上げるか、入力片を減らす設計が必要です。";
+      } else if (controls.temperature.value > 1.1 && controls.topK.value > 50) {
+        $("decision").textContent = "temperature と topK が高めです。ストリーミング UI では揺れを許す探索モードとして見せ、確定操作には seed や低温設定を使うと扱いやすくなります。";
+      } else {
+        $("decision").textContent = "入力と出力の余白は十分です。cancel 後の partial result を、下書きとして保存するか破棄するかを UI 状態で明示すると実装が安定します。";
+      }
+    }
+
+    function finish(state) {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (run) run.state = state;
+      $("startButton").disabled = false;
+      $("cancelButton").disabled = true;
+      if (state === "cancelled") {
+        ticks.push("cancel");
+        output.innerHTML += "\n\n[cancelled: partial result retained]";
+        appendLog("cancelProcessing() 後の partial result を保持しました。");
+      } else {
+        output.innerHTML = output.textContent.replace(/\s*$/, "") + "\n\n[complete]";
+        appendLog("stream callback が done=true で完了しました。");
+      }
+      renderTimeline();
+      refreshMetrics();
+    }
+
+    function streamNext() {
+      if (!run || run.state !== "streaming") return;
+      const maxTokens = Number(controls.maxTokens.value);
+      const promptCost = estimateTokens($("prompt").value) + Number(controls.maxImages.value) * 72 + (controls.supportAudio.checked ? 96 : 0) + (controls.useTemplate.checked ? 18 : 0);
+      if (promptCost + run.tokens >= maxTokens || run.index >= sampleTokens.length) {
+        finish("complete");
+        return;
+      }
+      const token = sampleTokens[run.index % sampleTokens.length];
+      run.index += 1;
+      run.tokens += 1;
+      ticks.push(run.index % 9 === 0 && Number(controls.maxImages.value) ? "image" : run.index % 13 === 0 && controls.supportAudio.checked ? "audio" : "text");
+      output.textContent = run.text + token;
+      run.text = output.textContent;
+      output.innerHTML = `${output.textContent}<span class="cursor"></span>`;
+      renderTimeline();
+      refreshMetrics();
+      const delay = 1000 / Number(controls.speed.value);
+      timer = setTimeout(streamNext, delay);
+    }
+
+    function startStream() {
+      if (timer) clearTimeout(timer);
+      ticks = [];
+      const prompt = $("prompt").value.trim();
+      const template = controls.useTemplate.checked ? "<start_of_turn>user\\n...<end_of_turn>\\n<start_of_turn>model\\n" : "raw prompt";
+      run = { state: "streaming", startedAt: performance.now(), tokens: 0, index: 0, text: "" };
+      output.innerHTML = `<span class="cursor"></span>`;
+      $("startButton").disabled = true;
+      $("cancelButton").disabled = false;
+      appendLog(`generateResponse(${template}) を simulated callback で開始: ${prompt.slice(0, 34)}...`);
+      refreshMetrics();
+      streamNext();
+    }
+
+    function cancelStream() {
+      if (!run || run.state !== "streaming") return;
+      finish("cancelled");
+    }
+
+    async function probe() {
+      $("probeMetric").textContent = "checking";
+      appendLog("WebGPU と @mediapipe/tasks-genai CDN を確認します。");
+      const webgpu = !!navigator.gpu;
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@0.10.29/+esm");
+        const hasResolver = typeof mod.FilesetResolver === "function";
+        $("probeMetric").textContent = webgpu && hasResolver ? "ready" : hasResolver ? "no WebGPU" : "cdn only";
+        appendLog(`probe result: WebGPU=${webgpu ? "yes" : "no"}, FilesetResolver=${hasResolver ? "yes" : "no"}`);
+      } catch (error) {
+        $("probeMetric").textContent = webgpu ? "gpu only" : "blocked";
+        appendLog(`CDN probe failed: ${error.message}`);
+      }
+    }
+
+    $("startButton").addEventListener("click", startStream);
+    $("cancelButton").addEventListener("click", cancelStream);
+    $("resetButton").addEventListener("click", () => {
+      if (timer) clearTimeout(timer);
+      run = null;
+      timer = null;
+      ticks = [];
+      output.textContent = "stream idle";
+      $("startButton").disabled = false;
+      $("cancelButton").disabled = true;
+      renderTimeline();
+      refreshMetrics();
+      appendLog("console reset");
+    });
+    $("probeButton").addEventListener("click", probe);
+    $("prompt").addEventListener("input", refreshMetrics);
+    Object.values(controls).forEach((control) => control.addEventListener("input", refreshMetrics));
+
+    renderTimeline();
+    refreshMetrics();
+    appendLog("ready: local simulation, no model download required");
+  </script>
+</body>
+</html>
