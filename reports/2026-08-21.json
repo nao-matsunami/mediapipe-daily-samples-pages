@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-21",
+  "category": "MediaPipe Tasks / Google AI Edge / LiteRT.js",
+  "headline": "モデル読み込み前にブラウザ能力を振り分ける WASM ルーター",
+  "headlineEn": "A WASM capability router before loading browser ML models",
+  "summary": "Google AI Edge の MediaPipe Tasks JavaScript API、FilesetResolver、LiteRT.js Web guide、公式 MediaPipe Tasks demo repository を参考に、モデルを読み込む前のブラウザ能力を点検する自作サンプルを追加しました。Secure context、WebAssembly、WebGPU、WebNN、`@mediapipe/tasks-vision` import、`FilesetResolver.isSimdSupported()`、`@litertjs/core` import を測り、FPS、モデルサイズ、入力モードから MediaPipe Tasks / LiteRT.js / Worker + GPU / WASM fallback のどれで進めるかを可視化します。",
+  "summaryEn": "Based on the Google AI Edge MediaPipe Tasks JavaScript API, FilesetResolver, LiteRT.js Web guide, and the official MediaPipe Tasks demo repository, this adds an original sample that checks browser capability before loading a model. It probes secure context, WebAssembly, WebGPU, WebNN, `@mediapipe/tasks-vision` import, `FilesetResolver.isSimdSupported()`, and `@litertjs/core` import, then visualizes whether MediaPipe Tasks, LiteRT.js, Worker + GPU, or WASM fallback is the better route for the selected FPS, model size, and input mode.",
+  "keyTopics": [
+    "MediaPipe Tasks JavaScript の FilesetResolver は Task API に必要な fileset を解決し、SIMD 対応環境では SIMD 用ファイルを選ぶため、モデル前の WASM 配置確認が重要になる。",
+    "tasks-vision package は Face / Hand / Pose / Object などの ready-made Vision Task と DrawingUtils を提供し、最短で機能を作る入口になる。",
+    "LiteRT.js は WebAssembly の CPU 実行に加え、WebGPU と実験的な WebNN を Web 向けアクセラレーションとして扱い、独自 `.tflite` モデルの実行経路になる。",
+    "Google AI Edge は MediaPipe を ready-made Task、LiteRT-LM を on-device LLM、LiteRT を custom model deployment として位置づけており、用途別の振り分けが設計上の第一歩になる。",
+    "公式 mediapipe-samples-web は実タスク出力の参考になるが、今日の公開カードは外部デモではなく、このワークスペースで作った初期化診断サンプルに限定した。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe Tasks JavaScript FilesetResolver resolves the filesets required by Task APIs and selects SIMD files when supported, so WASM placement should be checked before model loading.",
+    "The tasks-vision package provides ready-made Vision Tasks such as Face, Hand, Pose, and Object tasks plus DrawingUtils, making it the shortest path to feature work.",
+    "LiteRT.js supports CPU execution through WebAssembly as well as WebGPU and experimental WebNN acceleration, making it the Web path for custom `.tflite` models.",
+    "Google AI Edge positions MediaPipe as ready-made Tasks, LiteRT-LM as on-device LLM, and LiteRT as custom model deployment, so routing by use case is the first design step.",
+    "The official mediapipe-samples-web project is useful for real task-output reference, but today's public card centers only on the initialization diagnostic sample created in this workspace."
+  ],
+  "links": [
+    {
+      "label": "Today's sample: MediaPipe WASM Capability Router",
+      "url": "../outputs/2026-08-21_wasm_capability_router.html"
+    },
+    {
+      "label": "FilesetResolver class",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.filesetresolver"
+    },
+    {
+      "label": "tasks-vision package",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "LiteRT for Web with LiteRT.js",
+      "url": "https://developers.google.com/edge/litert/web"
+    },
+    {
+      "label": "Get started with LiteRT.js",
+      "url": "https://developers.google.com/edge/litert/web/get_started"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、検出や分類の結果ではなく、結果が出る前の初期化判断です。MediaPipe Tasks は `FilesetResolver` により Task 用 WASM fileset を解決し、LiteRT.js は `loadLiteRt()` と `loadAndCompile()` で `.tflite` モデルを WebGPU / WebNN / WASM に流します。自作サンプルでは、ブラウザがどちらの入口に向いているかをクリック一つで測り、FPS とモデルサイズの圧力を加えて route recommendation として見せます。",
+      "bodyEn": "Today's notable angle is the initialization decision before detection or classification output exists. MediaPipe Tasks resolves Task-specific WASM filesets through `FilesetResolver`, while LiteRT.js routes `.tflite` models through `loadLiteRt()` and `loadAndCompile()` toward WebGPU, WebNN, or WASM. The original sample measures which entry point the browser is ready for and adds FPS and model-size pressure to show a route recommendation.",
+      "links": [
+        {
+          "label": "FilesetResolver class",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.filesetresolver"
+        },
+        {
+          "label": "LiteRT for Web with LiteRT.js",
+          "url": "https://developers.google.com/edge/litert/web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "Run probes を押すと Secure context、WebAssembly、WebGPU adapter、WebNN API、Tasks Vision import、SIMD 判定、LiteRT.js import を順に更新します。ユーザーは FPS、推定モデルサイズ、preferred accelerator、input mode を変えられ、recommendation が MediaPipe Tasks、LiteRT.js、Worker + GPU、WASM fallback の間で切り替わります。canvas には readiness score と各 probe の棒グラフを描き、ログには import 時間や失敗理由を残します。",
+      "bodyEn": "Pressing Run probes updates secure context, WebAssembly, WebGPU adapter, WebNN API, Tasks Vision import, SIMD detection, and LiteRT.js import. The user can adjust FPS, estimated model size, preferred accelerator, and input mode, causing the recommendation to switch between MediaPipe Tasks, LiteRT.js, Worker + GPU, and WASM fallback. The canvas draws the readiness score and per-probe bars, while the log records import timing and failure reasons.",
+      "links": [
+        {
+          "label": "Open WASM Capability Router",
+          "url": "../outputs/2026-08-21_wasm_capability_router.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは secure context、WebAssembly 有無、WebGPU adapter 有無、WebNN exposure、Tasks import 時間、SIMD 判定、LiteRT.js import 時間、FPS、モデルサイズ、入力モード、route recommendation、fallback 理由です。これを IndexedDB に保存すれば、同じユーザー環境で MediaPipe Vision Task、Text Task、Audio Task、LiteRT.js custom model、Worker / OffscreenCanvas 実装を選ぶ前の診断ログになります。",
+      "bodyEn": "The sample can accumulate secure context, WebAssembly availability, WebGPU adapter availability, WebNN exposure, Tasks import time, SIMD detection, LiteRT.js import time, FPS, model size, input mode, route recommendation, and fallback reasons. Saving these to IndexedDB would make a diagnostic log before choosing MediaPipe Vision Tasks, Text Tasks, Audio Tasks, LiteRT.js custom models, or Worker / OffscreenCanvas implementations on the same user environment."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "MediaPipe Tasks は ready-made な API で最短に進められますが、WASM fileset の公開パス、SIMD availability、delegate、UI thread の詰まりを先に見ておくと事故が減ります。LiteRT.js は独自 `.tflite` と WebGPU / WebNN を扱える一方で、モデル変換、pre/post process、WASM 配置、WebGPU 非対応時の fallback が制作側の責任になります。今日のサンプルは、実モデルを読む前にこの境界を UI として確認するための小さな足場です。",
+      "bodyEn": "MediaPipe Tasks are the fastest path through ready-made APIs, but checking the WASM fileset path, SIMD availability, delegate, and UI-thread pressure early reduces surprises. LiteRT.js can handle custom `.tflite` models and WebGPU / WebNN, but model conversion, pre/post-processing, WASM placement, and fallback for browsers without WebGPU become production responsibilities. Today's sample is a small scaffold for confirming this boundary in the UI before reading a real model."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は `FilesetResolver.forVisionTasks()` の実測初期化時間、CDN ではなく自前ホストした WASM path、`loadLiteRt()` の WASM 初期化時間、`loadAndCompile()` の accelerator 別差分、WebNN のブラウザ実装状況、Worker + OffscreenCanvas の実測、IndexedDB model cache quota を追います。特に LiteRT.js は WebGPU と TFJS interop の組み合わせが実務上の分岐点になりそうです。",
+      "bodyEn": "Next watch measured initialization time for `FilesetResolver.forVisionTasks()`, self-hosted WASM paths instead of CDN paths, `loadLiteRt()` WASM initialization time, accelerator differences in `loadAndCompile()`, WebNN browser implementation status, Worker + OffscreenCanvas timing, and IndexedDB model-cache quota. LiteRT.js combined with WebGPU and TFJS interop looks especially important for production routing.",
+      "links": [
+        {
+          "label": "Get started with LiteRT.js",
+          "url": "https://developers.google.com/edge/litert/web/get_started"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず Run probes を押して、Tasks Vision import と `FilesetResolver.isSimdSupported()` が通るかを見てください。次に input mode を custom `.tflite` 相当に変え、モデルサイズを 100MB 以上へ上げると、recommendation が LiteRT.js 側に寄ります。最後に FPS を 45 以上に上げると、Worker + GPU または fallback 設計が必要になる様子を確認できます。",
+      "bodyEn": "First press Run probes and check whether Tasks Vision import and `FilesetResolver.isSimdSupported()` complete. Then switch the input mode toward custom `.tflite` and raise the model size above 100 MB to see the recommendation move toward LiteRT.js. Finally raise FPS above 45 and observe how Worker + GPU or fallback design becomes necessary.",
+      "links": [
+        {
+          "label": "Open today's sample",
+          "url": "../outputs/2026-08-21_wasm_capability_router.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: FilesetResolver class、tasks-vision package、LiteRT.js Web guide、LiteRT.js get started、Google AI Edge homepage、mediapipe-samples-web repository と demo page を確認。設計: 公式デモを並べるのではなく、自作サンプルを runtime capability router に絞る。実装: probe list、readiness score、FPS / model size controls、route cards、canvas graph、runtime log を追加。検証: JSON parse、gallery build、publish command、公開 URL 応答を確認する。",
+      "bodyEn": "Research: checked the FilesetResolver class, tasks-vision package, LiteRT.js Web guide, LiteRT.js get started, Google AI Edge homepage, mediapipe-samples-web repository, and demo page. Design: avoid listing official demos and focus the original sample on a runtime capability router. Implementation: added a probe list, readiness score, FPS / model-size controls, route cards, canvas graph, and runtime log. Validation: check JSON parse, gallery build, publish command, and public URL responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでのサンプルは、検出結果を zone、cursor、budget、stream state などの UI 契約に変換してきました。今日はさらに一段前に戻り、どの runtime を選ぶかを表示する診断にしました。MediaPipe Tasks は最小実装に強く、LiteRT.js は独自モデルと acceleration に強いので、日次サンプルの次段階では「Task output の見せ方」と「runtime route の決め方」を分けて蓄積すると見通しが良くなります。",
+      "bodyEn": "Previous samples converted task outputs into UI contracts such as zones, cursors, budgets, and stream state. Today steps one level earlier and makes the runtime choice visible as a diagnostic. MediaPipe Tasks are strong for minimal implementation, while LiteRT.js is strong for custom models and acceleration, so the next phase of the daily archive should separately accumulate task-output presentation and runtime-route decisions."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した候補は `MediaPipe WASM Capability Router` です。実際に動く部分は、環境 probe、CDN dynamic import、SIMD 判定、WebGPU adapter 確認、WebNN exposure 確認、FPS / model size による route recalculation、canvas 棒グラフ、ログ出力です。次に足すなら、実 `FilesetResolver.forVisionTasks()` の WASM 初期化時間、自前 WASM path 入力、`loadLiteRt()` の実初期化、IndexedDB 診断履歴、Worker / OffscreenCanvas のフレーム落ち測定を追加します。",
+      "bodyEn": "The selected prototype is `MediaPipe WASM Capability Router`. The working pieces are environment probes, CDN dynamic imports, SIMD detection, WebGPU adapter checks, WebNN exposure checks, route recalculation from FPS / model size, canvas bar charting, and log output. Next additions should include real `FilesetResolver.forVisionTasks()` WASM initialization timing, a self-hosted WASM path input, real `loadLiteRt()` initialization, IndexedDB diagnostic history, and Worker / OffscreenCanvas frame-drop measurement."
+    }
+  ]
+}

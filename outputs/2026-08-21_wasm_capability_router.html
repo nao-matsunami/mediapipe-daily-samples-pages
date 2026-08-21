@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaPipe WASM Capability Router</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #f7f4ee;
+      color: #202423;
+      --ink: #202423;
+      --muted: #5d6864;
+      --line: #d8d1c4;
+      --panel: #fffdf8;
+      --green: #177e58;
+      --blue: #245ea8;
+      --red: #b54738;
+      --yellow: #9a6a10;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #f7f4ee; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: end; padding: 18px 0 20px; border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4.1rem); line-height: 1; letter-spacing: 0; }
+    h2, h3 { margin: 0; letter-spacing: 0; }
+    p { margin: 10px 0 0; color: var(--muted); line-height: 1.65; }
+    button, select, input { font: inherit; }
+    button {
+      border: 1px solid #1f2b28;
+      background: #1f2b28;
+      color: #fffdf8;
+      min-height: 40px;
+      padding: 9px 13px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: var(--ink); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .eyebrow { color: var(--green); font-weight: 700; font-size: .78rem; text-transform: uppercase; }
+    .grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; margin-top: 18px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); padding: 16px; }
+    .stack { display: grid; gap: 16px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+    .metric { border: 1px solid var(--line); background: #fbf8f0; padding: 12px; min-height: 92px; }
+    .metric strong { display: block; font-size: clamp(1.45rem, 3vw, 2.4rem); line-height: 1; }
+    .metric span { display: block; margin-top: 8px; color: var(--muted); font-size: .83rem; line-height: 1.35; }
+    .controls { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 14px; }
+    label { display: grid; gap: 8px; color: var(--muted); font-size: .86rem; }
+    input[type="range"] { width: 100%; accent-color: var(--green); }
+    select, input[type="number"] { border: 1px solid var(--line); background: #fffaf0; min-height: 40px; padding: 8px; color: var(--ink); }
+    .route { display: grid; gap: 10px; margin-top: 14px; }
+    .route-card { border: 1px solid var(--line); padding: 12px; background: #fbf8f0; }
+    .route-card.active { border-color: var(--green); box-shadow: inset 4px 0 0 var(--green); }
+    .route-card.warn { border-color: rgba(181, 71, 56, .45); box-shadow: inset 4px 0 0 var(--red); }
+    .row { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .badge { display: inline-flex; align-items: center; border: 1px solid var(--line); padding: 4px 8px; background: #fffaf0; color: var(--muted); font-size: .78rem; white-space: nowrap; }
+    .ok { color: var(--green); }
+    .no { color: var(--red); }
+    .maybe { color: var(--yellow); }
+    .probe-list { display: grid; gap: 8px; margin-top: 14px; }
+    .probe { border: 1px solid var(--line); background: #fbf8f0; padding: 10px; display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; align-items: center; }
+    .bar { height: 10px; background: #e7dfd0; overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0%; background: var(--green); transition: width .2s ease; }
+    canvas { width: 100%; aspect-ratio: 16 / 9; display: block; border: 1px solid var(--line); background: #171b1a; margin-top: 14px; }
+    .log { margin-top: 14px; border: 1px solid var(--line); background: #171b1a; color: #e8f1eb; padding: 12px; min-height: 170px; max-height: 260px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; line-height: 1.55; }
+    a { color: var(--blue); }
+    @media (max-width: 860px) {
+      main { padding: 16px; }
+      header, .grid, .controls { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .probe { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">Google AI Edge / MediaPipe Tasks / LiteRT.js</div>
+      <h1>MediaPipe WASM Capability Router</h1>
+      <p>MediaPipe Tasks の FilesetResolver と LiteRT.js の WebGPU / WebNN / WASM 入口を、モデルを読み込む前にブラウザ内で点検する自作ミニサンプルです。入力FPS、モデルサイズ、delegate 候補から、Tasks API で始めるか LiteRT.js 側へ寄せるかを小さく判断します。</p>
+    </div>
+    <div class="actions">
+      <button id="runProbe">Run probes</button>
+      <button id="resetLog" class="secondary">Clear log</button>
+    </div>
+  </header>
+
+  <section class="grid">
+    <div class="stack">
+      <section class="panel">
+        <div class="row">
+          <h2>Runtime Signals</h2>
+          <span id="lastRun" class="badge">not run</span>
+        </div>
+        <div class="metrics">
+          <div class="metric"><strong id="score">42</strong><span>readiness score</span></div>
+          <div class="metric"><strong id="fpsOut">30</strong><span>input FPS target</span></div>
+          <div class="metric"><strong id="budgetOut">18 ms</strong><span>per-frame budget</span></div>
+          <div class="metric"><strong id="routeOut">Tasks</strong><span>recommended route</span></div>
+        </div>
+        <div class="controls">
+          <label>Input FPS <input id="fps" type="range" min="5" max="60" value="30"></label>
+          <label>Estimated model size MB <input id="modelSize" type="range" min="1" max="220" value="28"></label>
+          <label>Preferred accelerator
+            <select id="accelerator">
+              <option value="auto">Auto</option>
+              <option value="gpu">GPU / WebGPU</option>
+              <option value="cpu">CPU / WASM</option>
+              <option value="webnn">WebNN experiment</option>
+            </select>
+          </label>
+          <label>Input mode
+            <select id="inputMode">
+              <option value="video">video frames</option>
+              <option value="image">single image</option>
+              <option value="text">text/audio task</option>
+              <option value="custom">custom .tflite</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Probe Results</h2>
+        <p>CDN import はクリック時だけ実行します。失敗してもサンプル全体は継続し、ログに fallback 候補を残します。</p>
+        <div class="probe-list" id="probeList"></div>
+        <canvas id="canvas" width="960" height="540" aria-label="readiness timeline"></canvas>
+      </section>
+    </div>
+
+    <aside class="stack">
+      <section class="panel">
+        <h2>Route Recommendation</h2>
+        <div class="route" id="routes"></div>
+      </section>
+      <section class="panel">
+        <h2>Implementation Notes</h2>
+        <p id="note">Run probes to replace guesses with measured browser capabilities.</p>
+        <div class="log" id="log"></div>
+      </section>
+    </aside>
+  </section>
+</main>
+
+<script type="module">
+const probes = [
+  { id: "secure", label: "Secure context", status: "pending", value: 0, detail: "HTTPS or localhost" },
+  { id: "wasm", label: "WebAssembly", status: "pending", value: 0, detail: "required by Tasks and LiteRT.js" },
+  { id: "webgpu", label: "WebGPU adapter", status: "pending", value: 0, detail: "GPU delegate / LiteRT.js acceleration" },
+  { id: "webnn", label: "WebNN API", status: "pending", value: 0, detail: "experimental NPU path" },
+  { id: "tasks", label: "Tasks Vision import", status: "pending", value: 0, detail: "@mediapipe/tasks-vision" },
+  { id: "simd", label: "FilesetResolver SIMD", status: "pending", value: 0, detail: "MediaPipe WASM selection" },
+  { id: "litert", label: "LiteRT.js import", status: "pending", value: 0, detail: "@litertjs/core" }
+];
+
+const el = {
+  runProbe: document.querySelector("#runProbe"),
+  resetLog: document.querySelector("#resetLog"),
+  probeList: document.querySelector("#probeList"),
+  log: document.querySelector("#log"),
+  score: document.querySelector("#score"),
+  fps: document.querySelector("#fps"),
+  fpsOut: document.querySelector("#fpsOut"),
+  modelSize: document.querySelector("#modelSize"),
+  budgetOut: document.querySelector("#budgetOut"),
+  routeOut: document.querySelector("#routeOut"),
+  accelerator: document.querySelector("#accelerator"),
+  inputMode: document.querySelector("#inputMode"),
+  routes: document.querySelector("#routes"),
+  note: document.querySelector("#note"),
+  lastRun: document.querySelector("#lastRun"),
+  canvas: document.querySelector("#canvas")
+};
+
+const ctx = el.canvas.getContext("2d");
+
+function stamp() {
+  return new Date().toLocaleTimeString("ja-JP", { hour12: false });
+}
+
+function log(message) {
+  el.log.textContent += `[${stamp()}] ${message}\n`;
+  el.log.scrollTop = el.log.scrollHeight;
+}
+
+function setProbe(id, status, value, detail) {
+  const item = probes.find((probe) => probe.id === id);
+  if (!item) return;
+  item.status = status;
+  item.value = value;
+  if (detail) item.detail = detail;
+  render();
+}
+
+function classFor(status) {
+  if (status === "ok") return "ok";
+  if (status === "fail") return "no";
+  return "maybe";
+}
+
+function statusLabel(status) {
+  if (status === "ok") return "ok";
+  if (status === "fail") return "missing";
+  if (status === "busy") return "checking";
+  return "pending";
+}
+
+function renderProbes() {
+  el.probeList.innerHTML = probes.map((probe) => `
+    <div class="probe">
+      <strong>${probe.label}</strong>
+      <div>
+        <div class="bar"><i style="width:${probe.value}%"></i></div>
+        <p>${probe.detail}</p>
+      </div>
+      <span class="badge ${classFor(probe.status)}">${statusLabel(probe.status)}</span>
+    </div>
+  `).join("");
+}
+
+function computeScore() {
+  const base = probes.reduce((sum, probe) => sum + probe.value, 0) / probes.length;
+  const fps = Number(el.fps.value);
+  const model = Number(el.modelSize.value);
+  const pressure = Math.max(0, (fps - 30) * 0.45) + Math.max(0, (model - 80) * 0.08);
+  return Math.max(0, Math.min(100, Math.round(base - pressure)));
+}
+
+function computeRoute(score) {
+  const fps = Number(el.fps.value);
+  const model = Number(el.modelSize.value);
+  const mode = el.inputMode.value;
+  const accel = el.accelerator.value;
+  const hasWebGpu = probes.find((probe) => probe.id === "webgpu").status === "ok";
+  const hasTasks = probes.find((probe) => probe.id === "tasks").status === "ok";
+  const hasLiteRt = probes.find((probe) => probe.id === "litert").status === "ok";
+
+  if (mode === "custom" || model > 95) {
+    if (hasLiteRt && (hasWebGpu || accel !== "gpu")) return "LiteRT.js";
+    return "LiteRT plan";
+  }
+  if (hasTasks && score >= 58 && fps <= 45) return "MediaPipe Tasks";
+  if (fps > 45 && hasWebGpu) return "Worker + GPU";
+  return "WASM fallback";
+}
+
+function renderRoutes(route) {
+  const cards = [
+    {
+      name: "MediaPipe Tasks",
+      body: "既製の Vision / Text / Audio Task で要件が満たせる場合。FilesetResolver が WASM fileset を選び、モデル bundle を指定するだけで始めやすい。",
+      active: route === "MediaPipe Tasks"
+    },
+    {
+      name: "LiteRT.js",
+      body: "独自 .tflite、WebGPU / WebNN、TFJS 前後処理との併用が必要な場合。モデル変換と pre/post process は自前で設計する。",
+      active: route === "LiteRT.js" || route === "LiteRT plan"
+    },
+    {
+      name: "Worker + GPU",
+      body: "高FPSの映像処理では UI thread を詰まらせない設計が先。OffscreenCanvas と queue/drop の方針を先に決める。",
+      active: route === "Worker + GPU"
+    },
+    {
+      name: "WASM fallback",
+      body: "WebGPU / CDN が使えない環境向け。FPSを下げ、single image mode、CPU delegate、軽量モデルを優先する。",
+      active: route === "WASM fallback",
+      warn: route === "WASM fallback"
+    }
+  ];
+  el.routes.innerHTML = cards.map((card) => `
+    <div class="route-card ${card.active ? "active" : ""} ${card.warn ? "warn" : ""}">
+      <div class="row"><h3>${card.name}</h3><span class="badge">${card.active ? "selected" : "candidate"}</span></div>
+      <p>${card.body}</p>
+    </div>
+  `).join("");
+}
+
+function draw(score, route) {
+  const width = el.canvas.width;
+  const height = el.canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#171b1a";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "rgba(255,255,255,.14)";
+  for (let i = 0; i <= 6; i += 1) {
+    const x = 60 + i * 138;
+    ctx.beginPath();
+    ctx.moveTo(x, 70);
+    ctx.lineTo(x, 440);
+    ctx.stroke();
+  }
+  probes.forEach((probe, index) => {
+    const x = 72 + index * 136;
+    const h = Math.max(14, probe.value * 3.1);
+    ctx.fillStyle = probe.status === "ok" ? "#5ec995" : probe.status === "fail" ? "#df7b6d" : "#c7a451";
+    ctx.fillRect(x, 420 - h, 74, h);
+    ctx.fillStyle = "#f5f0e6";
+    ctx.font = "18px system-ui";
+    ctx.fillText(probe.value.toFixed(0), x + 18, 450);
+    ctx.font = "13px system-ui";
+    ctx.save();
+    ctx.translate(x + 10, 405 - h);
+    ctx.rotate(-Math.PI / 5);
+    ctx.fillText(probe.label, 0, 0);
+    ctx.restore();
+  });
+  ctx.fillStyle = "#f5f0e6";
+  ctx.font = "bold 34px system-ui";
+  ctx.fillText(`${score}/100`, 58, 58);
+  ctx.font = "20px system-ui";
+  ctx.fillText(route, 210, 58);
+}
+
+function render() {
+  renderProbes();
+  const score = computeScore();
+  const route = computeRoute(score);
+  const fps = Number(el.fps.value);
+  el.score.textContent = score;
+  el.fpsOut.textContent = fps;
+  el.budgetOut.textContent = `${Math.max(3, Math.floor(1000 / fps * 0.55))} ms`;
+  el.routeOut.textContent = route.replace("MediaPipe ", "");
+  renderRoutes(route);
+  draw(score, route);
+  const size = Number(el.modelSize.value);
+  el.note.textContent = `Current plan: ${route}. ${fps}fps input gives a narrow per-frame inference budget; ${size}MB model size mainly affects load time, cache strategy, and whether LiteRT.js custom-model routing is worth the extra setup.`;
+}
+
+async function runProbes() {
+  el.runProbe.disabled = true;
+  el.lastRun.textContent = "running";
+  log("Starting runtime probes.");
+  setProbe("secure", window.isSecureContext ? "ok" : "fail", window.isSecureContext ? 100 : 10, window.isSecureContext ? "secure context is available" : "use HTTPS or localhost for camera and WebGPU work");
+  setProbe("wasm", typeof WebAssembly !== "undefined" ? "ok" : "fail", typeof WebAssembly !== "undefined" ? 100 : 0, typeof WebAssembly !== "undefined" ? "WebAssembly object exists" : "WebAssembly is unavailable");
+  setProbe("webnn", "ml" in navigator ? "ok" : "fail", "ml" in navigator ? 80 : 5, "ml" in navigator ? "navigator.ml detected" : "WebNN not exposed in this browser");
+
+  setProbe("webgpu", "busy", 35, "requesting GPU adapter");
+  try {
+    const adapter = navigator.gpu ? await navigator.gpu.requestAdapter() : null;
+    setProbe("webgpu", adapter ? "ok" : "fail", adapter ? 100 : 8, adapter ? `adapter available${adapter.info?.vendor ? `: ${adapter.info.vendor}` : ""}` : "navigator.gpu adapter unavailable");
+    log(adapter ? "WebGPU adapter acquired." : "WebGPU adapter was not available.");
+  } catch (error) {
+    setProbe("webgpu", "fail", 8, error.message);
+    log(`WebGPU probe failed: ${error.message}`);
+  }
+
+  setProbe("tasks", "busy", 25, "importing @mediapipe/tasks-vision");
+  try {
+    const started = performance.now();
+    const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/+esm");
+    const elapsed = Math.round(performance.now() - started);
+    setProbe("tasks", "ok", 100, `imported in ${elapsed} ms`);
+    log(`Tasks Vision import ok in ${elapsed} ms.`);
+
+    setProbe("simd", "busy", 45, "calling FilesetResolver.isSimdSupported()");
+    const simd = await vision.FilesetResolver.isSimdSupported();
+    setProbe("simd", simd ? "ok" : "fail", simd ? 100 : 35, simd ? "SIMD supported by FilesetResolver" : "SIMD not selected; expect slower WASM path");
+    log(`FilesetResolver SIMD support: ${simd}.`);
+  } catch (error) {
+    setProbe("tasks", "fail", 10, error.message);
+    setProbe("simd", "fail", 10, "Tasks import did not complete");
+    log(`Tasks Vision probe failed: ${error.message}`);
+  }
+
+  setProbe("litert", "busy", 25, "importing @litertjs/core");
+  try {
+    const started = performance.now();
+    const litert = await import("https://cdn.jsdelivr.net/npm/@litertjs/core/+esm");
+    const elapsed = Math.round(performance.now() - started);
+    const exported = ["loadLiteRt", "loadAndCompile", "getWebGpuDevice"].filter((name) => name in litert).join(", ");
+    setProbe("litert", "ok", 95, `imported in ${elapsed} ms; exports: ${exported || "module loaded"}`);
+    log(`LiteRT.js import ok in ${elapsed} ms.`);
+  } catch (error) {
+    setProbe("litert", "fail", 10, error.message);
+    log(`LiteRT.js probe failed: ${error.message}`);
+  }
+
+  el.lastRun.textContent = stamp();
+  el.runProbe.disabled = false;
+  log("Probe run finished.");
+  render();
+}
+
+for (const control of [el.fps, el.modelSize, el.accelerator, el.inputMode]) {
+  control.addEventListener("input", render);
+}
+el.runProbe.addEventListener("click", runProbes);
+el.resetLog.addEventListener("click", () => {
+  el.log.textContent = "";
+  log("Log cleared.");
+});
+
+log("Ready. Adjust controls or run probes.");
+render();
+</script>
+</body>
+</html>
