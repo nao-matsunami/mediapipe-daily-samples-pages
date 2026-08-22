@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">22 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">23 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-22</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span></p>
+      <h2>モデル前の FilesetResolver 初期化時間を測るストップウォッチ</h2>
+      <p class="en">A stopwatch for FilesetResolver initialization before model loading</p>
+      <p>Google AI Edge の MediaPipe Tasks Vision JavaScript API、FilesetResolver class、公式 MediaPipe Tasks Web demo repository、LiteRT.js guide を参考に、モデルを読む前の WASM fileset 初期化を実測する自作サンプルを追加しました。`@mediapipe/tasks-vision` の ESM import、`FilesetResolver.isSimdSupported()`、`FilesetResolver.forVisionTasks()`、WASM path 切り替え、初回インタラクション予算、warm run 履歴をブラウザ上で可視化します。</p>
+      <div class="actions">
+        <a href="days/2026-08-22.html">日付ページ</a>
+        <a href="outputs/2026-08-22_fileset_resolver_init_stopwatch.html">サンプル</a>
+      </div>
+      
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-21</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span></p>
       <h2>モデル読み込み前にブラウザ能力を振り分ける WASM ルーター</h2>
       <p class="en">A WASM capability router before loading browser ML models</p>

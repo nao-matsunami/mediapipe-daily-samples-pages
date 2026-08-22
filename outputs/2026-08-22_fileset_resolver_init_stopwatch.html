@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fileset Resolver Init Stopwatch</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #07110f;
+      color: #f4fff9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(244, 255, 249, 0.05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(244, 255, 249, 0.04) 1px, transparent 1px),
+        linear-gradient(135deg, #07110f 0%, #101b24 52%, #241511 100%);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(244, 255, 249, 0.16);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.55rem, 3vw, 2.9rem);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: #bfd1ca;
+      line-height: 1.58;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(103, 224, 178, 0.38);
+      background: rgba(103, 224, 178, 0.1);
+      color: #f4fff9;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: #67e0b2;
+      border-color: #67e0b2;
+      color: #061210;
+      font-weight: 700;
+    }
+
+    button:disabled {
+      opacity: 0.54;
+      cursor: wait;
+    }
+
+    .badge {
+      min-width: 156px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 187, 106, 0.42);
+      background: rgba(255, 187, 106, 0.12);
+      color: #ffd28d;
+      text-align: center;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 680px;
+      border: 1px solid rgba(244, 255, 249, 0.14);
+      background: #040706;
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 680px;
+      touch-action: none;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 14px 14px auto;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    section, .metric {
+      border: 1px solid rgba(244, 255, 249, 0.13);
+      background: rgba(7, 16, 15, 0.82);
+      backdrop-filter: blur(12px);
+    }
+
+    .metric {
+      min-height: 58px;
+      padding: 9px 10px;
+    }
+
+    .metric span {
+      display: block;
+      color: #90aaa1;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 0.96rem;
+      line-height: 1.12;
+      overflow-wrap: anywhere;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    section { padding: 14px; }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin: 12px 0;
+      color: #bfd1ca;
+      font-size: 0.86rem;
+    }
+
+    input[type="range"], select {
+      width: 100%;
+      accent-color: #67e0b2;
+    }
+
+    select, input[type="text"] {
+      min-height: 38px;
+      border: 1px solid rgba(244, 255, 249, 0.16);
+      background: #081311;
+      color: #f4fff9;
+      padding: 0 10px;
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .readout {
+      display: grid;
+      gap: 8px;
+      color: #bfd1ca;
+      font-size: 0.82rem;
+      line-height: 1.48;
+    }
+
+    .readout b {
+      color: #ffd28d;
+      font-weight: 700;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 78px 1fr 62px;
+      align-items: center;
+      gap: 8px;
+      color: #bfd1ca;
+      font-size: 0.78rem;
+    }
+
+    .bar {
+      height: 9px;
+      background: rgba(244, 255, 249, 0.09);
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      width: 0%;
+      height: 100%;
+      background: #67e0b2;
+      transition: width 180ms ease;
+    }
+
+    footer {
+      grid-column: 1 / -1;
+      color: #8ea9a0;
+      font-size: 0.83rem;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      header {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .stage, canvas {
+        min-height: 560px;
+      }
+
+      .hud {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .seg, .hud {
+        grid-template-columns: 1fr;
+      }
+
+      .hud {
+        position: static;
+        margin: 10px;
+      }
+
+      .stage, canvas {
+        min-height: 500px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Fileset Resolver Init Stopwatch</h1>
+        <p>A one-file stopwatch for measuring the actual MediaPipe Tasks Vision ESM import, SIMD probe, and <code>FilesetResolver.forVisionTasks()</code> initialization path before any model is loaded.</p>
+      </div>
+      <div class="badge" id="status">Idle</div>
+    </header>
+
+    <section class="stage">
+      <canvas id="stage" width="980" height="680" aria-label="MediaPipe FilesetResolver timing visualization"></canvas>
+      <div class="hud">
+        <div class="metric"><span>Total init</span><strong id="total">0 ms</strong></div>
+        <div class="metric"><span>SIMD</span><strong id="simd">unknown</strong></div>
+        <div class="metric"><span>WASM path</span><strong id="path">CDN</strong></div>
+        <div class="metric"><span>Runs</span><strong id="runs">0</strong></div>
+      </div>
+    </section>
+
+    <aside>
+      <section>
+        <h2>Resolver Run</h2>
+        <div class="seg">
+          <button id="run" class="primary">Run Timing</button>
+          <button id="repeat">Run 3x</button>
+        </div>
+        <label>WASM fileset path
+          <select id="wasmPath">
+            <option value="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm">tasks-vision 0.10.22 CDN</option>
+            <option value="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm">tasks-vision 0.10.21 CDN</option>
+            <option value="custom">Custom URL below</option>
+          </select>
+        </label>
+        <label>Custom WASM path
+          <input id="customPath" type="text" value="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm">
+        </label>
+      </section>
+
+      <section>
+        <h2>Scenario Pressure</h2>
+        <label>Expected first interaction budget <input id="budget" type="range" min="50" max="1400" value="420" step="10"></label>
+        <label>Model load placeholder <input id="modelCost" type="range" min="80" max="2200" value="620" step="10"></label>
+        <label>Target FPS after init <input id="fps" type="range" min="12" max="60" value="30" step="1"></label>
+      </section>
+
+      <section>
+        <h2>Timing Log</h2>
+        <div class="readout" id="log">
+          <span><b>state</b> ready to import @mediapipe/tasks-vision</span>
+          <span><b>next</b> run timing, then compare warm runs</span>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+    </aside>
+
+    <footer>References: Google AI Edge MediaPipe Tasks Vision JavaScript API, FilesetResolver class docs, official mediapipe-samples-web repository, and the official MediaPipe Tasks Web demo. The cards on this archive remain original workspace samples.</footer>
+  </main>
+
+  <script type="module">
+    const canvas = document.querySelector("#stage");
+    const ctx = canvas.getContext("2d");
+    const el = {
+      status: document.querySelector("#status"),
+      total: document.querySelector("#total"),
+      simd: document.querySelector("#simd"),
+      path: document.querySelector("#path"),
+      runs: document.querySelector("#runs"),
+      run: document.querySelector("#run"),
+      repeat: document.querySelector("#repeat"),
+      wasmPath: document.querySelector("#wasmPath"),
+      customPath: document.querySelector("#customPath"),
+      budget: document.querySelector("#budget"),
+      modelCost: document.querySelector("#modelCost"),
+      fps: document.querySelector("#fps"),
+      log: document.querySelector("#log"),
+      timeline: document.querySelector("#timeline")
+    };
+
+    const state = {
+      results: [],
+      steps: [
+        { key: "import", label: "ESM import", ms: 0, ok: false },
+        { key: "simd", label: "SIMD probe", ms: 0, ok: false },
+        { key: "fileset", label: "forVisionTasks", ms: 0, ok: false },
+        { key: "frame", label: "Frame budget", ms: 0, ok: true }
+      ],
+      busy: false,
+      error: ""
+    };
+
+    function wasmPath() {
+      return el.wasmPath.value === "custom" ? el.customPath.value.trim() : el.wasmPath.value;
+    }
+
+    function fit() {
+      const box = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.max(480, Math.floor(box.width * dpr));
+      const h = Math.max(500, Math.floor(box.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+
+    function writeLog(stateText, nextText) {
+      el.log.innerHTML = `<span><b>state</b> ${stateText}</span><span><b>next</b> ${nextText}</span>`;
+    }
+
+    function setStatus(text) {
+      el.status.textContent = text;
+    }
+
+    function renderTimeline() {
+      const max = Math.max(1, ...state.steps.map((step) => step.ms), Number(el.modelCost.value));
+      el.timeline.innerHTML = state.steps.map((step) => {
+        const pct = Math.max(1, Math.min(100, step.ms / max * 100));
+        const color = step.ok ? "#67e0b2" : "#e07665";
+        return `<div class="row"><span>${step.label}</span><div class="bar"><span style="width:${pct}%;background:${color}"></span></div><span>${Math.round(step.ms)} ms</span></div>`;
+      }).join("");
+    }
+
+    function verdict(total) {
+      const budget = Number(el.budget.value);
+      const model = Number(el.modelCost.value);
+      const fps = Number(el.fps.value);
+      const frameBudget = 1000 / fps;
+      if (state.error) return "Resolver failed; check path/CORS/version.";
+      if (total + model > budget * 1.35) return "Show a loader and prewarm before the first interaction.";
+      if (frameBudget < 20 && !state.steps.find((step) => step.key === "simd")?.ok) return "Use a Worker path or lower the target FPS on this browser.";
+      if (total < budget * 0.55) return "Init path is light enough for user-triggered lazy loading.";
+      return "Prewarm after consent or during the first idle slice.";
+    }
+
+    function draw() {
+      fit();
+      const w = canvas.width;
+      const h = canvas.height;
+      const total = state.results.at(-1)?.total || 0;
+      const budget = Number(el.budget.value);
+      const model = Number(el.modelCost.value);
+      const fps = Number(el.fps.value);
+      const frameBudget = 1000 / fps;
+
+      ctx.clearRect(0, 0, w, h);
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#07110f");
+      grad.addColorStop(0.52, "#11252b");
+      grad.addColorStop(1, "#2a1712");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = "rgba(244,255,249,0.08)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 42) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 42) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      const cx = w * 0.5;
+      const cy = h * 0.45;
+      const maxMs = Math.max(100, budget + model, ...state.steps.map((step) => step.ms));
+      const radius = Math.min(w, h) * 0.25;
+      const pieces = [
+        { label: "import", value: state.steps[0].ms, color: "#67e0b2" },
+        { label: "simd", value: state.steps[1].ms, color: "#ffd28d" },
+        { label: "fileset", value: state.steps[2].ms, color: "#75a7ff" },
+        { label: "model placeholder", value: model, color: "#e07665" }
+      ];
+      let angle = -Math.PI / 2;
+      for (const piece of pieces) {
+        const slice = Math.max(0.04, piece.value / maxMs * Math.PI * 1.62);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, angle, angle + slice);
+        ctx.closePath();
+        ctx.fillStyle = piece.color;
+        ctx.globalAlpha = 0.78;
+        ctx.fill();
+        angle += slice + 0.035;
+      }
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.58, 0, Math.PI * 2);
+      ctx.fillStyle = "#061210";
+      ctx.fill();
+
+      ctx.fillStyle = "#f4fff9";
+      ctx.textAlign = "center";
+      ctx.font = `700 ${Math.max(28, w * 0.042)}px system-ui`;
+      ctx.fillText(`${Math.round(total)} ms`, cx, cy - 6);
+      ctx.font = `${Math.max(13, w * 0.017)}px system-ui`;
+      ctx.fillStyle = "#bfd1ca";
+      ctx.fillText("resolver init", cx, cy + 28);
+
+      const chartX = w * 0.08;
+      const chartY = h * 0.74;
+      const chartW = w * 0.84;
+      const base = chartY + 76;
+      const lastRuns = state.results.slice(-8);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#f4fff9";
+      ctx.font = `700 ${Math.max(18, w * 0.022)}px system-ui`;
+      ctx.fillText("Warm-run history", chartX, chartY - 20);
+      ctx.strokeStyle = "rgba(244,255,249,0.18)";
+      ctx.beginPath();
+      ctx.moveTo(chartX, base);
+      ctx.lineTo(chartX + chartW, base);
+      ctx.stroke();
+      const barW = Math.max(24, chartW / Math.max(8, lastRuns.length || 1) - 8);
+      lastRuns.forEach((run, index) => {
+        const barH = Math.max(6, run.total / maxMs * 110);
+        const x = chartX + index * (barW + 8);
+        ctx.fillStyle = run.ok ? "#67e0b2" : "#e07665";
+        ctx.fillRect(x, base - barH, barW, barH);
+        ctx.fillStyle = "#bfd1ca";
+        ctx.font = `${Math.max(11, w * 0.012)}px system-ui`;
+        ctx.fillText(String(state.results.length - lastRuns.length + index + 1), x + 3, base + 18);
+      });
+
+      ctx.fillStyle = "#f4fff9";
+      ctx.font = `700 ${Math.max(17, w * 0.02)}px system-ui`;
+      ctx.fillText(verdict(total), chartX, h * 0.64);
+      ctx.fillStyle = "#bfd1ca";
+      ctx.font = `${Math.max(13, w * 0.016)}px system-ui`;
+      ctx.fillText(`Interaction budget ${budget} ms / target frame ${frameBudget.toFixed(1)} ms / placeholder model ${model} ms`, chartX, h * 0.64 + 28);
+    }
+
+    function refresh() {
+      const total = state.results.at(-1)?.total || 0;
+      el.total.textContent = `${Math.round(total)} ms`;
+      el.path.textContent = wasmPath().includes("cdn.jsdelivr") ? "CDN" : "custom";
+      el.runs.textContent = String(state.results.length);
+      renderTimeline();
+      draw();
+    }
+
+    async function timeStep(key, work) {
+      const step = state.steps.find((item) => item.key === key);
+      const started = performance.now();
+      try {
+        const value = await work();
+        step.ms = performance.now() - started;
+        step.ok = true;
+        refresh();
+        return value;
+      } catch (error) {
+        step.ms = performance.now() - started;
+        step.ok = false;
+        refresh();
+        throw error;
+      }
+    }
+
+    async function runOnce() {
+      if (state.busy) return;
+      state.busy = true;
+      state.error = "";
+      el.run.disabled = true;
+      el.repeat.disabled = true;
+      setStatus("Running");
+      writeLog("importing Tasks Vision", "measuring ESM, SIMD, and fileset resolver");
+      state.steps.forEach((step) => {
+        step.ms = 0;
+        step.ok = step.key === "frame";
+      });
+      const totalStart = performance.now();
+      let ok = true;
+      try {
+        const vision = await timeStep("import", () => import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm"));
+        writeLog("checking SIMD", "FilesetResolver.isSimdSupported()");
+        const simd = await timeStep("simd", () => vision.FilesetResolver.isSimdSupported());
+        el.simd.textContent = simd ? "supported" : "fallback";
+        state.steps.find((step) => step.key === "simd").ok = Boolean(simd);
+        writeLog("initializing fileset", wasmPath());
+        await timeStep("fileset", () => vision.FilesetResolver.forVisionTasks(wasmPath()));
+        state.steps.find((step) => step.key === "frame").ms = 1000 / Number(el.fps.value);
+        writeLog("FilesetResolver ready", "run again to see warm-cache behavior");
+      } catch (error) {
+        ok = false;
+        state.error = error.message;
+        writeLog("resolver run failed", error.message);
+        el.simd.textContent = "unknown";
+      }
+      const total = performance.now() - totalStart;
+      state.results.push({ total, ok, at: new Date().toLocaleTimeString() });
+      setStatus(ok ? "Complete" : "Failed");
+      state.busy = false;
+      el.run.disabled = false;
+      el.repeat.disabled = false;
+      refresh();
+    }
+
+    async function runMany() {
+      for (let i = 0; i < 3; i += 1) {
+        await runOnce();
+        await new Promise((resolve) => setTimeout(resolve, 180));
+      }
+    }
+
+    el.run.addEventListener("click", runOnce);
+    el.repeat.addEventListener("click", runMany);
+    for (const control of [el.wasmPath, el.customPath, el.budget, el.modelCost, el.fps]) {
+      control.addEventListener("input", () => {
+        state.steps.find((step) => step.key === "frame").ms = 1000 / Number(el.fps.value);
+        refresh();
+      });
+    }
+    window.addEventListener("resize", draw);
+
+    state.steps.find((step) => step.key === "frame").ms = 1000 / Number(el.fps.value);
+    renderTimeline();
+    refresh();
+  </script>
+</body>
+</html>
