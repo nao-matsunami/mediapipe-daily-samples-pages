@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Segmenter Mask Copy Studio</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #081012;
+      color: #f6fbf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(246, 251, 248, .05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(246, 251, 248, .04) 1px, transparent 1px),
+        linear-gradient(135deg, #081012 0%, #102025 48%, #251b12 100%);
+      background-size: 32px 32px, 32px 32px, auto;
+    }
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 248, .16);
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.85rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: .98rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #bdccc7; line-height: 1.58; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(105, 221, 181, .38);
+      background: rgba(105, 221, 181, .1);
+      color: #f6fbf8;
+      cursor: pointer;
+    }
+    button.primary { background: #69ddb5; border-color: #69ddb5; color: #051210; font-weight: 700; }
+    button:disabled { opacity: .55; cursor: wait; }
+    input[type="file"] { max-width: 100%; color: #bdccc7; }
+    select, input[type="range"] { width: 100%; accent-color: #69ddb5; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(246, 251, 248, .16);
+      background: #0b1517;
+      color: #f6fbf8;
+      padding: 0 10px;
+    }
+    .badge {
+      min-width: 150px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 195, 116, .42);
+      background: rgba(255, 195, 116, .12);
+      color: #ffd99d;
+      text-align: center;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(246, 251, 248, .14);
+      background: #040708;
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .34);
+    }
+    canvas { display: block; width: 100%; height: 100%; min-height: 660px; touch-action: none; }
+    .hud {
+      position: absolute;
+      inset: 14px 14px auto;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    section, .metric {
+      border: 1px solid rgba(246, 251, 248, .13);
+      background: rgba(8, 16, 18, .84);
+      backdrop-filter: blur(12px);
+    }
+    .metric { min-height: 58px; padding: 9px 10px; }
+    .metric span { display: block; color: #91a6a0; font-size: .68rem; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 7px; font-size: .95rem; line-height: 1.12; overflow-wrap: anywhere; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section { padding: 14px; }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #bdccc7; font-size: .86rem; }
+    .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .readout { display: grid; gap: 8px; color: #bdccc7; font-size: .82rem; line-height: 1.48; }
+    .readout b { color: #ffd99d; }
+    .timeline { display: grid; gap: 8px; margin-top: 10px; }
+    .row { display: grid; grid-template-columns: 92px 1fr 58px; align-items: center; gap: 8px; color: #bdccc7; font-size: .78rem; }
+    .bar { height: 9px; background: rgba(246, 251, 248, .09); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #69ddb5, #ffbc6f); }
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stage, canvas { min-height: 560px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Image Segmenter Mask Copy Studio</h1>
+        <p>Runs MediaPipe Image Segmenter on a canvas or uploaded image, copies the returned category mask inside the callback, and turns that copy into an inspectable matte overlay.</p>
+      </div>
+      <div class="badge" id="status">idle</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="stage" width="960" height="660" aria-label="segmentation preview"></canvas>
+      <div class="hud">
+        <div class="metric"><span>init</span><strong id="initMs">- ms</strong></div>
+        <div class="metric"><span>segment</span><strong id="segmentMs">- ms</strong></div>
+        <div class="metric"><span>mask copy</span><strong id="copyMs">- ms</strong></div>
+        <div class="metric"><span>coverage</span><strong id="coverage">-</strong></div>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Input</h2>
+        <div class="buttons">
+          <button class="primary" id="runBtn">Run Segmenter</button>
+          <button id="seedBtn">Reset Canvas</button>
+        </div>
+        <label>Upload image
+          <input id="fileInput" type="file" accept="image/*">
+        </label>
+        <label>Delegate
+          <select id="delegateSelect">
+            <option value="CPU">CPU</option>
+            <option value="GPU">GPU</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>Matte Controls</h2>
+        <label>Overlay opacity <input id="opacity" type="range" min="0" max="95" value="58"></label>
+        <label>Edge feather <input id="feather" type="range" min="0" max="8" value="2"></label>
+        <label>Backdrop hue <input id="hue" type="range" min="0" max="360" value="178"></label>
+      </section>
+
+      <section>
+        <h2>Callback Copy Log</h2>
+        <div class="readout" id="log">
+          <div>Ready. The sample keeps its own <b>Uint8Array</b> copy so later compositing does not depend on callback-owned mask lifetime.</div>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const statusEl = document.getElementById("status");
+    const initMsEl = document.getElementById("initMs");
+    const segmentMsEl = document.getElementById("segmentMs");
+    const copyMsEl = document.getElementById("copyMs");
+    const coverageEl = document.getElementById("coverage");
+    const logEl = document.getElementById("log");
+    const timelineEl = document.getElementById("timeline");
+    const runBtn = document.getElementById("runBtn");
+    const seedBtn = document.getElementById("seedBtn");
+    const fileInput = document.getElementById("fileInput");
+    const delegateSelect = document.getElementById("delegateSelect");
+    const opacityInput = document.getElementById("opacity");
+    const featherInput = document.getElementById("feather");
+    const hueInput = document.getElementById("hue");
+
+    const visionUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm";
+    const wasmUrl = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+    const modelUrl = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+    let ImageSegmenter;
+    let FilesetResolver;
+    let segmenter;
+    let currentDelegate = "";
+    let sourceBitmap = null;
+    let copiedMask = null;
+    let maskWidth = 0;
+    let maskHeight = 0;
+    const runs = [];
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function drawSeed() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#101a22");
+      grad.addColorStop(.55, "#213736");
+      grad.addColorStop(1, "#442716");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#ffc071";
+      ctx.beginPath();
+      ctx.ellipse(w * .5, h * .29, 94, 116, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2d1915";
+      ctx.beginPath();
+      ctx.ellipse(w * .5, h * .21, 132, 82, -.06, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5cc5d3";
+      ctx.beginPath();
+      ctx.moveTo(w * .32, h * .84);
+      ctx.quadraticCurveTo(w * .5, h * .48, w * .68, h * .84);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#f8f3dd";
+      ctx.fillRect(w * .35, h * .64, w * .3, h * .09);
+      ctx.fillStyle = "rgba(255,255,255,.12)";
+      for (let x = 80; x < w; x += 110) {
+        ctx.fillRect(x, 80, 46, 280);
+      }
+      sourceBitmap = null;
+      copiedMask = null;
+      render();
+    }
+
+    function render() {
+      const w = canvas.width;
+      const h = canvas.height;
+      if (sourceBitmap) {
+        ctx.fillStyle = "#06090b";
+        ctx.fillRect(0, 0, w, h);
+        const scale = Math.min(w / sourceBitmap.width, h / sourceBitmap.height);
+        const iw = sourceBitmap.width * scale;
+        const ih = sourceBitmap.height * scale;
+        ctx.drawImage(sourceBitmap, (w - iw) / 2, (h - ih) / 2, iw, ih);
+      } else if (!copiedMask) {
+        return drawSeedBaseOnly();
+      }
+      if (!copiedMask) return;
+      const image = ctx.getImageData(0, 0, w, h);
+      const pixels = image.data;
+      const opacity = Number(opacityInput.value) / 100;
+      const feather = Number(featherInput.value);
+      const hue = Number(hueInput.value);
+      let on = 0;
+      for (let y = 0; y < h; y += 1) {
+        const my = Math.min(maskHeight - 1, Math.floor(y / h * maskHeight));
+        for (let x = 0; x < w; x += 1) {
+          const mx = Math.min(maskWidth - 1, Math.floor(x / w * maskWidth));
+          const idx = my * maskWidth + mx;
+          const foreground = copiedMask[idx] > 0;
+          if (foreground) on += 1;
+          const p = (y * w + x) * 4;
+          const edge = feather ? edgeScore(mx, my, feather) : 1;
+          const a = opacity * (foreground ? Math.max(.28, edge) : .18);
+          const color = hslToRgb((hue + (foreground ? 0 : 190)) % 360, foreground ? 72 : 58, foreground ? 58 : 30);
+          pixels[p] = pixels[p] * (1 - a) + color[0] * a;
+          pixels[p + 1] = pixels[p + 1] * (1 - a) + color[1] * a;
+          pixels[p + 2] = pixels[p + 2] * (1 - a) + color[2] * a;
+        }
+      }
+      ctx.putImageData(image, 0, 0);
+      coverageEl.textContent = `${Math.round(on / (w * h) * 100)}%`;
+    }
+
+    function drawSeedBaseOnly() {
+      const saved = copiedMask;
+      copiedMask = null;
+      const w = canvas.width;
+      const h = canvas.height;
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#101a22");
+      grad.addColorStop(.55, "#213736");
+      grad.addColorStop(1, "#442716");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#ffc071";
+      ctx.beginPath();
+      ctx.ellipse(w * .5, h * .29, 94, 116, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2d1915";
+      ctx.beginPath();
+      ctx.ellipse(w * .5, h * .21, 132, 82, -.06, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5cc5d3";
+      ctx.beginPath();
+      ctx.moveTo(w * .32, h * .84);
+      ctx.quadraticCurveTo(w * .5, h * .48, w * .68, h * .84);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#f8f3dd";
+      ctx.fillRect(w * .35, h * .64, w * .3, h * .09);
+      ctx.fillStyle = "rgba(255,255,255,.12)";
+      for (let x = 80; x < w; x += 110) ctx.fillRect(x, 80, 46, 280);
+      copiedMask = saved;
+    }
+
+    function edgeScore(mx, my, radius) {
+      const center = copiedMask[my * maskWidth + mx] > 0;
+      let same = 0;
+      let total = 0;
+      for (let dy = -radius; dy <= radius; dy += radius || 1) {
+        for (let dx = -radius; dx <= radius; dx += radius || 1) {
+          const x = Math.max(0, Math.min(maskWidth - 1, mx + dx));
+          const y = Math.max(0, Math.min(maskHeight - 1, my + dy));
+          same += (copiedMask[y * maskWidth + x] > 0) === center ? 1 : 0;
+          total += 1;
+        }
+      }
+      return same / total;
+    }
+
+    function hslToRgb(h, s, l) {
+      s /= 100;
+      l /= 100;
+      const k = n => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      return [255 * f(0), 255 * f(8), 255 * f(4)];
+    }
+
+    async function ensureSegmenter() {
+      if (segmenter && currentDelegate === delegateSelect.value) return;
+      setStatus("loading");
+      runBtn.disabled = true;
+      const start = performance.now();
+      if (!ImageSegmenter) {
+        ({ ImageSegmenter, FilesetResolver } = await import(visionUrl));
+      }
+      const vision = await FilesetResolver.forVisionTasks(wasmUrl);
+      segmenter = await ImageSegmenter.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: modelUrl, delegate: delegateSelect.value },
+        runningMode: "IMAGE",
+        outputCategoryMask: true,
+        outputConfidenceMasks: false
+      });
+      currentDelegate = delegateSelect.value;
+      initMsEl.textContent = `${Math.round(performance.now() - start)} ms`;
+      runBtn.disabled = false;
+    }
+
+    async function runSegmentation() {
+      try {
+        await ensureSegmenter();
+        setStatus("segmenting");
+        runBtn.disabled = true;
+        drawSeedBaseOnly();
+        const start = performance.now();
+        segmenter.segment(canvas, (result) => {
+          const segmentDone = performance.now();
+          const mask = result.categoryMask;
+          const copyStart = performance.now();
+          copiedMask = new Uint8Array(mask.getAsUint8Array());
+          maskWidth = mask.width;
+          maskHeight = mask.height;
+          const copyDone = performance.now();
+          segmentMsEl.textContent = `${Math.round(segmentDone - start)} ms`;
+          copyMsEl.textContent = `${(copyDone - copyStart).toFixed(2)} ms`;
+          runs.unshift({ segment: segmentDone - start, copy: copyDone - copyStart, size: copiedMask.length });
+          runs.splice(6);
+          logEl.innerHTML = `<div>Copied <b>${copiedMask.length.toLocaleString()}</b> category bytes from a <b>${maskWidth} x ${maskHeight}</b> mask inside the callback.</div><div>Compositing sliders now use the independent copy, not the temporary callback object.</div>`;
+          renderTimeline();
+          render();
+        });
+        setStatus("ready");
+      } catch (error) {
+        setStatus("error");
+        logEl.innerHTML = `<div><b>${error.name || "Error"}:</b> ${error.message}</div><div>Try CPU delegate, reload the page, or use a smaller uploaded image.</div>`;
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    function renderTimeline() {
+      const max = Math.max(1, ...runs.map((run) => run.segment + run.copy));
+      timelineEl.innerHTML = runs.map((run, index) => {
+        const total = run.segment + run.copy;
+        return `<div class="row"><span>run ${runs.length - index}</span><div class="bar"><i style="width:${Math.max(4, total / max * 100)}%"></i></div><span>${Math.round(total)} ms</span></div>`;
+      }).join("");
+    }
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      sourceBitmap = await createImageBitmap(file);
+      copiedMask = null;
+      render();
+      setStatus("image ready");
+    });
+    runBtn.addEventListener("click", runSegmentation);
+    seedBtn.addEventListener("click", () => {
+      sourceBitmap = null;
+      drawSeed();
+      setStatus("seed ready");
+    });
+    for (const input of [opacityInput, featherInput, hueInput]) {
+      input.addEventListener("input", render);
+    }
+    drawSeed();
+  </script>
+</body>
+</html>

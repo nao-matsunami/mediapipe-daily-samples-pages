@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mask ROI Threshold Sandbox</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b0f14;
+      color: #f8faf6;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #0b0f14, #18271f 54%, #281d22); }
+    main {
+      width: min(1180px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 16px;
+    }
+    header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: end; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(248,250,246,.15); }
+    h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2.6rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: .98rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #becbc4; line-height: 1.56; }
+    button, input { font: inherit; }
+    button { min-height: 38px; border: 1px solid rgba(126,217,161,.4); background: rgba(126,217,161,.11); color: #f8faf6; cursor: pointer; }
+    button.primary { background: #7ed9a1; color: #07100b; font-weight: 700; }
+    input[type="range"] { width: 100%; accent-color: #7ed9a1; }
+    .badge { min-width: 132px; padding: 8px 10px; border: 1px solid rgba(245,179,111,.42); background: rgba(245,179,111,.12); color: #ffd2a0; text-align: center; font-size: .78rem; text-transform: uppercase; }
+    .stage { position: relative; min-height: 620px; border: 1px solid rgba(248,250,246,.14); background: #050708; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.33); }
+    canvas { display: block; width: 100%; height: 100%; min-height: 620px; touch-action: none; cursor: crosshair; }
+    .hud { position: absolute; inset: 14px 14px auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; pointer-events: none; }
+    section, .metric { border: 1px solid rgba(248,250,246,.13); background: rgba(11,15,20,.84); backdrop-filter: blur(12px); }
+    .metric { min-height: 58px; padding: 9px 10px; }
+    .metric span { display: block; color: #93a49d; font-size: .68rem; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 7px; font-size: .95rem; line-height: 1.12; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section { padding: 14px; }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #becbc4; font-size: .86rem; }
+    .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .readout { color: #becbc4; font-size: .82rem; line-height: 1.48; display: grid; gap: 8px; }
+    .readout b { color: #ffd2a0; }
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stage, canvas { min-height: 540px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Mask ROI Threshold Sandbox</h1>
+        <p>A tiny derivative prototype for testing how a copied segmentation mask could drive ROI alerts, background treatment, and next-frame decisions without loading a model.</p>
+      </div>
+      <div class="badge" id="mode">synthetic</div>
+    </header>
+    <div class="stage">
+      <canvas id="stage" width="900" height="620" aria-label="mask threshold sandbox"></canvas>
+      <div class="hud">
+        <div class="metric"><span>threshold</span><strong id="thresholdValue">54%</strong></div>
+        <div class="metric"><span>ROI fill</span><strong id="roiFill">-</strong></div>
+        <div class="metric"><span>decision</span><strong id="decision">-</strong></div>
+        <div class="metric"><span>mask age</span><strong id="age">0 ms</strong></div>
+      </div>
+    </div>
+    <aside>
+      <section>
+        <h2>Controls</h2>
+        <div class="buttons">
+          <button class="primary" id="shuffleBtn">New Mask</button>
+          <button id="freezeBtn">Freeze ROI</button>
+        </div>
+        <label>Threshold <input id="threshold" type="range" min="5" max="95" value="54"></label>
+        <label>ROI width <input id="roiWidth" type="range" min="80" max="420" value="260"></label>
+        <label>Edge softness <input id="softness" type="range" min="0" max="20" value="8"></label>
+        <label>Alert line <input id="alertLine" type="range" min="5" max="85" value="36"></label>
+      </section>
+      <section>
+        <h2>Idea Probe</h2>
+        <div class="readout" id="log">
+          <div>Drag on the canvas to move the ROI. The sandbox treats a synthetic confidence field like the copied mask from the main sample.</div>
+          <div>Next step: feed this with real <b>confidenceMasks</b> or a copied category mask from Image Segmenter.</div>
+        </div>
+      </section>
+    </aside>
+  </main>
+  <script>
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d");
+    const threshold = document.getElementById("threshold");
+    const roiWidth = document.getElementById("roiWidth");
+    const softness = document.getElementById("softness");
+    const alertLine = document.getElementById("alertLine");
+    const thresholdValue = document.getElementById("thresholdValue");
+    const roiFill = document.getElementById("roiFill");
+    const decision = document.getElementById("decision");
+    const age = document.getElementById("age");
+    const log = document.getElementById("log");
+    const shuffleBtn = document.getElementById("shuffleBtn");
+    const freezeBtn = document.getElementById("freezeBtn");
+    const W = 180;
+    const H = 124;
+    let mask = new Float32Array(W * H);
+    let seed = 4;
+    let roi = { x: 450, y: 310 };
+    let frozen = false;
+    let createdAt = performance.now();
+
+    function random() {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    }
+
+    function generateMask() {
+      const blobs = Array.from({ length: 5 }, () => ({
+        x: random() * W,
+        y: random() * H,
+        r: 18 + random() * 38,
+        p: .45 + random() * .55
+      }));
+      for (let y = 0; y < H; y += 1) {
+        for (let x = 0; x < W; x += 1) {
+          let v = .05 + .08 * Math.sin(x * .11) + .05 * Math.cos(y * .17);
+          for (const blob of blobs) {
+            const d = Math.hypot(x - blob.x, y - blob.y);
+            v += Math.max(0, 1 - d / blob.r) * blob.p;
+          }
+          mask[y * W + x] = Math.max(0, Math.min(1, v));
+        }
+      }
+      createdAt = performance.now();
+      render();
+    }
+
+    function render() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const t = Number(threshold.value) / 100;
+      const soft = Number(softness.value) / 100;
+      thresholdValue.textContent = `${threshold.value}%`;
+      const image = ctx.createImageData(w, h);
+      const pixels = image.data;
+      let roiOn = 0;
+      let roiTotal = 0;
+      const rw = Number(roiWidth.value);
+      const rh = rw * .72;
+      const rx0 = roi.x - rw / 2;
+      const ry0 = roi.y - rh / 2;
+      for (let y = 0; y < h; y += 1) {
+        const my = Math.min(H - 1, Math.floor(y / h * H));
+        for (let x = 0; x < w; x += 1) {
+          const mx = Math.min(W - 1, Math.floor(x / w * W));
+          const v = mask[my * W + mx];
+          const fg = smoothstep(t - soft, t + soft, v);
+          const p = (y * w + x) * 4;
+          pixels[p] = 12 + 24 * (1 - fg) + 102 * fg;
+          pixels[p + 1] = 18 + 38 * (1 - fg) + 202 * fg;
+          pixels[p + 2] = 25 + 58 * (1 - fg) + 154 * fg;
+          pixels[p + 3] = 255;
+          if (x >= rx0 && x <= rx0 + rw && y >= ry0 && y <= ry0 + rh) {
+            roiTotal += 1;
+            if (v >= t) roiOn += 1;
+          }
+        }
+      }
+      ctx.putImageData(image, 0, 0);
+      ctx.strokeStyle = "#ffd2a0";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(rx0, ry0, rw, rh);
+      const lineY = h * Number(alertLine.value) / 100;
+      ctx.strokeStyle = "rgba(255, 210, 160, .55)";
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, lineY);
+      ctx.lineTo(w, lineY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const fill = roiTotal ? roiOn / roiTotal : 0;
+      roiFill.textContent = `${Math.round(fill * 100)}%`;
+      const active = fill > .28;
+      const aboveLine = roi.y < lineY;
+      decision.textContent = active && aboveLine ? "raise cue" : active ? "track" : "ignore";
+      log.innerHTML = `<div>ROI foreground estimate: <b>${Math.round(fill * 100)}%</b>. Alert line: <b>${alertLine.value}%</b> from top.</div><div>${active && aboveLine ? "This would trigger a UI cue or next-frame high-quality pass." : "Current mask state stays in low-cost monitoring mode."}</div>`;
+    }
+
+    function smoothstep(edge0, edge1, x) {
+      const v = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0 || 1)));
+      return v * v * (3 - 2 * v);
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      if (frozen) return;
+      canvas.setPointerCapture(event.pointerId);
+      moveRoi(event);
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (event.buttons && !frozen) moveRoi(event);
+    });
+    function moveRoi(event) {
+      const rect = canvas.getBoundingClientRect();
+      roi.x = (event.clientX - rect.left) / rect.width * canvas.width;
+      roi.y = (event.clientY - rect.top) / rect.height * canvas.height;
+      render();
+    }
+    for (const input of [threshold, roiWidth, softness, alertLine]) input.addEventListener("input", render);
+    shuffleBtn.addEventListener("click", () => {
+      seed += 101;
+      generateMask();
+    });
+    freezeBtn.addEventListener("click", () => {
+      frozen = !frozen;
+      freezeBtn.textContent = frozen ? "Unfreeze ROI" : "Freeze ROI";
+    });
+    setInterval(() => {
+      age.textContent = `${Math.round(performance.now() - createdAt)} ms`;
+    }, 120);
+    generateMask();
+  </script>
+</body>
+</html>

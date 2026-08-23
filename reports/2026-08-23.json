@@ -1,0 +1,156 @@
+{
+  "date": "2026-08-23",
+  "category": "MediaPipe Tasks / Image Segmenter / Web ML",
+  "headline": "Image Segmenter の callback mask をコピーして使うマット検査台",
+  "headlineEn": "A matte inspection bench that copies Image Segmenter callback masks",
+  "summary": "Google AI Edge の Image Segmenter overview / Web guide、tasks-vision API、ImageSegmenter class / options、公式 MediaPipe Tasks demo repository を参考に、Image Segmenter の category mask を callback 内で `Uint8Array` にコピーし、その後の合成・検査 UI で使う自作サンプルを追加しました。さらに派生試作として、コピー済み mask を ROI 判定や次フレーム制御に使う発展案を合成 mask で即時検証できる小さな sandbox も追加しました。",
+  "summaryEn": "Based on the Google AI Edge Image Segmenter overview and Web guide, tasks-vision API, ImageSegmenter class and options, and the official MediaPipe Tasks demo repository, this adds an original sample that copies the Image Segmenter category mask into a `Uint8Array` inside the callback and then uses that copy for matte compositing and inspection. A second derivative prototype adds a synthetic-mask sandbox for testing ROI decisions and next-frame control ideas.",
+  "keyTopics": [
+    "Image Segmenter の公式 overview は、人と背景、髪、髪・顔・肌・服・アクセサリを含む multiclass segmentation など、Web 表現に直結しやすい対象を整理している。",
+    "Web guide では `@mediapipe/tasks-vision` と `FilesetResolver.forVisionTasks()` を使い、`ImageSegmenter.createFromOptions()` で task を作る流れが示されている。",
+    "`segment()` / `segmentForVideo()` は同期実行で UI thread をブロックするため、実アプリでは Worker 化や軽量な後処理設計を早めに考える必要がある。",
+    "API reference は callback で返る mask データの寿命に注意しており、非同期処理や後段 UI に使うなら callback 内でコピーする設計が重要になる。",
+    "LiteRT.js は custom `.tflite` と WebGPU / WebNN の比較対象として引き続き有用だが、今日の本命は ready-made MediaPipe Task の結果を安全にアプリ状態へ移す部分に置いた。"
+  ],
+  "keyTopicsEn": [
+    "The official Image Segmenter overview organizes web-friendly targets such as person/background, hair, and multiclass segmentation including hair, face, skin, clothing, and accessories.",
+    "The Web guide shows the flow of using `@mediapipe/tasks-vision`, `FilesetResolver.forVisionTasks()`, and `ImageSegmenter.createFromOptions()` to create the task.",
+    "`segment()` and `segmentForVideo()` run synchronously and block the UI thread, so real apps need early thinking around Workers and lightweight post-processing.",
+    "The API reference warns about the lifetime of mask data returned to callbacks, making an in-callback copy important when later UI or asynchronous work needs the mask.",
+    "LiteRT.js remains useful for custom `.tflite` plus WebGPU / WebNN comparison, but today's main focus is safely moving ready-made MediaPipe Task output into app state."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Segmenter Mask Copy Studio",
+      "url": "../outputs/2026-08-23_image_segmenter_mask_copy_studio.html"
+    },
+    {
+      "label": "Today's derivative sample: Mask ROI Threshold Sandbox",
+      "url": "../outputs/2026-08-23_mask_roi_threshold_sandbox.html"
+    },
+    {
+      "label": "Image segmentation guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter"
+    },
+    {
+      "label": "Image segmentation guide for web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+    },
+    {
+      "label": "ImageSegmenter class",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imagesegmenter"
+    },
+    {
+      "label": "ImageSegmenterOptions interface",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imagesegmenteroptions"
+    },
+    {
+      "label": "tasks-vision package",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Get started with LiteRT.js",
+      "url": "https://developers.google.com/edge/litert/web/get_started"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Image Segmenter の結果そのものではなく、callback から返る mask をアプリ側の安全な状態へ移す瞬間です。公式 Web guide は Image Segmenter の作成と `segment()` / `segmentForVideo()` の実行を示し、API reference は callback の mask データを後で使うならコピーが必要だと読み取れる注意を置いています。自作サンプルでは category mask を callback 内で `Uint8Array` にコピーし、コピー後の bytes だけでマット合成、coverage、run history を描画します。",
+      "bodyEn": "Today's notable point is not the Image Segmenter result itself, but the moment when callback-owned mask data becomes safe application state. The official Web guide shows task creation and `segment()` / `segmentForVideo()`, while the API reference implies that data needed later should be copied from the callback. The original sample copies the category mask into a `Uint8Array` inside the callback and uses only those bytes for matte compositing, coverage, and run history.",
+      "links": [
+        {
+          "label": "Image segmentation guide for web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+        },
+        {
+          "label": "tasks-vision package",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプルは、生成済みの簡易キャンバスまたはアップロード画像を Image Segmenter に渡し、CPU / GPU delegate、初期化時間、segment 時間、mask copy 時間、foreground coverage を表示します。コピー済み mask に対して overlay opacity、edge feather、backdrop hue を動かせるため、推論後の演出調整だけを独立して試せます。派生サンプルは合成 confidence field 上で ROI をドラッグし、threshold、ROI width、edge softness、alert line から「raise cue / track / ignore」を出す小さな判定器です。",
+      "bodyEn": "The main sample sends either a seeded canvas or uploaded image to Image Segmenter and shows CPU/GPU delegate, initialization time, segment time, mask copy time, and foreground coverage. Overlay opacity, edge feather, and backdrop hue operate on the copied mask, so post-inference treatment can be tuned independently. The derivative sample lets the user drag an ROI over a synthetic confidence field and uses threshold, ROI width, edge softness, and an alert line to decide between raise cue, track, and ignore.",
+      "links": [
+        {
+          "label": "Open Image Segmenter Mask Copy Studio",
+          "url": "../outputs/2026-08-23_image_segmenter_mask_copy_studio.html"
+        },
+        {
+          "label": "Open Mask ROI Threshold Sandbox",
+          "url": "../outputs/2026-08-23_mask_roi_threshold_sandbox.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、delegate、初期化時間、segment 時間、mask copy 時間、mask 解像度、foreground coverage、overlay 設定、ROI fill、threshold、alert decision です。これを IndexedDB に保存すると、Image Segmenter の後段処理だけを日別・端末別に比較できます。Face Detector や Pose Landmarker を重ねれば人物矩形や姿勢と mask coverage のズレを見られ、Web Audio と組み合わせれば ROI fill が閾値を越えた時だけ cue 音を鳴らせます。LiteRT.js の custom model と並べる場合は、同じ ROI 判定 UI に別 runtime の mask を差し替える比較ができます。",
+      "bodyEn": "The samples can accumulate delegate, initialization time, segment time, mask copy time, mask resolution, foreground coverage, overlay settings, ROI fill, threshold, and alert decisions. Saved to IndexedDB, this enables comparison of Image Segmenter post-processing by day and device. Combined with Face Detector or Pose Landmarker, it can reveal mismatch between person boxes or pose and mask coverage. With Web Audio, ROI fill can trigger cues only when it crosses a threshold. For LiteRT.js custom models, the same ROI UI can compare masks from a different runtime."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的 HTML では `@mediapipe/tasks-vision@0.10.22/+esm` を dynamic import し、WASM path も同じ version に固定しました。モデルは公式 storage の `selfie_segmenter.tflite` を参照し、`outputCategoryMask: true`、`outputConfidenceMasks: false` で category mask のコピーに集中しています。`segment()` は同期的に UI thread を止めるので、長い動画処理に進める前に Worker / OffscreenCanvas / frame skip の設計が必要です。callback 内では `mask.getAsUint8Array()` の戻りを新しい `Uint8Array` にコピーしてから描画側へ渡します。",
+      "bodyEn": "The static HTML dynamically imports `@mediapipe/tasks-vision@0.10.22/+esm` and pins the matching WASM path. It references the official storage `selfie_segmenter.tflite` model and focuses on category-mask copying with `outputCategoryMask: true` and `outputConfidenceMasks: false`. Because `segment()` blocks the UI thread synchronously, longer video work needs Worker, OffscreenCanvas, and frame-skip design. Inside the callback, the value from `mask.getAsUint8Array()` is copied into a new `Uint8Array` before being handed to the renderer."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は `outputConfidenceMasks: true` で confidence mask をコピーする場合のメモリ量、`segmentForVideo()` を Worker に移した時の UI 応答、selfie / hair / multiclass / DeepLab の model size と callback payload の違い、GPU delegate 初期化の失敗時 fallback、mask を IndexedDB や WebCodecs のフレームログへ保存する流れを追います。LiteRT.js 側では custom segmentation model を同じ ROI sandbox に接続できるかを見ます。",
+      "bodyEn": "Next watch memory size when copying confidence masks with `outputConfidenceMasks: true`, UI responsiveness when moving `segmentForVideo()` into a Worker, differences in model size and callback payload across selfie, hair, multiclass, and DeepLab models, fallback when GPU delegate initialization fails, and saving masks into IndexedDB or WebCodecs frame logs. On the LiteRT.js side, test whether a custom segmentation model can feed the same ROI sandbox.",
+      "links": [
+        {
+          "label": "Get started with LiteRT.js",
+          "url": "https://developers.google.com/edge/litert/web/get_started"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず本命サンプルを開き、CPU delegate のまま Run Segmenter を押して、初期化、segment、mask copy の時間を見ます。次に画像をアップロードして同じ操作を行い、foreground coverage と edge feather の見え方を確認してください。最後に派生 sandbox で ROI をドラッグし、threshold と alert line を動かすと、コピー済み mask をただ表示するだけでなく、次の UI 判断に使う感覚が掴めます。",
+      "bodyEn": "First open the main sample, keep the CPU delegate, press Run Segmenter, and inspect initialization, segment, and mask copy timing. Then upload an image and compare foreground coverage and edge feather behavior. Finally drag the ROI in the derivative sandbox and adjust threshold and alert line to feel how a copied mask can drive UI decisions rather than just display output.",
+      "links": [
+        {
+          "label": "Open Image Segmenter Mask Copy Studio",
+          "url": "../outputs/2026-08-23_image_segmenter_mask_copy_studio.html"
+        },
+        {
+          "label": "Open Mask ROI Threshold Sandbox",
+          "url": "../outputs/2026-08-23_mask_roi_threshold_sandbox.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Segmenter overview、Web guide、ImageSegmenter class、ImageSegmenterOptions、tasks-vision package、mediapipe-samples-web、公式 demo page、LiteRT.js guide を確認。設計: 外部デモ一覧ではなく、callback mask copy と後段 UI 状態化に絞る。実装: 本命 HTML に dynamic import、公式 selfie segmenter model、CPU/GPU delegate、mask copy、matte controls、run history を追加。派生 HTML に合成 mask、ROI drag、threshold 判定、alert line を追加。検証: JSON parse、gallery build、publish command、公開 URL 応答を確認する。",
+      "bodyEn": "Research: checked the Image Segmenter overview, Web guide, ImageSegmenter class, ImageSegmenterOptions, tasks-vision package, mediapipe-samples-web, official demo page, and LiteRT.js guide. Design: focus on callback mask copying and downstream UI state rather than an external demo list. Implementation: added dynamic import, official selfie segmenter model, CPU/GPU delegate, mask copy, matte controls, and run history to the main HTML. Added synthetic mask, ROI drag, threshold decision, and alert line to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and public URL responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの蓄積は Gesture、Object、Pose、FilesetResolver、GenAI などを単発の体験部品に変えてきました。今日の Image Segmenter は見た目の変化が大きい一方、実装上は mask の寿命、コピー、後段 UI への引き渡しが肝になります。検出結果を表示する段階から、結果を安定したアプリ状態として保存・再利用する段階へ進むための小さな足場です。",
+      "bodyEn": "Previous entries turned Gesture, Object, Pose, FilesetResolver, GenAI, and other areas into focused experience components. Today's Image Segmenter creates visible output, but the implementation hinge is mask lifetime, copying, and handoff into downstream UI. It is a small step from displaying detection output toward storing and reusing that output as stable application state."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Segmenter Mask Copy Studio` です。実際に動く部分は、Tasks Vision の dynamic import、`FilesetResolver.forVisionTasks()`、公式 selfie segmenter model のロード、`ImageSegmenter.segment()`、callback 内 category mask copy、coverage 表示、matte overlay 調整です。次に足すなら、confidence masks、Worker 内 `segmentForVideo()`、IndexedDB への mask 履歴、hair / multiclass model preset、Face Detector との矩形整合チェックを追加します。派生試作は `Mask ROI Threshold Sandbox` で、合成 mask 上の ROI 判定、threshold、alert line、次フレーム cue の発想を短時間で試せます。",
+      "bodyEn": "The selected main prototype is `Image Segmenter Mask Copy Studio`. The working pieces are Tasks Vision dynamic import, `FilesetResolver.forVisionTasks()`, loading the official selfie segmenter model, `ImageSegmenter.segment()`, in-callback category mask copy, coverage display, and matte overlay tuning. Next additions should include confidence masks, Worker-side `segmentForVideo()`, IndexedDB mask history, hair and multiclass model presets, and alignment checks with Face Detector boxes. The derivative prototype is `Mask ROI Threshold Sandbox`, which quickly tests ROI decisions, thresholding, alert lines, and next-frame cue ideas on a synthetic mask."
+    }
+  ]
+}
