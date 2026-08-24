@@ -1,0 +1,176 @@
+{
+  "date": "2026-08-24",
+  "category": "MediaPipe Tasks / Face Landmarker / Web ML",
+  "headline": "Face Landmarker の blendshape を表情UIトリガーへ変換する検査台",
+  "headlineEn": "A trigger bench that turns Face Landmarker blendshapes into expression UI cues",
+  "summary": "Google AI Edge の Face Landmarker Web guide、tasks-vision API、FaceLandmarker class、公式 mediapipe-samples-web の Face Landmarker 実装を参考に、3D face landmarks、blendshape scores、facial transformation matrices をただ描画するのではなく、表情スコアを小さなUIイベントへ変換する自作サンプルを追加しました。さらに派生試作として、モデルなしで threshold、hold time、release gap、cooldown を調整できるヒステリシス検証ボードも追加しました。",
+  "summaryEn": "Based on the Google AI Edge Face Landmarker Web guide, tasks-vision API, FaceLandmarker class, and the official mediapipe-samples-web Face Landmarker implementation, this adds an original sample that turns 3D face landmarks, blendshape scores, and facial transformation matrices into small UI events rather than just rendering the mesh. A second derivative prototype adds a model-free hysteresis board for tuning threshold, hold time, release gap, and cooldown.",
+  "keyTopics": [
+    "Face Landmarker Web guide は、顔ランドマークだけでなく blendshape scores と facial transformation matrices を出力できることを明記しており、表情UIや顔エフェクトの入力として使いやすい。",
+    "`outputFaceBlendshapes` と `outputFacialTransformationMatrixes` は既定では false なので、表情係数や変換行列を使うサンプルでは明示的に有効化する必要がある。",
+    "Web guide は `detect()` / `detectForVideo()` が同期実行で UI thread をブロックする点も示しているため、カメラ常時処理では Worker 化や frame skip の検討が早めに必要になる。",
+    "公式 mediapipe-samples-web の Face Landmarker 実装は confidence sliders、worker、blendshape / matrix 出力ONの構成を持ち、最小試作の実装境界を考える参考になる。",
+    "今日の自作サンプルでは、外部デモを並べるのではなく、blendshape を smooth / gate / cue log に変換するアプリ側の薄い層を中心にした。"
+  ],
+  "keyTopicsEn": [
+    "The Face Landmarker Web guide states that the task can output blendshape scores and facial transformation matrices in addition to face landmarks, making it useful as input for expression UIs and face effects.",
+    "`outputFaceBlendshapes` and `outputFacialTransformationMatrixes` default to false, so samples that use expression coefficients or transformation matrices must enable them explicitly.",
+    "The Web guide also notes that `detect()` and `detectForVideo()` run synchronously and block the UI thread, so camera loops need early Worker or frame-skip planning.",
+    "The official mediapipe-samples-web Face Landmarker implementation uses confidence sliders, a worker, and enabled blendshape / matrix output, which helps define a practical minimal prototype boundary.",
+    "Today's original samples center on the application-side layer that smooths, gates, and logs blendshape cues instead of listing external demos."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Face Blendshape Trigger Mixer",
+      "url": "../outputs/2026-08-24_face_blendshape_trigger_mixer.html"
+    },
+    {
+      "label": "Today's derivative sample: Expression Cue Hysteresis Board",
+      "url": "../outputs/2026-08-24_expression_cue_hysteresis_board.html"
+    },
+    {
+      "label": "Face landmark detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
+    },
+    {
+      "label": "tasks-vision package",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "FaceLandmarker class",
+      "url": "https://developers.google.cn/edge/api/mediapipe/js/tasks-vision.facelandmarker"
+    },
+    {
+      "label": "Official Face Landmarker task implementation in mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/face-landmarker.ts"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe Tasks Vision Package README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-24-face-blendshape-trigger.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Face Landmarker の mesh 描画ではなく、blendshape scores と facial transformation matrices がアプリ側の操作語彙になる点です。公式 Web guide は、Face Landmarker が 3D face landmarks、表情係数である blendshape scores、顔エフェクト用の transformation matrices を返せると説明しています。自作サンプルでは smile、brow、jaw、head drift のような小さな意味単位にまとめ、しきい値と smoothing を通して UI cue に変換します。",
+      "bodyEn": "Today's notable point is not mesh drawing but the way blendshape scores and facial transformation matrices become interaction vocabulary for an app. The official Web guide explains that Face Landmarker can return 3D face landmarks, expression blendshape scores, and transformation matrices for face effects. The original sample groups them into small semantic signals such as smile, brow, jaw, and head drift, then converts them into UI cues through thresholds and smoothing.",
+      "links": [
+        {
+          "label": "Face landmark detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
+        },
+        {
+          "label": "Open Face Blendshape Trigger Mixer",
+          "url": "../outputs/2026-08-24_face_blendshape_trigger_mixer.html"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプルは、アップロード画像、Webカメラ、合成フィードの3入力を持ち、Face Landmarker が使える環境では実モデルから blendshape を読みます。表情スコアは caption brighten、zoom emphasis、hold-to-record のようなUI動作へ変換され、顔が検出できない場合も合成フィードで変換層だけを確認できます。派生サンプルは、モデル出力を待たずに threshold、hold ms、release gap、cooldown ms を動かし、誤発火を減らすヒステリシス設計を即時に試せます。",
+      "bodyEn": "The main sample supports uploaded images, webcam, and synthetic input, reading blendshapes from the real Face Landmarker model when available. Expression scores become UI actions such as caption brighten, zoom emphasis, and hold-to-record, while the synthetic feed still tests the conversion layer when no face is detected. The derivative sample tunes threshold, hold time, release gap, and cooldown without waiting for model output, quickly testing hysteresis choices that reduce false triggers.",
+      "links": [
+        {
+          "label": "Open Face Blendshape Trigger Mixer",
+          "url": "../outputs/2026-08-24_face_blendshape_trigger_mixer.html"
+        },
+        {
+          "label": "Open Expression Cue Hysteresis Board",
+          "url": "../outputs/2026-08-24_expression_cue_hysteresis_board.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、入力種別、検出 latency、face count、smile / brow / jaw / head scores、smoothing、threshold、hold time、release gap、cooldown、cue log です。IndexedDB に保存すれば、端末や照明条件ごとの表情トリガー調整ログになります。Web Audio と組み合わせると jawOpen で録音cue、brow raise でズーム音、smile で字幕色変更ができます。Face Detector と組み合わせれば顔矩形の安定性を、WebXR と組み合わせれば表情で空間UIを選ぶ流れを試せます。",
+      "bodyEn": "The samples can accumulate input type, detection latency, face count, smile / brow / jaw / head scores, smoothing, threshold, hold time, release gap, cooldown, and cue logs. Saved to IndexedDB, those become calibration logs by device and lighting condition. With Web Audio, jawOpen can trigger recording cues, brow raise can trigger zoom sounds, and smile can change caption color. Combined with Face Detector it can compare face-box stability; combined with WebXR it can test expression-driven spatial UI selection."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは `@mediapipe/tasks-vision@0.10.22/+esm` を dynamic import し、WASM path も同じ version に固定しました。モデルは公式 storage の `face_landmarker.task` を参照し、`FaceLandmarker.createFromOptions()` で `runningMode`、confidence、`outputFaceBlendshapes: true`、`outputFacialTransformationMatrixes: true` を指定しています。`detectForVideo()` は同期実行なので、実運用では Worker と OffscreenCanvas に移し、UIは最後に届いた結果だけを描く構成が必要です。",
+      "bodyEn": "The static HTML dynamically imports `@mediapipe/tasks-vision@0.10.22/+esm` and pins the matching WASM path. It references the official storage `face_landmarker.task` model and calls `FaceLandmarker.createFromOptions()` with running mode, confidence values, `outputFaceBlendshapes: true`, and `outputFacialTransformationMatrixes: true`. Because `detectForVideo()` is synchronous, production use should move detection into a Worker with OffscreenCanvas and render only the latest result on the UI thread.",
+      "links": [
+        {
+          "label": "FaceLandmarker class",
+          "url": "https://developers.google.cn/edge/api/mediapipe/js/tasks-vision.facelandmarker"
+        },
+        {
+          "label": "tasks-vision package",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "次は `detectForVideo()` の Worker 化、facial transformation matrix から顔エフェクトの anchor を安定化する処理、blendshape cue のJSON export、Web Audio feedback、ユーザー別 calibration profile、`numFaces` を2以上にした時の smoothing の違いを見ます。Face Landmarker だけでなく、Gesture Recognizer と組み合わせて、手ジェスチャーを明示コマンド、表情を補助状態として扱う設計も追います。",
+      "bodyEn": "Next watch Worker-based `detectForVideo()`, stabilizing effect anchors from facial transformation matrices, JSON export for blendshape cues, Web Audio feedback, per-user calibration profiles, and smoothing differences when `numFaces` is greater than 1. Also explore combining Face Landmarker with Gesture Recognizer so hand gestures act as explicit commands while expression acts as supporting state.",
+      "links": [
+        {
+          "label": "Official Face Landmarker task implementation in mediapipe-samples-web",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/face-landmarker.ts"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず本命サンプルを開き、Synthetic feed のまま smile / brow / jaw のしきい値と smoothing を動かして、cue がどう変わるかを見ます。次に顔写真をアップロードして Run uploaded image を押すか、カメラを許可して実モデルの blendshape を読みます。派生サンプルでは Excited demo と Quiet viewer を切り替え、hold ms と cooldown ms を調整すると、短いスパイクを無視して安定したキューだけを拾う感覚が掴めます。",
+      "bodyEn": "First open the main sample, keep the synthetic feed, and adjust smile / brow / jaw thresholds plus smoothing to see how cues change. Then upload a face image and press Run uploaded image, or allow the camera to read real model blendshapes. In the derivative sample, switch between Excited demo and Quiet viewer and tune hold time and cooldown to feel how short spikes can be ignored while stable cues are kept.",
+      "links": [
+        {
+          "label": "Open Face Blendshape Trigger Mixer",
+          "url": "../outputs/2026-08-24_face_blendshape_trigger_mixer.html"
+        },
+        {
+          "label": "Open Expression Cue Hysteresis Board",
+          "url": "../outputs/2026-08-24_expression_cue_hysteresis_board.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Face Landmarker Web guide、tasks-vision API、FaceLandmarker class、mediapipe-samples-web repository、公式 Face Landmarker 実装、MediaPipe Tasks Vision README、公式 demo page を確認。設計: mesh viewer ではなく blendshape から UI cue へ変換する層を本命にした。実装: 本命HTMLに MediaPipe dynamic import、公式 task bundle、アップロード画像、カメラ、合成フィード、score smoothing、trigger meters を追加。派生HTMLに合成 blendshape stream、threshold、hold、release gap、cooldown、cue log を追加。検証: JSON parse、gallery build、publish command、公開URL応答を確認する。",
+      "bodyEn": "Research: checked the Face Landmarker Web guide, tasks-vision API, FaceLandmarker class, mediapipe-samples-web repository, official Face Landmarker implementation, MediaPipe Tasks Vision README, and official demo page. Design: made the main layer a blendshape-to-UI-cue adapter rather than a mesh viewer. Implementation: added MediaPipe dynamic import, official task bundle, uploaded images, camera, synthetic feed, score smoothing, and trigger meters to the main HTML. Added synthetic blendshape streams, threshold, hold, release gap, cooldown, and cue logs to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and public URL responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの蓄積は、Gesture、Object、Pose、Image Segmenter、FilesetResolver、GenAI などを、実アプリの小さな部品として切り出してきました。今日の Face Landmarker は、検出結果の豊かさをそのまま見せるより、アプリに渡す語彙を減らして安定化する方向です。ランドマークや係数は高密度ですが、ユーザー体験に渡す時は smile cue、brow cue、jaw cue のように絞り、保持時間とクールダウンで誤発火を抑えるのが重要です。",
+      "bodyEn": "Previous entries have carved Gesture, Object, Pose, Image Segmenter, FilesetResolver, GenAI, and related areas into small app components. Today's Face Landmarker entry moves away from showing the richness of raw results and toward reducing and stabilizing the vocabulary passed into the app. Landmarks and coefficients are dense, but the user experience should receive narrowed signals such as smile cue, brow cue, and jaw cue, with hold time and cooldown suppressing false triggers."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Face Blendshape Trigger Mixer` です。実際に動く部分は、Tasks Vision の dynamic import、`FilesetResolver.forVisionTasks()`、公式 Face Landmarker task bundle のロード、画像 / カメラ / 合成フィード、blendshape-like scores の smoothing、smile / brow / jaw triggers、cue log です。次に足すなら、Worker 内 `detectForVideo()`、transformation matrix 由来のエフェクト anchor、Web Audio cue、cue JSON export、IndexedDB calibration history を追加します。派生試作は `Expression Cue Hysteresis Board` で、合成 blendshape stream を使って threshold、hold、release gap、cooldown の調整を短時間で試せます。",
+      "bodyEn": "The selected main prototype is `Face Blendshape Trigger Mixer`. The working pieces are Tasks Vision dynamic import, `FilesetResolver.forVisionTasks()`, loading the official Face Landmarker task bundle, image / camera / synthetic feeds, smoothing blendshape-like scores, smile / brow / jaw triggers, and a cue log. Next additions should include Worker-side `detectForVideo()`, effect anchors from transformation matrices, Web Audio cues, cue JSON export, and IndexedDB calibration history. The derivative prototype is `Expression Cue Hysteresis Board`, which quickly tests threshold, hold, release gap, and cooldown using synthetic blendshape streams.",
+      "links": [
+        {
+          "label": "Open Face Blendshape Trigger Mixer",
+          "url": "../outputs/2026-08-24_face_blendshape_trigger_mixer.html"
+        },
+        {
+          "label": "Open Expression Cue Hysteresis Board",
+          "url": "../outputs/2026-08-24_expression_cue_hysteresis_board.html"
+        }
+      ]
+    }
+  ]
+}

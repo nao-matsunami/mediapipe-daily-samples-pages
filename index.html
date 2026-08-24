@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">24 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">25 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-24</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span></p>
+      <h2>Face Landmarker の blendshape を表情UIトリガーへ変換する検査台</h2>
+      <p class="en">A trigger bench that turns Face Landmarker blendshapes into expression UI cues</p>
+      <p>Google AI Edge の Face Landmarker Web guide、tasks-vision API、FaceLandmarker class、公式 mediapipe-samples-web の Face Landmarker 実装を参考に、3D face landmarks、blendshape scores、facial transformation matrices をただ描画するのではなく、表情スコアを小さなUIイベントへ変換する自作サンプルを追加しました。さらに派生試作として、モデルなしで threshold、hold time、release gap、cooldown を調整できるヒステリシス検証ボードも追加しました。</p>
+      <div class="actions">
+        <a href="days/2026-08-24.html">日付ページ</a>
+        <a href="outputs/2026-08-24_face_blendshape_trigger_mixer.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="outputs/2026-08-24_expression_cue_hysteresis_board.html"><span>MediaPipe</span>Expression Cue Hysteresis Board</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-23</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span></p>
       <h2>Image Segmenter の callback mask をコピーして使うマット検査台</h2>
       <p class="en">A matte inspection bench that copies Image Segmenter callback masks</p>

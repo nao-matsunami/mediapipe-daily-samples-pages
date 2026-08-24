@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expression Cue Hysteresis Board</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b0f13;
+      color: #f8faf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(248, 250, 247, .05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(248, 250, 247, .04) 1px, transparent 1px),
+        linear-gradient(135deg, #0b0f13 0%, #172320 54%, #261b17 100%);
+      background-size: 30px 30px, 30px 30px, auto;
+    }
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: end;
+      border-bottom: 1px solid rgba(248, 250, 247, .16);
+      padding-bottom: 14px;
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.7rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 7px 0 0; color: #c6d0cb; line-height: 1.55; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(99, 215, 184, .42);
+      background: rgba(99, 215, 184, .1);
+      color: #f8faf7;
+      cursor: pointer;
+      padding: 0 12px;
+    }
+    button.primary { background: #63d7b8; color: #07110f; border-color: #63d7b8; font-weight: 760; }
+    input[type="range"], select { width: 100%; accent-color: #63d7b8; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(248, 250, 247, .16);
+      background: #0d1716;
+      color: #f8faf7;
+      padding: 0 10px;
+    }
+    .badge {
+      min-width: 150px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 200, 123, .44);
+      background: rgba(255, 200, 123, .12);
+      color: #ffdc9f;
+      font-size: .78rem;
+      text-align: center;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .board {
+      min-height: 640px;
+      border: 1px solid rgba(248, 250, 247, .14);
+      background: rgba(5, 8, 9, .86);
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+    }
+    .strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .stat {
+      border: 1px solid rgba(248, 250, 247, .14);
+      background: rgba(248, 250, 247, .06);
+      min-height: 74px;
+      padding: 10px;
+    }
+    .label { color: #9ca9a5; font-size: .74rem; text-transform: uppercase; }
+    .value { margin-top: 4px; font-size: 1.35rem; font-weight: 760; }
+    canvas {
+      width: 100%;
+      height: 100%;
+      min-height: 470px;
+      display: block;
+      border: 1px solid rgba(248, 250, 247, .1);
+      background: #060a0b;
+    }
+    aside { display: grid; gap: 12px; align-content: start; }
+    .panel {
+      border: 1px solid rgba(248, 250, 247, .14);
+      background: rgba(11, 17, 17, .78);
+      padding: 14px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 74px;
+      gap: 10px;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .row output { color: #ffdc9f; text-align: right; font-variant-numeric: tabular-nums; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .log {
+      min-height: 154px;
+      max-height: 210px;
+      overflow: auto;
+      color: #c6d0cb;
+      font-size: .86rem;
+      line-height: 1.45;
+      border-top: 1px solid rgba(248, 250, 247, .12);
+      padding-top: 8px;
+    }
+    .cue {
+      display: grid;
+      grid-template-columns: 72px 1fr 46px;
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0;
+      font-size: .9rem;
+    }
+    .pill {
+      border: 1px solid rgba(248, 250, 247, .18);
+      background: rgba(248, 250, 247, .07);
+      padding: 5px 7px;
+      color: #c6d0cb;
+      text-align: center;
+    }
+    .pill.hot { background: #ffdc9f; color: #07110f; border-color: #ffdc9f; font-weight: 750; }
+    .meter { height: 9px; background: rgba(248, 250, 247, .1); overflow: hidden; }
+    .fill { height: 100%; background: #63d7b8; width: 0%; transition: width .1s linear; }
+    @media (max-width: 880px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { display: block; }
+      .badge { display: inline-block; margin-top: 12px; }
+      .strip { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Expression Cue Hysteresis Board</h1>
+        <p>Face Landmarker の blendshape を想定し、表情スコアからUIキューを発火するまでの保持時間とクールダウンを調整する派生試作。</p>
+      </div>
+      <div class="badge" id="status">playing</div>
+    </header>
+
+    <section class="board">
+      <div class="strip">
+        <div class="stat"><div class="label">Preset</div><div class="value" id="presetName">Presenter</div></div>
+        <div class="stat"><div class="label">Active cue</div><div class="value" id="activeCue">none</div></div>
+        <div class="stat"><div class="label">Hold</div><div class="value" id="holdValue">0 ms</div></div>
+        <div class="stat"><div class="label">Cooldown</div><div class="value" id="coolValue">0 ms</div></div>
+      </div>
+      <canvas id="canvas" width="920" height="560"></canvas>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Input pattern</h2>
+        <div class="controls">
+          <button class="primary" id="play">Play</button>
+          <button id="pause">Pause</button>
+          <button id="step">Step</button>
+          <button id="reset">Reset</button>
+        </div>
+        <label class="row">Preset <select id="preset"><option>Presenter</option><option>Quiet viewer</option><option>Excited demo</option></select><output></output></label>
+      </section>
+
+      <section class="panel">
+        <h2>Gate tuning</h2>
+        <label class="row">Threshold <input id="threshold" type="range" min="0.10" max="0.85" step="0.01" value="0.42"><output id="thresholdOut">0.42</output></label>
+        <label class="row">Hold ms <input id="hold" type="range" min="0" max="900" step="25" value="250"><output id="holdOut">250</output></label>
+        <label class="row">Release gap <input id="release" type="range" min="0.02" max="0.35" step="0.01" value="0.11"><output id="releaseOut">0.11</output></label>
+        <label class="row">Cooldown ms <input id="cooldown" type="range" min="0" max="1400" step="50" value="550"><output id="cooldownOut">550</output></label>
+      </section>
+
+      <section class="panel">
+        <h2>Cues</h2>
+        <div id="cues"></div>
+        <div class="log" id="log">Cue log is empty.</div>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    const els = Object.fromEntries([...document.querySelectorAll("[id]")].map((el) => [el.id, el]));
+    const ctx = els.canvas.getContext("2d");
+    const cues = [
+      { key: "smile", label: "caption brighten", color: "#63d7b8" },
+      { key: "brow", label: "zoom emphasis", color: "#ffdc9f" },
+      { key: "jaw", label: "record marker", color: "#ff8d6e" }
+    ];
+    const state = {
+      playing: true,
+      t: 0,
+      last: performance.now(),
+      scores: { smile: 0, brow: 0, jaw: 0 },
+      aboveSince: { smile: 0, brow: 0, jaw: 0 },
+      activeUntil: { smile: 0, brow: 0, jaw: 0 },
+      cooldownUntil: { smile: 0, brow: 0, jaw: 0 },
+      history: []
+    };
+
+    function bind(id, fmt = (v) => v) {
+      const input = els[id];
+      const out = els[`${id}Out`];
+      input.addEventListener("input", () => { out.value = fmt(input.value); });
+      out.value = fmt(input.value);
+    }
+    bind("threshold", (v) => Number(v).toFixed(2));
+    bind("hold", (v) => `${v}`);
+    bind("release", (v) => Number(v).toFixed(2));
+    bind("cooldown", (v) => `${v}`);
+
+    const profiles = {
+      "Presenter": { smile: [0.20, 0.62, 1.0], brow: [0.14, 0.54, .7], jaw: [0.16, 0.50, 1.25] },
+      "Quiet viewer": { smile: [0.12, 0.34, .6], brow: [0.10, 0.26, .8], jaw: [0.08, 0.22, 1.1] },
+      "Excited demo": { smile: [0.26, 0.78, 1.2], brow: [0.20, 0.72, 1.1], jaw: [0.22, 0.70, 1.35] }
+    };
+
+    function sampleScores(t) {
+      const p = profiles[els.preset.value];
+      return Object.fromEntries(Object.entries(p).map(([key, [base, amp, speed]], i) => {
+        const wave = Math.sin(t * speed + i * 1.7) * .5 + .5;
+        const pulse = Math.max(0, Math.sin(t * (speed * .42) + i * 2.3)) ** 5;
+        return [key, Math.min(.98, base + amp * (.36 * wave + .64 * pulse))];
+      }));
+    }
+
+    function log(text) {
+      const time = new Date().toLocaleTimeString();
+      els.log.innerHTML = `<div>${time} ${text}</div>` + els.log.innerHTML;
+    }
+
+    function update(dt, now) {
+      const threshold = Number(els.threshold.value);
+      const release = Number(els.release.value);
+      const hold = Number(els.hold.value);
+      const cooldown = Number(els.cooldown.value);
+      state.t += dt / 1000;
+      state.scores = sampleScores(state.t);
+      for (const cue of cues) {
+        const value = state.scores[cue.key];
+        const hot = value >= threshold;
+        const off = value < threshold - release;
+        if (hot && !state.aboveSince[cue.key]) state.aboveSince[cue.key] = now;
+        if (off) state.aboveSince[cue.key] = 0;
+        const held = state.aboveSince[cue.key] ? now - state.aboveSince[cue.key] : 0;
+        if (hot && held >= hold && now >= state.cooldownUntil[cue.key]) {
+          state.activeUntil[cue.key] = now + 420;
+          state.cooldownUntil[cue.key] = now + cooldown;
+          state.history.unshift({ t: state.t, key: cue.key, value });
+          state.history = state.history.slice(0, 90);
+          log(`${cue.key} cue fired at ${value.toFixed(2)}.`);
+        }
+      }
+    }
+
+    function draw(now) {
+      const w = els.canvas.width;
+      const h = els.canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#060a0b";
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = "rgba(248,250,247,.12)";
+      ctx.lineWidth = 1;
+      for (let x = 64; x < w - 32; x += 64) {
+        ctx.beginPath(); ctx.moveTo(x, 34); ctx.lineTo(x, h - 52); ctx.stroke();
+      }
+      for (let y = 72; y < h - 40; y += 72) {
+        ctx.beginPath(); ctx.moveTo(48, y); ctx.lineTo(w - 36, y); ctx.stroke();
+      }
+      const thresholdY = h - 52 - Number(els.threshold.value) * (h - 106);
+      ctx.strokeStyle = "#ffdc9f";
+      ctx.setLineDash([8, 7]);
+      ctx.beginPath(); ctx.moveTo(48, thresholdY); ctx.lineTo(w - 36, thresholdY); ctx.stroke();
+      ctx.setLineDash([]);
+      cues.forEach((cue, index) => {
+        ctx.strokeStyle = cue.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        for (let i = 0; i < 170; i++) {
+          const tt = Math.max(0, state.t - (170 - i) * .035);
+          const value = sampleScores(tt)[cue.key];
+          const x = 54 + i * ((w - 104) / 169);
+          const y = h - 52 - value * (h - 106);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        const currentY = h - 52 - state.scores[cue.key] * (h - 106);
+        ctx.fillStyle = cue.color;
+        ctx.beginPath(); ctx.arc(w - 44, currentY, 7 + index, 0, Math.PI * 2); ctx.fill();
+      });
+      state.history.slice(0, 12).forEach((item) => {
+        const age = state.t - item.t;
+        const x = w - 86 - age * 80;
+        if (x < 48) return;
+        const cue = cues.find((c) => c.key === item.key);
+        ctx.fillStyle = cue.color;
+        ctx.fillRect(x, 32, 8, h - 84);
+      });
+    }
+
+    function renderCueRows(now) {
+      const active = cues.filter((cue) => now < state.activeUntil[cue.key]).map((cue) => cue.key);
+      els.activeCue.textContent = active[0] || "none";
+      els.presetName.textContent = els.preset.value;
+      const held = Math.max(...cues.map((cue) => state.aboveSince[cue.key] ? now - state.aboveSince[cue.key] : 0));
+      const cool = Math.max(...cues.map((cue) => Math.max(0, state.cooldownUntil[cue.key] - now)));
+      els.holdValue.textContent = `${Math.round(held)} ms`;
+      els.coolValue.textContent = `${Math.round(cool)} ms`;
+      els.cues.innerHTML = cues.map((cue) => {
+        const hot = active.includes(cue.key);
+        return `<div class="cue">
+          <div class="pill ${hot ? "hot" : ""}">${cue.key}</div>
+          <div><div>${cue.label}</div><div class="meter"><div class="fill" style="width:${Math.round(state.scores[cue.key] * 100)}%; background:${cue.color}"></div></div></div>
+          <div>${state.scores[cue.key].toFixed(2)}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function frame(now) {
+      const dt = Math.min(80, now - state.last);
+      state.last = now;
+      if (state.playing) update(dt, now);
+      draw(now);
+      renderCueRows(now);
+      requestAnimationFrame(frame);
+    }
+
+    els.play.addEventListener("click", () => { state.playing = true; els.status.textContent = "playing"; });
+    els.pause.addEventListener("click", () => { state.playing = false; els.status.textContent = "paused"; });
+    els.step.addEventListener("click", () => { update(120, performance.now()); });
+    els.reset.addEventListener("click", () => {
+      state.t = 0;
+      state.history = [];
+      state.aboveSince = { smile: 0, brow: 0, jaw: 0 };
+      state.activeUntil = { smile: 0, brow: 0, jaw: 0 };
+      state.cooldownUntil = { smile: 0, brow: 0, jaw: 0 };
+      log("State reset.");
+    });
+    els.preset.addEventListener("change", () => log(`Preset changed to ${els.preset.value}.`));
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
