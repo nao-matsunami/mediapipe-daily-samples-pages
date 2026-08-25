@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Command Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #080b0f;
+      color: #f8fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(98, 208, 255, .06) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 208, 104, .05) 1px, transparent 1px),
+        linear-gradient(135deg, #080b0f 0%, #111820 48%, #17120a 100%);
+      background-size: 36px 36px, 36px 36px, auto;
+    }
+    main {
+      width: min(1260px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: end;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(248, 251, 255, .15);
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.8rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #bdc8d2; line-height: 1.55; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(98, 208, 255, .38);
+      background: rgba(98, 208, 255, .09);
+      color: #f8fbff;
+      cursor: pointer;
+      padding: 0 12px;
+    }
+    button.primary { background: #62d0ff; border-color: #62d0ff; color: #051018; font-weight: 760; }
+    button:disabled { opacity: .55; cursor: wait; }
+    input[type="range"], select { width: 100%; accent-color: #62d0ff; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(248, 251, 255, .16);
+      background: #0b1118;
+      color: #f8fbff;
+      padding: 0 10px;
+    }
+    .badge {
+      min-width: 162px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 208, 104, .45);
+      background: rgba(255, 208, 104, .12);
+      color: #ffe0a2;
+      text-align: center;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(248, 251, 255, .14);
+      background: #05080b;
+      overflow: hidden;
+    }
+    video, canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    video { transform: scaleX(-1); opacity: .9; }
+    .hud {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    .tile, .panel {
+      border: 1px solid rgba(248, 251, 255, .14);
+      background: rgba(8, 13, 18, .78);
+      backdrop-filter: blur(12px);
+    }
+    .tile { min-height: 64px; padding: 10px; }
+    .label { color: #91a1ad; font-size: .7rem; text-transform: uppercase; }
+    .value { margin-top: 5px; font-size: 1.08rem; font-weight: 760; overflow-wrap: anywhere; }
+    aside { display: grid; gap: 12px; align-content: start; }
+    .panel { padding: 14px; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row { display: grid; grid-template-columns: 1fr 78px; align-items: center; gap: 10px; margin: 10px 0; }
+    .row output { color: #ffe0a2; text-align: right; font-variant-numeric: tabular-nums; }
+    .command-list { display: grid; gap: 8px; }
+    .command {
+      display: grid;
+      grid-template-columns: 94px 1fr 46px;
+      gap: 8px;
+      align-items: center;
+      color: #dbe5ee;
+      font-size: .88rem;
+    }
+    .bar { height: 10px; background: rgba(248, 251, 255, .1); overflow: hidden; }
+    .fill { height: 100%; width: 0%; background: #62d0ff; transition: width .1s linear; }
+    .pill {
+      border: 1px solid rgba(248, 251, 255, .18);
+      background: rgba(248, 251, 255, .07);
+      padding: 5px 6px;
+      text-align: center;
+      color: #bdc8d2;
+      font-size: .76rem;
+    }
+    .pill.hot { background: #ffd068; border-color: #ffd068; color: #121006; font-weight: 760; }
+    .log {
+      min-height: 112px;
+      max-height: 150px;
+      overflow: auto;
+      border-top: 1px solid rgba(248, 251, 255, .13);
+      padding-top: 8px;
+      color: #bdc8d2;
+      font-size: .84rem;
+      line-height: 1.45;
+    }
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { display: block; }
+      .badge { display: inline-block; margin-top: 12px; }
+      .stage { min-height: 560px; }
+    }
+    @media (max-width: 640px) {
+      .hud { grid-template-columns: 1fr 1fr; }
+      .stage { min-height: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Gesture Command Router</h1>
+        <p>MediaPipe Gesture Recognizer の gesture / handedness / landmarks を、誤発火しにくいアプリ操作へ変換する最小検査台。カメラ入力と合成入力の両方で動きます。</p>
+      </div>
+      <div class="badge" id="status">idle</div>
+    </header>
+
+    <section class="stage" aria-label="Gesture command router stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="stage" width="1280" height="820"></canvas>
+      <div class="hud">
+        <div class="tile"><div class="label">Runtime</div><div class="value" id="runtime">synthetic</div></div>
+        <div class="tile"><div class="label">Gesture</div><div class="value" id="gesture">Open_Palm</div></div>
+        <div class="tile"><div class="label">Armed</div><div class="value" id="armed">none</div></div>
+        <div class="tile"><div class="label">Latency</div><div class="value" id="latency">- ms</div></div>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Input</h2>
+        <div class="controls">
+          <button class="primary" id="startCamera">Start camera</button>
+          <button id="stopCamera">Stop camera</button>
+          <button id="synthetic">Synthetic feed</button>
+          <select id="scenario">
+            <option value="presenter">Presenter deck</option>
+            <option value="kiosk">Kiosk menu</option>
+            <option value="capture">Capture tool</option>
+          </select>
+        </div>
+        <p>実モデルは `@mediapipe/tasks-vision` と公式 Gesture Recognizer task を読みます。読み込み不可でも下のルータ層は検証できます。</p>
+      </section>
+
+      <section class="panel">
+        <h2>Intent gate</h2>
+        <label class="row">Enter score <input id="enter" type="range" min="0.35" max="0.95" step="0.01" value="0.68"><output id="enterOut">0.68</output></label>
+        <label class="row">Release score <input id="release" type="range" min="0.10" max="0.80" step="0.01" value="0.42"><output id="releaseOut">0.42</output></label>
+        <label class="row">Hold frames <input id="hold" type="range" min="2" max="24" step="1" value="8"><output id="holdOut">8</output></label>
+        <label class="row">Cooldown ms <input id="cooldown" type="range" min="0" max="1800" step="50" value="650"><output id="cooldownOut">650</output></label>
+      </section>
+
+      <section class="panel">
+        <h2>Commands</h2>
+        <div class="command-list" id="commands"></div>
+        <div class="log" id="log">Waiting for gesture stream.</div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const video = $("video");
+    const controls = ["enter", "release", "hold", "cooldown"];
+    const commandDefs = [
+      { gesture: "Open_Palm", command: "pause", label: "Pause" },
+      { gesture: "Closed_Fist", command: "confirm", label: "Confirm" },
+      { gesture: "Pointing_Up", command: "next", label: "Next" },
+      { gesture: "Thumb_Up", command: "approve", label: "Approve" },
+      { gesture: "Victory", command: "capture", label: "Capture" },
+      { gesture: "ILoveYou", command: "help", label: "Help" }
+    ];
+    const scenarioLabels = {
+      presenter: { next: "next slide", pause: "pause timer", confirm: "spotlight", approve: "mark OK", capture: "snapshot", help: "notes" },
+      kiosk: { next: "move focus", pause: "back", confirm: "select", approve: "favorite", capture: "scan", help: "assist" },
+      capture: { next: "next shot", pause: "hold", confirm: "save", approve: "publish", capture: "shutter", help: "guide" }
+    };
+    let recognizer = null;
+    let stream = null;
+    let mode = "synthetic";
+    let lastVideoTime = -1;
+    let smoothed = new Map(commandDefs.map((def) => [def.gesture, 0]));
+    let held = new Map(commandDefs.map((def) => [def.gesture, 0]));
+    let activeCommand = null;
+    let cooldownUntil = 0;
+    let logLines = [];
+    let t0 = performance.now();
+
+    function opts() {
+      return {
+        enter: Number($("enter").value),
+        release: Number($("release").value),
+        hold: Number($("hold").value),
+        cooldown: Number($("cooldown").value)
+      };
+    }
+
+    function setStatus(text) { $("status").textContent = text; }
+    function addLog(text) {
+      const stamp = new Date().toLocaleTimeString();
+      logLines.unshift(`${stamp} ${text}`);
+      logLines = logLines.slice(0, 8);
+      $("log").innerHTML = logLines.map((line) => `<div>${line}</div>`).join("");
+    }
+
+    function updateOutputs() {
+      $("enterOut").textContent = Number($("enter").value).toFixed(2);
+      $("releaseOut").textContent = Number($("release").value).toFixed(2);
+      $("holdOut").textContent = $("hold").value;
+      $("cooldownOut").textContent = $("cooldown").value;
+    }
+
+    function syntheticResult(now) {
+      const names = commandDefs.map((def) => def.gesture);
+      const span = 2400;
+      const index = Math.floor((now - t0) / span) % names.length;
+      const phase = ((now - t0) % span) / span;
+      const score = Math.max(0, Math.sin(Math.PI * phase)) * 0.72 + 0.16;
+      const wave = names.map((name, i) => ({ name, score: i === index ? score : 0.08 + 0.08 * Math.sin(now / 600 + i) }));
+      const x = 0.5 + Math.sin(now / 900) * 0.22;
+      const y = 0.48 + Math.cos(now / 1100) * 0.15;
+      return {
+        runtime: "synthetic",
+        handedness: "Right",
+        gestures: wave,
+        landmarks: Array.from({ length: 21 }, (_, i) => ({
+          x: x + Math.cos(i * 0.9) * (0.035 + i * 0.002),
+          y: y + Math.sin(i * 0.8) * (0.035 + i * 0.002),
+          z: -0.02 * Math.sin(i + now / 700)
+        })),
+        latency: 0
+      };
+    }
+
+    async function ensureRecognizer() {
+      if (recognizer) return recognizer;
+      setStatus("loading model");
+      const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+      const vision = await mod.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm");
+      recognizer = await mod.GestureRecognizer.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task"
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      return recognizer;
+    }
+
+    function normalizeResult(result, latency) {
+      const gestures = commandDefs.map((def, i) => {
+        const found = result.gestures?.flat()?.find((item) => item.categoryName === def.gesture);
+        const top = result.gestures?.[i]?.[0];
+        return { name: def.gesture, score: found?.score ?? (top?.categoryName === def.gesture ? top.score : 0) };
+      });
+      const bestHand = result.handedness?.[0]?.[0]?.displayName || result.handedness?.[0]?.[0]?.categoryName || "hand";
+      return {
+        runtime: "MediaPipe",
+        handedness: bestHand,
+        gestures,
+        landmarks: result.landmarks?.[0] || [],
+        latency
+      };
+    }
+
+    function route(frame, now) {
+      const o = opts();
+      let winner = { name: "None", score: 0 };
+      for (const g of frame.gestures) {
+        const prev = smoothed.get(g.name) || 0;
+        const next = prev * 0.58 + g.score * 0.42;
+        smoothed.set(g.name, next);
+        if (next > winner.score) winner = { name: g.name, score: next };
+      }
+      commandDefs.forEach((def) => {
+        const score = smoothed.get(def.gesture) || 0;
+        held.set(def.gesture, score >= o.enter ? (held.get(def.gesture) || 0) + 1 : (score < o.release ? 0 : held.get(def.gesture) || 0));
+      });
+      const def = commandDefs.find((item) => item.gesture === winner.name);
+      if (def && held.get(def.gesture) >= o.hold && now > cooldownUntil && activeCommand !== def.command) {
+        activeCommand = def.command;
+        cooldownUntil = now + o.cooldown;
+        addLog(`${def.label} armed from ${winner.name} ${Math.round(winner.score * 100)}%`);
+      }
+      if (activeCommand && winner.score < o.release) activeCommand = null;
+      $("runtime").textContent = frame.runtime;
+      $("gesture").textContent = `${winner.name} ${Math.round(winner.score * 100)}%`;
+      $("armed").textContent = activeCommand || "none";
+      $("latency").textContent = frame.latency ? `${frame.latency.toFixed(1)} ms` : "- ms";
+      return winner;
+    }
+
+    function draw(frame, winner) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (mode === "camera" && video.readyState >= 2) {
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        ctx.fillStyle = "rgba(5, 8, 11, .22)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      } else {
+        const grd = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        grd.addColorStop(0, "#0a1720");
+        grd.addColorStop(1, "#1d170d");
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      const cx = canvas.width * 0.5;
+      const cy = canvas.height * 0.53;
+      ctx.strokeStyle = "rgba(98, 208, 255, .28)";
+      ctx.lineWidth = 2;
+      for (let r = 80; r <= 300; r += 56) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (frame.landmarks?.length) {
+        ctx.fillStyle = "#ffd068";
+        for (const p of frame.landmarks) {
+          ctx.beginPath();
+          ctx.arc(p.x * canvas.width, p.y * canvas.height, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      const labels = scenarioLabels[$("scenario").value];
+      commandDefs.forEach((def, i) => {
+        const angle = -Math.PI / 2 + i * Math.PI * 2 / commandDefs.length;
+        const x = cx + Math.cos(angle) * 245;
+        const y = cy + Math.sin(angle) * 245;
+        const score = smoothed.get(def.gesture) || 0;
+        ctx.fillStyle = activeCommand === def.command ? "#ffd068" : "rgba(98, 208, 255, .14)";
+        ctx.strokeStyle = winner.name === def.gesture ? "#62d0ff" : "rgba(248, 251, 255, .18)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x - 76, y - 36, 152, 72, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = activeCommand === def.command ? "#121006" : "#f8fbff";
+        ctx.font = "700 18px Inter, system-ui";
+        ctx.textAlign = "center";
+        ctx.fillText(labels[def.command], x, y - 4);
+        ctx.font = "12px Inter, system-ui";
+        ctx.fillText(`${def.gesture} ${Math.round(score * 100)}%`, x, y + 18);
+      });
+      renderCommands();
+    }
+
+    function renderCommands() {
+      const labels = scenarioLabels[$("scenario").value];
+      $("commands").innerHTML = commandDefs.map((def) => {
+        const score = smoothed.get(def.gesture) || 0;
+        const hot = activeCommand === def.command ? " hot" : "";
+        return `<div class="command"><span>${labels[def.command]}</span><div class="bar"><div class="fill" style="width:${Math.round(score * 100)}%"></div></div><span class="pill${hot}">${held.get(def.gesture) || 0}</span></div>`;
+      }).join("");
+    }
+
+    async function startCamera() {
+      try {
+        await ensureRecognizer();
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        mode = "camera";
+        setStatus("camera");
+        addLog("camera stream started");
+      } catch (error) {
+        mode = "synthetic";
+        setStatus("synthetic fallback");
+        addLog(`camera/model unavailable: ${error.message}`);
+      }
+    }
+
+    function stopCamera() {
+      stream?.getTracks().forEach((track) => track.stop());
+      stream = null;
+      video.srcObject = null;
+      mode = "synthetic";
+      setStatus("synthetic");
+      addLog("camera stopped");
+    }
+
+    async function frame(now) {
+      let data = syntheticResult(now);
+      if (mode === "camera" && recognizer && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime;
+        const before = performance.now();
+        try {
+          data = normalizeResult(recognizer.recognizeForVideo(video, now), performance.now() - before);
+        } catch (error) {
+          addLog(`recognizeForVideo failed: ${error.message}`);
+          mode = "synthetic";
+        }
+      }
+      const winner = route(data, now);
+      draw(data, winner);
+      requestAnimationFrame(frame);
+    }
+
+    controls.forEach((id) => $(id).addEventListener("input", updateOutputs));
+    $("startCamera").addEventListener("click", startCamera);
+    $("stopCamera").addEventListener("click", stopCamera);
+    $("synthetic").addEventListener("click", stopCamera);
+    $("scenario").addEventListener("change", () => addLog(`scenario: ${$("scenario").value}`));
+    updateOutputs();
+    setStatus("synthetic");
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

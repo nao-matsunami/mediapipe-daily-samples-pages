@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">25 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">26 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-25</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span></p>
+      <h2>Gesture Recognizer の出力を意図確定コマンドへ変換する検査台</h2>
+      <p class="en">A command router that turns Gesture Recognizer output into deliberate actions</p>
+      <p>Google AI Edge の Gesture Recognizer Web guide、API reference、公式 mediapipe-samples-web 実装を参考に、gesture category、handedness、landmarks をただ表示するのではなく、enter / release threshold、hold frames、cooldown、scenario mapping を通してアプリ操作へ変換する自作サンプルを追加しました。さらに派生試作として、`numHands: 2` を想定した左右ジェスチャーの chord resolver も追加しました。</p>
+      <div class="actions">
+        <a href="days/2026-08-25.html">日付ページ</a>
+        <a href="outputs/2026-08-25_gesture_command_router.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="outputs/2026-08-25_two_hand_chord_resolver.html"><span>MediaPipe</span>Two Hand Chord Resolver</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-24</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span></p>
       <h2>Face Landmarker の blendshape を表情UIトリガーへ変換する検査台</h2>
       <p class="en">A trigger bench that turns Face Landmarker blendshapes into expression UI cues</p>

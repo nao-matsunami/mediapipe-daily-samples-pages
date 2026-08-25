@@ -1,0 +1,172 @@
+{
+  "date": "2026-08-25",
+  "category": "MediaPipe Tasks / Gesture Recognizer / Web ML",
+  "headline": "Gesture Recognizer の出力を意図確定コマンドへ変換する検査台",
+  "headlineEn": "A command router that turns Gesture Recognizer output into deliberate actions",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、API reference、公式 mediapipe-samples-web 実装を参考に、gesture category、handedness、landmarks をただ表示するのではなく、enter / release threshold、hold frames、cooldown、scenario mapping を通してアプリ操作へ変換する自作サンプルを追加しました。さらに派生試作として、`numHands: 2` を想定した左右ジェスチャーの chord resolver も追加しました。",
+  "summaryEn": "Based on the Google AI Edge Gesture Recognizer Web guide, API reference, and official mediapipe-samples-web implementation, this adds an original sample that converts gesture categories, handedness, and landmarks into app actions through enter / release thresholds, hold frames, cooldown, and scenario mapping instead of just displaying results. A second derivative prototype adds a two-hand chord resolver for `numHands: 2` output.",
+  "keyTopics": [
+    "Gesture Recognizer Web guide は、リアルタイムの手ジェスチャー認識に加えて hand landmarks も返すため、単なる分類結果ではなく位置つきコマンド入力として扱える。",
+    "Task overview / Web guide では、出力が gesture categories、handedness、image landmarks、world landmarks を含むことが示されており、左右手や奥行きを含む意図判定に展開できる。",
+    "`recognize()` と `recognizeForVideo()` は実行モードに依存し、動画フレーム処理では timestamp を渡す API になっている。",
+    "Web guide は `recognize()` / `recognizeForVideo()` が同期実行で UI thread をブロックし得ると明記しているため、常時カメラ処理では Worker 化が実装上の重要ポイントになる。",
+    "公式 mediapipe-samples-web の Gesture Recognizer 実装は confidence sliders、`numHands`、worker、公式モデルURLを持ち、今日の最小試作ではその後段の command routing に焦点を当てた。"
+  ],
+  "keyTopicsEn": [
+    "The Gesture Recognizer Web guide returns hand landmarks along with real-time gesture recognition, making it useful as positioned command input rather than only a classifier.",
+    "The task overview and Web guide describe outputs that include gesture categories, handedness, image landmarks, and world landmarks, which can support intent decisions involving left/right hands and depth.",
+    "`recognize()` and `recognizeForVideo()` depend on the running mode, and video processing uses an API that accepts a frame timestamp.",
+    "The Web guide states that `recognize()` / `recognizeForVideo()` run synchronously and can block the UI thread, so Worker execution is important for continuous camera loops.",
+    "The official mediapipe-samples-web Gesture Recognizer implementation includes confidence sliders, `numHands`, a worker, and the official model URL; today's original sample focuses on command routing after that result layer."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Command Router",
+      "url": "../outputs/2026-08-25_gesture_command_router.html"
+    },
+    {
+      "label": "Today's derivative sample: Two Hand Chord Resolver",
+      "url": "../outputs/2026-08-25_two_hand_chord_resolver.html"
+    },
+    {
+      "label": "Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "GestureRecognizer class API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.gesturerecognizer"
+    },
+    {
+      "label": "Gesture recognition task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer"
+    },
+    {
+      "label": "Official Gesture Recognizer task implementation in mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/gesture-recognizer.ts"
+    },
+    {
+      "label": "Official MediaPipe samples web repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-25-gesture-command-router.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Gesture Recognizer を「手の形ラベルを出す部品」ではなく、「ユーザーが意図して出した操作候補を返す部品」として扱える点です。Google AI Edge の Web guide は gesture recognition result と hand landmarks を返すことを示し、task guide は handedness、image landmarks、world landmarks まで含む出力を説明しています。そこで本命サンプルでは、Open_Palm、Closed_Fist、Pointing_Up、Thumb_Up、Victory、ILoveYou をそのまま表示せず、しきい値、保持フレーム、クールダウンを通して presenter / kiosk / capture の操作語彙へ変換しました。",
+      "bodyEn": "Today's notable point is treating Gesture Recognizer not as a hand-shape labeler but as a component that returns candidate actions intentionally made by the user. The Google AI Edge Web guide shows gesture recognition results and hand landmarks, while the task guide describes outputs including handedness, image landmarks, and world landmarks. The main sample therefore does not simply display Open_Palm, Closed_Fist, Pointing_Up, Thumb_Up, Victory, and ILoveYou; it routes them through thresholds, hold frames, and cooldown into presenter / kiosk / capture command vocabularies.",
+      "links": [
+        {
+          "label": "Gesture recognition guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+        },
+        {
+          "label": "Open Gesture Command Router",
+          "url": "../outputs/2026-08-25_gesture_command_router.html"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプルは、カメラと公式 Gesture Recognizer task が使える環境では実モデルを読み、`recognizeForVideo()` の結果から gesture category を拾ってコマンドに変換します。使えない環境でも合成 gesture stream が走るため、ルータの enter threshold、release threshold、hold frames、cooldown を即座に検証できます。派生サンプルは、左手を mode key、右手を action key として扱い、左右の score と同期ウィンドウを満たした時だけ chord command を確定します。",
+      "bodyEn": "The main sample loads the real Gesture Recognizer task when camera and model access are available, then converts `recognizeForVideo()` gesture categories into commands. When that is unavailable, a synthetic gesture stream still runs so the router's enter threshold, release threshold, hold frames, and cooldown can be tested immediately. The derivative sample treats the left hand as a mode key and the right hand as an action key, confirming a chord command only when both scores and the sync window are satisfied.",
+      "links": [
+        {
+          "label": "Open Gesture Command Router",
+          "url": "../outputs/2026-08-25_gesture_command_router.html"
+        },
+        {
+          "label": "Open Two Hand Chord Resolver",
+          "url": "../outputs/2026-08-25_two_hand_chord_resolver.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、top gesture、score、handedness、hold frames、active command、scenario、cooldown、latency、21点 landmarks、左右handの同期差です。IndexedDB に保存すれば、ユーザーごとの誤発火しやすいgestureや、デバイスごとの latency を分析できます。Web Audio と組み合わせると操作確定音を返せます。world landmarks を使えば、手が近すぎる時は無効化する、奥行きで hover / press を分ける、といった発展が可能です。Text Classifier や LLM Inference と組み合わせれば、手ジェスチャーで候補を選び、テキストAIでその操作文脈を補うUIにもできます。",
+      "bodyEn": "The samples can accumulate top gesture, score, handedness, hold frames, active command, scenario, cooldown, latency, 21-point landmarks, and left/right hand sync offset. Stored in IndexedDB, this can reveal gestures that misfire per user and latency by device. With Web Audio it can return action confirmation tones. With world landmarks it can reject hands that are too close or separate hover from press by depth. Combined with Text Classifier or LLM Inference, hand gestures can select options while text AI fills in the operation context."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは `@mediapipe/tasks-vision@0.10.22/+esm` を dynamic import し、`FilesetResolver.forVisionTasks()` と公式 gesture_recognizer task URL を使いました。`GestureRecognizer.createFromOptions()` では `runningMode: \"VIDEO\"`、`numHands: 2`、hand detection / presence / tracking confidence を指定しています。Web guide の注意どおり `recognizeForVideo()` は同期処理なので、実運用では official samples のように worker へ移し、main thread には command event と描画用の軽い状態だけを渡すのがよいです。",
+      "bodyEn": "The static HTML dynamically imports `@mediapipe/tasks-vision@0.10.22/+esm`, then uses `FilesetResolver.forVisionTasks()` and the official gesture_recognizer task URL. `GestureRecognizer.createFromOptions()` sets `runningMode: \"VIDEO\"`, `numHands: 2`, and hand detection / presence / tracking confidence. As the Web guide warns, `recognizeForVideo()` is synchronous, so production code should move it into a worker like the official samples and send only command events plus lightweight render state to the main thread.",
+      "links": [
+        {
+          "label": "GestureRecognizer class API reference",
+          "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.gesturerecognizer"
+        },
+        {
+          "label": "Official Gesture Recognizer implementation",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/gesture-recognizer.ts"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Worker / OffscreenCanvas 版の `recognizeForVideo()`、`worldLandmarks` での奥行きフィルタ、gesture allowlist / denylist UI、JSONL event export、Web Audio confirmation、Gesture Recognizer customization tutorial、MediaPipe Tasks npm の更新、公式 samples web の worker 実装変更を見ます。二手chordは実モデルでの左右入れ替わりや handedness confidence の扱いも要確認です。",
+      "bodyEn": "Next watch Worker / OffscreenCanvas `recognizeForVideo()`, depth filtering with `worldLandmarks`, gesture allowlist / denylist UI, JSONL event export, Web Audio confirmation, the Gesture Recognizer customization tutorial, MediaPipe Tasks npm updates, and worker implementation changes in the official samples web. The two-hand chord path also needs real-model checks for left/right swaps and handedness confidence.",
+      "links": [
+        {
+          "label": "Official MediaPipe samples web repository",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず `Gesture Command Router` を開き、Synthetic feed のまま scenario を presenter / kiosk / capture で切り替え、enter score と hold frames を動かして command がいつ確定するかを確認します。次に Start camera を押して、モデルとカメラが使える環境なら実ジェスチャーで同じ gate を試します。派生の `Two Hand Chord Resolver` では sync window を狭め、左右のタイミングがずれると chord が確定しないことを確認します。",
+      "bodyEn": "First open `Gesture Command Router`, keep the synthetic feed, switch scenarios among presenter / kiosk / capture, and adjust enter score plus hold frames to see when commands are confirmed. Then press Start camera and test the same gate with real gestures when model and camera access are available. In the derivative `Two Hand Chord Resolver`, narrow the sync window and confirm that a chord does not resolve when left/right timing drifts.",
+      "links": [
+        {
+          "label": "Open Gesture Command Router",
+          "url": "../outputs/2026-08-25_gesture_command_router.html"
+        },
+        {
+          "label": "Open Two Hand Chord Resolver",
+          "url": "../outputs/2026-08-25_two_hand_chord_resolver.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、task guide、API reference、公式 mediapipe-samples-web repository、公式 Gesture Recognizer 実装、公式 demo page を確認。設計: 外部デモ一覧ではなく、gesture result をアプリ操作に変換する本命試作と、二手chordの派生試作に分けた。実装: 本命HTMLに MediaPipe dynamic import、公式モデルURL、カメラ、合成stream、command routing、threshold / hold / cooldown、scenario mapping を追加。派生HTMLに左右gesture、sync window、dwell frames、scenario別 action mapping を追加。検証: JSON parse、gallery build、publish command、公開URL応答を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer Web guide, task guide, API reference, official mediapipe-samples-web repository, official Gesture Recognizer implementation, and official demo page. Design: instead of listing external demos, split the work into a main prototype that turns gesture results into app actions and a derivative two-hand chord prototype. Implementation: added MediaPipe dynamic import, official model URL, camera, synthetic stream, command routing, threshold / hold / cooldown, and scenario mapping to the main HTML. Added left/right gestures, sync window, dwell frames, and scenario-specific action mapping to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and public URL responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "これまでの蓄積では、Gesture、Hand、Face、Object、Segmenter、GenAI、FilesetResolver などを個別の小さな部品として切り出してきました。今日の Gesture Recognizer は、8月1日の単独ジェスチャー hysteresis gate から一段進め、handedness と `numHands: 2` を含むコマンド語彙設計に寄せています。ビジョン出力はそのままUIに出すより、アプリ側で意図確定、誤発火抑制、文脈別マッピングを挟むと実装価値が上がります。",
+      "bodyEn": "Previous entries have carved Gesture, Hand, Face, Object, Segmenter, GenAI, FilesetResolver, and related areas into small parts. Today's Gesture Recognizer entry moves one step beyond the August 1 single-gesture hysteresis gate toward command vocabulary design that includes handedness and `numHands: 2`. Vision output becomes more useful when the app layer adds intent confirmation, false-trigger suppression, and context-specific mapping instead of directly exposing raw results."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Gesture Command Router` です。実際に動く部分は、公式 Gesture Recognizer task のロード、カメラまたは合成 gesture stream、gesture score smoothing、enter / release threshold、hold frames、cooldown、scenario別 command mapping、cue log です。次に足すなら Worker 内 `recognizeForVideo()`、`worldLandmarks` depth filter、JSONL export、Web Audio confirmation、gesture allowlist / denylist を追加します。派生試作は `Two Hand Chord Resolver` で、レポート中の二手chord案を短時間で動く形にし、左手mode keyと右手action keyの同期判定を試せます。",
+      "bodyEn": "The selected main prototype is `Gesture Command Router`. The working pieces are loading the official Gesture Recognizer task, camera or synthetic gesture stream, gesture score smoothing, enter / release threshold, hold frames, cooldown, scenario-specific command mapping, and cue logs. Next additions should include Worker-side `recognizeForVideo()`, `worldLandmarks` depth filtering, JSONL export, Web Audio confirmation, and gesture allowlist / denylist controls. The derivative prototype is `Two Hand Chord Resolver`, which turns the two-hand chord idea from the report into a small working form and tests sync decisions between a left-hand mode key and right-hand action key.",
+      "links": [
+        {
+          "label": "Open Gesture Command Router",
+          "url": "../outputs/2026-08-25_gesture_command_router.html"
+        },
+        {
+          "label": "Open Two Hand Chord Resolver",
+          "url": "../outputs/2026-08-25_two_hand_chord_resolver.html"
+        }
+      ]
+    }
+  ]
+}

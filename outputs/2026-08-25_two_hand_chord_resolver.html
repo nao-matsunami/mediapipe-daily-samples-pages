@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Two Hand Chord Resolver</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #090a0e;
+      color: #fbfbf6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(120deg, rgba(113, 224, 164, .13), transparent 34%),
+        linear-gradient(300deg, rgba(255, 169, 84, .12), transparent 40%),
+        #090a0e;
+    }
+    main {
+      width: min(1180px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(251, 251, 246, .16);
+    }
+    h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.65rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #c7c9c0; line-height: 1.55; }
+    canvas {
+      width: 100%;
+      min-height: 650px;
+      display: block;
+      border: 1px solid rgba(251, 251, 246, .15);
+      background: #06070a;
+    }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section {
+      border: 1px solid rgba(251, 251, 246, .15);
+      background: rgba(11, 13, 17, .82);
+      padding: 14px;
+    }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 38px;
+      border: 1px solid rgba(113, 224, 164, .38);
+      background: rgba(113, 224, 164, .08);
+      color: #fbfbf6;
+      cursor: pointer;
+    }
+    button.active { background: #71e0a4; border-color: #71e0a4; color: #051009; font-weight: 760; }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row { display: grid; grid-template-columns: 1fr 76px; gap: 10px; align-items: center; margin: 11px 0; }
+    .row output { color: #ffbd82; text-align: right; font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: #71e0a4; }
+    .metric {
+      display: grid;
+      grid-template-columns: 88px 1fr 54px;
+      gap: 8px;
+      align-items: center;
+      min-height: 34px;
+      font-size: .86rem;
+      color: #dce1d8;
+    }
+    .bar { height: 10px; background: rgba(251, 251, 246, .1); overflow: hidden; }
+    .fill { height: 100%; width: 0; background: #71e0a4; transition: width .12s linear; }
+    .badge {
+      border: 1px solid rgba(255, 189, 130, .44);
+      background: rgba(255, 189, 130, .12);
+      color: #ffcf9f;
+      padding: 8px 10px;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .log {
+      min-height: 120px;
+      max-height: 150px;
+      overflow: auto;
+      border-top: 1px solid rgba(251, 251, 246, .13);
+      padding-top: 8px;
+      color: #c7c9c0;
+      font-size: .84rem;
+      line-height: 1.45;
+    }
+    @media (max-width: 880px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { display: block; }
+      .badge { display: inline-block; margin-top: 12px; }
+      canvas { min-height: 540px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Two Hand Chord Resolver</h1>
+        <p>Gesture Recognizer の `numHands: 2` 出力を想定し、左右の gesture / handedness の組み合わせを単一コマンドへ畳み込む派生試作です。</p>
+      </div>
+      <div class="badge" id="status">synthetic chords</div>
+    </header>
+
+    <canvas id="stage" width="1280" height="820" aria-label="Two hand chord resolver"></canvas>
+
+    <aside>
+      <section>
+        <h2>Scenario</h2>
+        <div class="seg">
+          <button class="active" data-mode="edit">Edit desk</button>
+          <button data-mode="music">Music rig</button>
+          <button data-mode="teach">Teaching</button>
+          <button data-mode="assistive">Assistive</button>
+        </div>
+        <p>左手を mode key、右手を action key として扱うと、単独ジェスチャーよりコマンド語彙を増やせます。</p>
+      </section>
+
+      <section>
+        <h2>Chord gate</h2>
+        <label class="row">Left minimum <input id="leftMin" type="range" min="0.30" max="0.95" step="0.01" value="0.58"><output id="leftMinOut">0.58</output></label>
+        <label class="row">Right minimum <input id="rightMin" type="range" min="0.30" max="0.95" step="0.01" value="0.64"><output id="rightMinOut">0.64</output></label>
+        <label class="row">Sync window ms <input id="sync" type="range" min="80" max="900" step="20" value="360"><output id="syncOut">360</output></label>
+        <label class="row">Dwell frames <input id="dwell" type="range" min="2" max="22" step="1" value="7"><output id="dwellOut">7</output></label>
+      </section>
+
+      <section>
+        <h2>Resolved actions</h2>
+        <div id="metrics"></div>
+        <div class="log" id="log">Waiting for synthetic two-hand stream.</div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const modes = {
+      edit: { "Open_Palm+Pointing_Up": "select next", "Closed_Fist+Thumb_Up": "commit edit", "Victory+Open_Palm": "duplicate" },
+      music: { "Open_Palm+Pointing_Up": "next clip", "Closed_Fist+Thumb_Up": "arm track", "Victory+Open_Palm": "loop capture" },
+      teach: { "Open_Palm+Pointing_Up": "advance step", "Closed_Fist+Thumb_Up": "confirm answer", "Victory+Open_Palm": "bookmark" },
+      assistive: { "Open_Palm+Pointing_Up": "move focus", "Closed_Fist+Thumb_Up": "activate", "Victory+Open_Palm": "call helper" }
+    };
+    const chords = Object.keys(modes.edit);
+    let mode = "edit";
+    let dwell = new Map(chords.map((key) => [key, 0]));
+    let active = "none";
+    let lastFire = "";
+    let logs = [];
+    const start = performance.now();
+
+    function opts() {
+      return {
+        leftMin: Number($("leftMin").value),
+        rightMin: Number($("rightMin").value),
+        sync: Number($("sync").value),
+        dwell: Number($("dwell").value)
+      };
+    }
+    function updateOut() {
+      ["leftMin", "rightMin", "sync", "dwell"].forEach((id) => {
+        $(`${id}Out`).textContent = id.includes("Min") ? Number($(id).value).toFixed(2) : $(id).value;
+      });
+    }
+    function addLog(text) {
+      logs.unshift(`${new Date().toLocaleTimeString()} ${text}`);
+      logs = logs.slice(0, 8);
+      $("log").innerHTML = logs.map((line) => `<div>${line}</div>`).join("");
+    }
+    function stream(now) {
+      const names = chords;
+      const index = Math.floor((now - start) / 2600) % names.length;
+      const [leftName, rightName] = names[index].split("+");
+      const phase = ((now - start) % 2600) / 2600;
+      const pulse = Math.max(0, Math.sin(Math.PI * phase));
+      const drift = Math.sin(now / 550) * 70;
+      return {
+        left: { name: leftName, score: 0.24 + pulse * 0.66, seen: now - 90 + Math.sin(now / 370) * 40, x: 350 + drift, y: 430 },
+        right: { name: rightName, score: 0.20 + pulse * 0.72, seen: now - 30 + Math.cos(now / 420) * 55, x: 930 - drift, y: 430 }
+      };
+    }
+    function resolve(hands, now) {
+      const o = opts();
+      const key = `${hands.left.name}+${hands.right.name}`;
+      const syncOk = Math.abs(hands.left.seen - hands.right.seen) <= o.sync;
+      const scoreOk = hands.left.score >= o.leftMin && hands.right.score >= o.rightMin;
+      chords.forEach((chord) => dwell.set(chord, chord === key && syncOk && scoreOk ? dwell.get(chord) + 1 : 0));
+      if (dwell.get(key) >= o.dwell) {
+        active = modes[mode][key] || "unmapped";
+        if (lastFire !== `${mode}:${key}`) {
+          lastFire = `${mode}:${key}`;
+          addLog(`${active} from ${key}`);
+        }
+      } else if (!scoreOk) {
+        active = "none";
+        lastFire = "";
+      }
+      return { key, syncOk, scoreOk };
+    }
+    function drawHand(hand, side) {
+      ctx.fillStyle = side === "left" ? "rgba(113, 224, 164, .18)" : "rgba(255, 189, 130, .18)";
+      ctx.strokeStyle = side === "left" ? "#71e0a4" : "#ffbd82";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(hand.x - 126, hand.y - 96, 252, 192, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fbfbf6";
+      ctx.font = "700 28px Inter, system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(side === "left" ? "Left mode" : "Right action", hand.x, hand.y - 36);
+      ctx.font = "760 24px Inter, system-ui";
+      ctx.fillText(hand.name, hand.x, hand.y + 4);
+      ctx.font = "16px Inter, system-ui";
+      ctx.fillText(`${Math.round(hand.score * 100)}%`, hand.x, hand.y + 34);
+    }
+    function draw(hands, resolved) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const grd = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grd.addColorStop(0, "#0b1511");
+      grd.addColorStop(1, "#19100b");
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawHand(hands.left, "left");
+      drawHand(hands.right, "right");
+      ctx.strokeStyle = resolved.syncOk ? "#71e0a4" : "rgba(251, 251, 246, .26)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(hands.left.x + 130, hands.left.y);
+      ctx.lineTo(hands.right.x - 130, hands.right.y);
+      ctx.stroke();
+      ctx.fillStyle = active === "none" ? "#fbfbf6" : "#71e0a4";
+      ctx.font = "800 46px Inter, system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(active, canvas.width / 2, 150);
+      ctx.fillStyle = "#c7c9c0";
+      ctx.font = "18px Inter, system-ui";
+      ctx.fillText(`${resolved.key}  sync:${resolved.syncOk ? "ok" : "wait"}  score:${resolved.scoreOk ? "ok" : "low"}`, canvas.width / 2, 190);
+    }
+    function renderMetrics() {
+      const labels = modes[mode];
+      $("metrics").innerHTML = chords.map((key) => {
+        const pct = Math.min(100, (dwell.get(key) / Number($("dwell").value)) * 100);
+        return `<div class="metric"><span>${labels[key]}</span><div class="bar"><div class="fill" style="width:${pct}%"></div></div><b>${dwell.get(key)}</b></div>`;
+      }).join("");
+    }
+    function frame(now) {
+      const hands = stream(now);
+      const resolved = resolve(hands, now);
+      draw(hands, resolved);
+      renderMetrics();
+      requestAnimationFrame(frame);
+    }
+    document.querySelectorAll("button[data-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("button[data-mode]").forEach((b) => b.classList.remove("active"));
+        button.classList.add("active");
+        mode = button.dataset.mode;
+        active = "none";
+        lastFire = "";
+        addLog(`scenario: ${mode}`);
+      });
+    });
+    ["leftMin", "rightMin", "sync", "dwell"].forEach((id) => $(id).addEventListener("input", updateOut));
+    updateOut();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

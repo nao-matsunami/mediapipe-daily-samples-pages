@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build-gallery.mjs",
+    "publish": "node scripts/publish-pages.mjs",
     "upsert": "node scripts/upsert-report.mjs"
   }
 }
