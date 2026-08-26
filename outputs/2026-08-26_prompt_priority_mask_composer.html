@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt Priority Mask Composer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #101112;
+      color: #f9faf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(249, 250, 247, .05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(249, 250, 247, .035) 1px, transparent 1px),
+        linear-gradient(135deg, #101112 0%, #1b2824 48%, #2b2119 100%);
+      background-size: 30px 30px, 30px 30px, auto;
+    }
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(249, 250, 247, .16);
+    }
+    h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.65rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: .98rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #c7cdc8; line-height: 1.55; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(136, 221, 194, .38);
+      background: rgba(136, 221, 194, .1);
+      color: #f9faf7;
+      cursor: pointer;
+    }
+    button.primary { background: #88ddc2; border-color: #88ddc2; color: #07110e; font-weight: 750; }
+    select, input[type="range"] { width: 100%; accent-color: #88ddc2; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(249, 250, 247, .16);
+      background: #111715;
+      color: #f9faf7;
+      padding: 0 10px;
+    }
+    .badge {
+      min-width: 150px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 193, 119, .42);
+      background: rgba(255, 193, 119, .12);
+      color: #ffd699;
+      text-align: center;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 650px;
+      border: 1px solid rgba(249, 250, 247, .14);
+      background: #050605;
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .34);
+    }
+    canvas { display: block; width: 100%; height: 100%; min-height: 650px; touch-action: none; }
+    .hud {
+      position: absolute;
+      inset: 14px 14px auto;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    .metric, section {
+      border: 1px solid rgba(249, 250, 247, .13);
+      background: rgba(16, 17, 18, .84);
+      backdrop-filter: blur(12px);
+    }
+    .metric { min-height: 58px; padding: 9px 10px; }
+    .metric span { display: block; color: #98a39d; font-size: .68rem; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 7px; font-size: .95rem; line-height: 1.12; overflow-wrap: anywhere; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section { padding: 14px; }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #c7cdc8; font-size: .86rem; }
+    .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .stack { display: grid; gap: 9px; }
+    .layer { display: grid; grid-template-columns: 64px 1fr 48px; gap: 8px; align-items: center; color: #c7cdc8; font-size: .78rem; }
+    .bar { height: 10px; background: rgba(249, 250, 247, .09); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #88ddc2, #ffbd71); }
+    .readout { display: grid; gap: 8px; color: #c7cdc8; font-size: .82rem; line-height: 1.48; }
+    .readout b { color: #ffd699; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stage, canvas { min-height: 540px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Prompt Priority Mask Composer</h1>
+        <p>A derivative sandbox for testing the next step after interactive segmentation: combining several prompt masks with priority, decay, and conflict rules before committing a UI selection.</p>
+      </div>
+      <div class="badge" id="decision">track</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="stage" width="940" height="650" aria-label="prompt priority mask composer"></canvas>
+      <div class="hud">
+        <div class="metric"><span>layers</span><strong id="layers">3</strong></div>
+        <div class="metric"><span>active area</span><strong id="area">-</strong></div>
+        <div class="metric"><span>conflict</span><strong id="conflict">-</strong></div>
+        <div class="metric"><span>commit</span><strong id="commit">-</strong></div>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Composer</h2>
+        <div class="buttons">
+          <button class="primary" id="shuffleBtn">Shuffle Prompts</button>
+          <button id="clearBtn">Clear Output</button>
+        </div>
+        <label>Priority preset
+          <select id="preset">
+            <option value="foreground">Foreground wins</option>
+            <option value="negative">Negative guards edge</option>
+            <option value="fresh">Latest prompt wins</option>
+          </select>
+        </label>
+        <label>Commit threshold <input id="threshold" type="range" min="25" max="86" value="58"></label>
+        <label>Conflict tolerance <input id="tolerance" type="range" min="4" max="42" value="18"></label>
+        <label>Prompt decay <input id="decay" type="range" min="0" max="72" value="28"></label>
+      </section>
+
+      <section>
+        <h2>Layer Strength</h2>
+        <div class="stack" id="stack"></div>
+      </section>
+
+      <section>
+        <h2>Selection Rule</h2>
+        <div class="readout" id="log">
+          <div><b>Commit</b> when a composed mask has enough active area and low enough positive/negative conflict. This models what to add after the real Interactive Segmenter returns multiple prompt revisions.</div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const els = {
+      decision: document.getElementById("decision"),
+      layers: document.getElementById("layers"),
+      area: document.getElementById("area"),
+      conflict: document.getElementById("conflict"),
+      commit: document.getElementById("commit"),
+      shuffleBtn: document.getElementById("shuffleBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      preset: document.getElementById("preset"),
+      threshold: document.getElementById("threshold"),
+      tolerance: document.getElementById("tolerance"),
+      decay: document.getElementById("decay"),
+      stack: document.getElementById("stack"),
+      log: document.getElementById("log")
+    };
+    const W = canvas.width;
+    const H = canvas.height;
+    let layers = [];
+    let outputCleared = false;
+
+    function randomLayer(index, kind) {
+      const base = [
+        { x: 300, y: 250, rx: 190, ry: 135 },
+        { x: 605, y: 365, rx: 150, ry: 185 },
+        { x: 460, y: 430, rx: 88, ry: 78 }
+      ][index % 3];
+      return {
+        name: kind === "negative" ? "negative guard" : `positive ${index + 1}`,
+        kind,
+        x: base.x + (Math.random() - .5) * 70,
+        y: base.y + (Math.random() - .5) * 70,
+        rx: base.rx * (.82 + Math.random() * .38),
+        ry: base.ry * (.82 + Math.random() * .38),
+        age: index,
+        strength: kind === "negative" ? .62 : .8 + Math.random() * .18
+      };
+    }
+
+    function shuffle() {
+      layers = [
+        randomLayer(0, "positive"),
+        randomLayer(1, "positive"),
+        randomLayer(2, "negative")
+      ];
+      outputCleared = false;
+      compose();
+    }
+
+    function weightFor(layer, index) {
+      const decay = Number(els.decay.value) / 100;
+      const preset = els.preset.value;
+      let priority = layer.strength * (1 - decay * layer.age / Math.max(1, layers.length - 1));
+      if (preset === "negative" && layer.kind === "negative") priority *= 1.55;
+      if (preset === "foreground" && layer.kind === "positive") priority *= 1.2;
+      if (preset === "fresh") priority *= 1 + index * .22;
+      return priority;
+    }
+
+    function compose() {
+      ctx.clearRect(0, 0, W, H);
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, "#162720");
+      bg.addColorStop(.55, "#0b0e0f");
+      bg.addColorStop(1, "#332515");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(249,250,247,.11)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(40 + i * 96, 60);
+        ctx.lineTo(12 + i * 96, 590);
+        ctx.stroke();
+      }
+      let active = 0;
+      let conflict = 0;
+      if (!outputCleared) {
+        const img = ctx.getImageData(0, 0, W, H);
+        const threshold = Number(els.threshold.value) / 100;
+        for (let y = 0; y < H; y += 2) {
+          for (let x = 0; x < W; x += 2) {
+            let positive = 0;
+            let negative = 0;
+            layers.forEach((layer, index) => {
+              const d = Math.hypot((x - layer.x) / layer.rx, (y - layer.y) / layer.ry);
+              const value = Math.max(0, 1 - d) * weightFor(layer, index);
+              if (layer.kind === "negative") negative = Math.max(negative, value);
+              else positive = Math.max(positive, value);
+            });
+            const composed = Math.max(0, positive - negative);
+            if (positive > .18 && negative > .18) conflict += 4;
+            if (composed > threshold) {
+              active += 4;
+              paintBlock(img, x, y, composed);
+            }
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+      }
+      drawLayerOutlines();
+      const areaPct = active / (W * H);
+      const conflictPct = conflict / (W * H);
+      const allowedConflict = Number(els.tolerance.value) / 100;
+      const commit = areaPct > .055 && areaPct < .44 && conflictPct < allowedConflict;
+      els.area.textContent = `${Math.round(areaPct * 1000) / 10}%`;
+      els.conflict.textContent = `${Math.round(conflictPct * 1000) / 10}%`;
+      els.commit.textContent = commit ? "ready" : "hold";
+      els.decision.textContent = outputCleared ? "cleared" : commit ? "commit" : "refine";
+      renderStack();
+    }
+
+    function paintBlock(img, x, y, value) {
+      for (let yy = 0; yy < 2; yy++) {
+        for (let xx = 0; xx < 2; xx++) {
+          const p = ((y + yy) * W + x + xx) * 4;
+          img.data[p] = Math.round(img.data[p] * (1 - value) + 66 * value);
+          img.data[p + 1] = Math.round(img.data[p + 1] * (1 - value) + 218 * value);
+          img.data[p + 2] = Math.round(img.data[p + 2] * (1 - value) + 181 * value);
+        }
+      }
+    }
+
+    function drawLayerOutlines() {
+      layers.forEach((layer, index) => {
+        ctx.save();
+        ctx.strokeStyle = layer.kind === "negative" ? "#ff7b7b" : "#88ddc2";
+        ctx.fillStyle = layer.kind === "negative" ? "rgba(255,123,123,.13)" : "rgba(136,221,194,.14)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(layer.x, layer.y, layer.rx, layer.ry, index * .12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#f9faf7";
+        ctx.font = "700 13px Inter, sans-serif";
+        ctx.fillText(`${index + 1}`, layer.x - 4, layer.y + 4);
+        ctx.restore();
+      });
+    }
+
+    function renderStack() {
+      els.layers.textContent = String(layers.length);
+      els.stack.innerHTML = layers.map((layer, index) => {
+        const weight = weightFor(layer, index);
+        return `<div class="layer"><span>${layer.name}</span><div class="bar"><i style="width:${Math.round(Math.min(1, weight) * 100)}%"></i></div><span>${weight.toFixed(2)}</span></div>`;
+      }).join("");
+    }
+
+    function log(message) {
+      els.log.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${message}</div>` + els.log.innerHTML;
+    }
+
+    els.shuffleBtn.addEventListener("click", () => {
+      shuffle();
+      log("Prompt layers shuffled. Recheck whether priority and conflict rules still commit.");
+    });
+    els.clearBtn.addEventListener("click", () => {
+      outputCleared = !outputCleared;
+      compose();
+      log(outputCleared ? "Output hidden; layer outlines remain for rule tuning." : "Output restored.");
+    });
+    [els.preset, els.threshold, els.tolerance, els.decay].forEach((input) => input.addEventListener("input", compose));
+    shuffle();
+  </script>
+</body>
+</html>

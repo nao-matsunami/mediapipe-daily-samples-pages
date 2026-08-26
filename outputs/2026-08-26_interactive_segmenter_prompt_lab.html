@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interactive Segmenter Prompt Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #09100f;
+      color: #f6fbf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(246, 251, 248, .055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(246, 251, 248, .04) 1px, transparent 1px),
+        linear-gradient(135deg, #09100f 0%, #132622 52%, #2a2012 100%);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+    main {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 350px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(246, 251, 248, .16);
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.75rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: .98rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #c0cec9; line-height: 1.55; }
+    button, select, input { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(122, 229, 178, .38);
+      background: rgba(122, 229, 178, .11);
+      color: #f6fbf8;
+      cursor: pointer;
+    }
+    button.primary { background: #7ae5b2; border-color: #7ae5b2; color: #06110d; font-weight: 750; }
+    button:disabled { opacity: .55; cursor: wait; }
+    select, input[type="range"] { width: 100%; accent-color: #7ae5b2; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(246, 251, 248, .16);
+      background: #0b1513;
+      color: #f6fbf8;
+      padding: 0 10px;
+    }
+    input[type="file"] { max-width: 100%; color: #c0cec9; }
+    .badge {
+      min-width: 160px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 195, 116, .42);
+      background: rgba(255, 195, 116, .12);
+      color: #ffd89a;
+      text-align: center;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(246, 251, 248, .14);
+      background: #030705;
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
+    }
+    canvas { display: block; width: 100%; height: 100%; min-height: 660px; touch-action: none; }
+    .hud {
+      position: absolute;
+      inset: 14px 14px auto;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    .metric, section {
+      border: 1px solid rgba(246, 251, 248, .13);
+      background: rgba(9, 16, 15, .84);
+      backdrop-filter: blur(12px);
+    }
+    .metric { min-height: 58px; padding: 9px 10px; }
+    .metric span { display: block; color: #95a7a0; font-size: .68rem; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 7px; font-size: .95rem; line-height: 1.12; overflow-wrap: anywhere; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section { padding: 14px; }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #c0cec9; font-size: .86rem; }
+    .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .prompt-list { display: grid; gap: 7px; margin-top: 10px; }
+    .prompt-row { display: grid; grid-template-columns: 28px 1fr 54px; align-items: center; gap: 8px; color: #c0cec9; font-size: .78rem; }
+    .dot { width: 16px; height: 16px; border-radius: 50%; background: #7ae5b2; border: 2px solid #f6fbf8; }
+    .dot.negative { background: #ff7b7b; }
+    .bar { height: 9px; background: rgba(246, 251, 248, .09); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7ae5b2, #ffbe73); }
+    .readout { display: grid; gap: 8px; color: #c0cec9; font-size: .82rem; line-height: 1.48; }
+    .readout b { color: #ffd89a; }
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stage, canvas { min-height: 560px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Interactive Segmenter Prompt Lab</h1>
+        <p>Click or drag positive and negative prompts on a seeded canvas. When the MediaPipe task loads, the lab calls Interactive Segmenter; otherwise it runs the same prompt UI against a synthetic confidence mask.</p>
+      </div>
+      <div class="badge" id="status">synthetic ready</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="stage" width="960" height="660" aria-label="interactive segmenter prompt lab"></canvas>
+      <div class="hud">
+        <div class="metric"><span>runtime</span><strong id="runtime">synthetic</strong></div>
+        <div class="metric"><span>prompts</span><strong id="promptCount">0</strong></div>
+        <div class="metric"><span>segment</span><strong id="segmentMs">- ms</strong></div>
+        <div class="metric"><span>coverage</span><strong id="coverage">-</strong></div>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Source</h2>
+        <div class="buttons">
+          <button class="primary" id="loadTaskBtn">Load Task</button>
+          <button id="resetBtn">Reset Canvas</button>
+        </div>
+        <label>Upload image
+          <input id="fileInput" type="file" accept="image/*">
+        </label>
+        <label>Delegate
+          <select id="delegateSelect">
+            <option value="CPU">CPU</option>
+            <option value="GPU">GPU</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>Prompt Mode</h2>
+        <label>Brush mode
+          <select id="brushMode">
+            <option value="positive">Positive object hint</option>
+            <option value="negative">Negative background hint</option>
+          </select>
+        </label>
+        <label>Prompt radius <input id="radius" type="range" min="12" max="90" value="42"></label>
+        <label>Mask threshold <input id="threshold" type="range" min="15" max="90" value="52"></label>
+        <label>Overlay opacity <input id="opacity" type="range" min="20" max="90" value="62"></label>
+      </section>
+
+      <section>
+        <h2>Prompt Stack</h2>
+        <div class="readout" id="log">
+          <div>Use positive prompts inside the object and negative prompts on nearby background. The latest completed stroke is sent as a MediaPipe RegionOfInterest.</div>
+        </div>
+        <div class="prompt-list" id="promptList"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const els = {
+      status: document.getElementById("status"),
+      runtime: document.getElementById("runtime"),
+      promptCount: document.getElementById("promptCount"),
+      segmentMs: document.getElementById("segmentMs"),
+      coverage: document.getElementById("coverage"),
+      loadTaskBtn: document.getElementById("loadTaskBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      fileInput: document.getElementById("fileInput"),
+      delegateSelect: document.getElementById("delegateSelect"),
+      brushMode: document.getElementById("brushMode"),
+      radius: document.getElementById("radius"),
+      threshold: document.getElementById("threshold"),
+      opacity: document.getElementById("opacity"),
+      log: document.getElementById("log"),
+      promptList: document.getElementById("promptList")
+    };
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const source = document.createElement("canvas");
+    source.width = W;
+    source.height = H;
+    const sourceCtx = source.getContext("2d", { willReadFrequently: true });
+    let prompts = [];
+    let activeStroke = null;
+    let interactiveSegmenter = null;
+    let api = null;
+    let imageReadyForTask = false;
+    let latestMask = new Float32Array(W * H);
+
+    function seedCanvas() {
+      const g = sourceCtx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, "#1b3b33");
+      g.addColorStop(.56, "#0c1717");
+      g.addColorStop(1, "#382512");
+      sourceCtx.fillStyle = g;
+      sourceCtx.fillRect(0, 0, W, H);
+      sourceCtx.fillStyle = "#7ae5b2";
+      roundedRect(sourceCtx, 160, 122, 320, 248, 34);
+      sourceCtx.fill();
+      sourceCtx.fillStyle = "#ffd17d";
+      sourceCtx.beginPath();
+      sourceCtx.ellipse(640, 350, 158, 198, -.18, 0, Math.PI * 2);
+      sourceCtx.fill();
+      sourceCtx.fillStyle = "#f6fbf8";
+      sourceCtx.beginPath();
+      sourceCtx.arc(392, 440, 74, 0, Math.PI * 2);
+      sourceCtx.fill();
+      sourceCtx.strokeStyle = "rgba(246,251,248,.2)";
+      sourceCtx.lineWidth = 5;
+      for (let i = 0; i < 9; i++) {
+        sourceCtx.beginPath();
+        sourceCtx.moveTo(86 + i * 96, 70);
+        sourceCtx.lineTo(32 + i * 96, 600);
+        sourceCtx.stroke();
+      }
+      prompts = [];
+      latestMask.fill(0);
+      imageReadyForTask = false;
+      if (interactiveSegmenter?.setImage) {
+        try {
+          interactiveSegmenter.setImage(source);
+          imageReadyForTask = true;
+        } catch (error) {
+          writeLog(`setImage skipped: ${error.message}`);
+        }
+      }
+      runSynthetic();
+    }
+
+    function roundedRect(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + h, r);
+      c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
+    }
+
+    async function loadTask() {
+      els.loadTaskBtn.disabled = true;
+      els.status.textContent = "loading task";
+      const t0 = performance.now();
+      try {
+        api = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+        const vision = await api.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm");
+        interactiveSegmenter = await api.InteractiveSegmenter.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task",
+            delegate: els.delegateSelect.value
+          }
+        });
+        if (interactiveSegmenter.setImage) {
+          interactiveSegmenter.setImage(source);
+          imageReadyForTask = true;
+        }
+        els.runtime.textContent = `${els.delegateSelect.value} task`;
+        els.status.textContent = `loaded ${Math.round(performance.now() - t0)} ms`;
+        writeLog("Task loaded. New completed prompts will call Interactive Segmenter; sliders still re-render the copied mask.");
+        if (prompts.length) await segmentFromPrompts();
+      } catch (error) {
+        els.status.textContent = "synthetic fallback";
+        els.runtime.textContent = "synthetic";
+        writeLog(`Task load failed, keeping synthetic mode: ${error.message}`);
+      } finally {
+        els.loadTaskBtn.disabled = false;
+      }
+    }
+
+    function makeRoi(prompt) {
+      const brushMode = prompt.mode === "negative" && api?.BrushMode ? api.BrushMode.NEGATIVE : (api?.BrushMode?.POSITIVE ?? 1);
+      const point = prompt.points.map((p) => ({ x: p.x / W, y: p.y / H }));
+      return [{ brushMode, point, isCompleted: true }];
+    }
+
+    async function segmentFromPrompts() {
+      const t0 = performance.now();
+      const prompt = prompts.at(-1);
+      if (!prompt) {
+        latestMask.fill(0);
+        draw();
+        return;
+      }
+      if (!interactiveSegmenter || !imageReadyForTask) {
+        runSynthetic();
+        return;
+      }
+      try {
+        const roi = makeRoi(prompt);
+        let result;
+        if (interactiveSegmenter.segment.length <= 1) {
+          result = interactiveSegmenter.segment(roi);
+        } else {
+          result = interactiveSegmenter.segment(source, roi);
+        }
+        const mask = result?.confidenceMasks?.[0] || result?.categoryMask;
+        if (!mask) throw new Error("no mask returned");
+        const values = mask.getAsFloat32Array ? mask.getAsFloat32Array() : mask.getAsUint8Array();
+        latestMask = new Float32Array(values.length);
+        for (let i = 0; i < values.length; i++) latestMask[i] = values[i] > 1 ? values[i] / 255 : values[i];
+        result.close?.();
+        els.segmentMs.textContent = `${Math.round(performance.now() - t0)} ms`;
+        draw();
+      } catch (error) {
+        writeLog(`Task segment failed, recalculating synthetic mask: ${error.message}`);
+        runSynthetic();
+      }
+    }
+
+    function runSynthetic() {
+      const t0 = performance.now();
+      latestMask = new Float32Array(W * H);
+      const radius = Number(els.radius.value);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          let score = 0;
+          const objectScore = Math.max(
+            0, 1 - Math.hypot((x - 320) / 210, (y - 250) / 165),
+            0, 1 - Math.hypot((x - 640) / 150, (y - 350) / 190),
+            0, 1 - Math.hypot((x - 392) / 86, (y - 440) / 86)
+          );
+          score += objectScore * .42;
+          for (const prompt of prompts) {
+            for (const p of prompt.points) {
+              const d = Math.hypot(x - p.x, y - p.y);
+              const influence = Math.max(0, 1 - d / radius);
+              score += prompt.mode === "positive" ? influence * .82 : -influence * .72;
+            }
+          }
+          latestMask[y * W + x] = Math.max(0, Math.min(1, score));
+        }
+      }
+      els.segmentMs.textContent = `${Math.round(performance.now() - t0)} ms`;
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(source, 0, 0);
+      const threshold = Number(els.threshold.value) / 100;
+      const opacity = Number(els.opacity.value) / 100;
+      const img = ctx.getImageData(0, 0, W, H);
+      let covered = 0;
+      for (let i = 0; i < latestMask.length; i++) {
+        const m = latestMask[i];
+        if (m >= threshold) {
+          covered++;
+          const j = i * 4;
+          img.data[j] = Math.round(img.data[j] * (1 - opacity) + 36 * opacity);
+          img.data[j + 1] = Math.round(img.data[j + 1] * (1 - opacity) + 218 * opacity);
+          img.data[j + 2] = Math.round(img.data[j + 2] * (1 - opacity) + 166 * opacity);
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      drawPrompts();
+      els.coverage.textContent = `${Math.round((covered / latestMask.length) * 1000) / 10}%`;
+      els.promptCount.textContent = String(prompts.length);
+      renderPromptList();
+    }
+
+    function drawPrompts() {
+      for (const prompt of [...prompts, activeStroke].filter(Boolean)) {
+        ctx.save();
+        ctx.strokeStyle = prompt.mode === "negative" ? "#ff7b7b" : "#7ae5b2";
+        ctx.fillStyle = prompt.mode === "negative" ? "rgba(255,123,123,.2)" : "rgba(122,229,178,.22)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        prompt.points.forEach((p, index) => index ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.stroke();
+        const first = prompt.points[0];
+        ctx.beginPath();
+        ctx.arc(first.x, first.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#f6fbf8";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function pointerPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(W, ((event.clientX - rect.left) / rect.width) * W)),
+        y: Math.max(0, Math.min(H, ((event.clientY - rect.top) / rect.height) * H))
+      };
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      canvas.setPointerCapture(event.pointerId);
+      activeStroke = { mode: els.brushMode.value, points: [pointerPoint(event)] };
+      draw();
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!activeStroke) return;
+      const p = pointerPoint(event);
+      const last = activeStroke.points.at(-1);
+      if (Math.hypot(p.x - last.x, p.y - last.y) > 8) activeStroke.points.push(p);
+      draw();
+    });
+    canvas.addEventListener("pointerup", async () => {
+      if (!activeStroke) return;
+      prompts.push(activeStroke);
+      activeStroke = null;
+      await segmentFromPrompts();
+    });
+
+    function renderPromptList() {
+      els.promptList.innerHTML = prompts.slice(-7).reverse().map((prompt, index) => {
+        const width = Math.min(100, Math.round((prompt.points.length / 18) * 100));
+        return `<div class="prompt-row"><span class="dot ${prompt.mode === "negative" ? "negative" : ""}"></span><div class="bar"><i style="width:${width}%"></i></div><span>${prompt.mode} ${prompts.length - index}</span></div>`;
+      }).join("");
+    }
+
+    function writeLog(message) {
+      els.log.innerHTML = `<div><b>${new Date().toLocaleTimeString()}</b> ${message}</div>` + els.log.innerHTML;
+    }
+
+    els.loadTaskBtn.addEventListener("click", loadTask);
+    els.resetBtn.addEventListener("click", seedCanvas);
+    els.fileInput.addEventListener("change", () => {
+      const file = els.fileInput.files?.[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = async () => {
+        sourceCtx.fillStyle = "#030705";
+        sourceCtx.fillRect(0, 0, W, H);
+        const scale = Math.min(W / img.width, H / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        sourceCtx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+        prompts = [];
+        if (interactiveSegmenter?.setImage) {
+          interactiveSegmenter.setImage(source);
+          imageReadyForTask = true;
+        }
+        runSynthetic();
+      };
+      img.src = URL.createObjectURL(file);
+    });
+    [els.radius, els.threshold, els.opacity].forEach((input) => input.addEventListener("input", () => interactiveSegmenter ? draw() : runSynthetic()));
+    els.delegateSelect.addEventListener("change", () => {
+      interactiveSegmenter = null;
+      imageReadyForTask = false;
+      els.runtime.textContent = "synthetic";
+      els.status.textContent = "delegate changed";
+      writeLog("Delegate changed. Load Task again to reinitialize MediaPipe with the new delegate.");
+    });
+
+    seedCanvas();
+  </script>
+</body>
+</html>
