@@ -1,0 +1,176 @@
+{
+  "date": "2026-08-27",
+  "category": "MediaPipe Tasks / Face Detector / Web ML",
+  "headline": "Face Detector の距離モデルと ROI 採用条件を検査する最小ラボ",
+  "headlineEn": "A small lab for testing Face Detector range models and ROI gates",
+  "summary": "Google AI Edge の Face Detector Web guide、task guide、JS API reference、MediaPipe Tasks Vision README、公式 mediapipe-samples-web 実装を参考に、short-range / full-range モデル、検出信頼度、NMS、6点 keypoint、後段 ROI gate を自作の静的サンプルとして追加しました。さらに派生試作として、複数 face box の採用順、NMS、代表 ROI 選択を合成データで検査する `Face Box NMS Tuner` も追加しました。",
+  "summaryEn": "Based on the Google AI Edge Face Detector Web guide, task guide, JS API reference, MediaPipe Tasks Vision README, and official mediapipe-samples-web implementation, this adds an original static sample for short-range / full-range models, detection confidence, NMS, six keypoints, and downstream ROI gating. A second derivative prototype, `Face Box NMS Tuner`, tests multi-face box ranking, NMS, and representative ROI selection with synthetic data.",
+  "keyTopics": [
+    "Face Detector Web guide は `@mediapipe/tasks-vision`、`FilesetResolver.forVisionTasks()`、`FaceDetector.createFromOptions()`、`detect()` / `detectForVideo()` の流れを示している。",
+    "Face Detector の出力は bounding box と 6つの正規化 keypoint なので、後段の Face Landmarker、Face Stylizer、privacy mask、crop UI に渡す ROI の品質確認が重要になる。",
+    "設定値は `minDetectionConfidence` と `minSuppressionThreshold` が中心で、検出を増やすか、重複を落とすかというプロダクト側の判断を小さな UI で検証しやすい。",
+    "task guide は BlazeFace の short-range / full-range / sparse full-range の使い分けを説明しており、selfie と back camera / room view で model choice を切り替える設計に向いている。",
+    "MediaPipe v1.0.0 release notes では JS bundle、WebGPU service、base options、privacy notice など Web 実装周辺の更新が続いており、静的サンプルでも version pin と fallback 表示を明示する価値がある。"
+  ],
+  "keyTopicsEn": [
+    "The Face Detector Web guide shows the flow around `@mediapipe/tasks-vision`, `FilesetResolver.forVisionTasks()`, `FaceDetector.createFromOptions()`, and `detect()` / `detectForVideo()`.",
+    "Face Detector outputs bounding boxes and six normalized keypoints, so downstream ROI quality matters for Face Landmarker, Face Stylizer, privacy masks, and crop UIs.",
+    "`minDetectionConfidence` and `minSuppressionThreshold` are the main options, making it easy to prototype the product tradeoff between accepting more detections and suppressing overlaps.",
+    "The task guide distinguishes BlazeFace short-range / full-range / sparse full-range, which fits a design that switches model choice between selfie and back-camera room views.",
+    "MediaPipe v1.0.0 release notes continue to update JS bundles, WebGPU service, base options, and privacy notice pieces, so static samples should still make version pins and fallback states explicit."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Face Detector Range Gate",
+      "url": "../outputs/2026-08-27_face_detector_range_gate.html"
+    },
+    {
+      "label": "Today's derivative sample: Face Box NMS Tuner",
+      "url": "../outputs/2026-08-27_face_box_nms_tuner.html"
+    },
+    {
+      "label": "Face detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_detector/web_js"
+    },
+    {
+      "label": "Face detection task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_detector"
+    },
+    {
+      "label": "FaceDetector class API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.facedetector"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official Face Detector task implementation in mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/face-detector.ts"
+    },
+    {
+      "label": "MediaPipe v1.0.0 release notes",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.0.0"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-27-face-detector-range-gate.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Face Detector を「顔があるか」だけでなく、後段の処理に渡す ROI gate として見ることです。公式 Web guide は `detect()` / `detectForVideo()` と同期実行の注意点を示し、task guide は short-range と full-range の BlazeFace 変種を整理しています。そこで本命サンプルでは、合成シーンまたはアップロード画像に対して short / full model、confidence、NMS、ROI margin、keypoint overlay を切り替え、実 Task が読み込める場合は MediaPipe Face Detector を呼び、読み込めない場合も合成 detection で同じ判断軸を確認できるようにしました。",
+      "bodyEn": "Today's notable angle is treating Face Detector not only as a yes/no face detector but as an ROI gate for downstream tasks. The official Web guide shows `detect()` / `detectForVideo()` and the synchronous-call caveat, while the task guide organizes short-range and full-range BlazeFace variants. The main sample therefore switches short / full model, confidence, NMS, ROI margin, and keypoint overlays for a synthetic scene or uploaded image, calling MediaPipe Face Detector when the real task loads and keeping the same decision surface testable with synthetic detections otherwise.",
+      "links": [
+        {
+          "label": "Face detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_detector/web_js"
+        },
+        {
+          "label": "Open Face Detector Range Gate",
+          "url": "../outputs/2026-08-27_face_detector_range_gate.html"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプルは、検出 box、6 keypoint、採用 / 棄却、ROI margin を同じ canvas に重ね、confidence と NMS を動かすと downstream crop がどう変わるかを見せます。派生サンプルは、次に足すなら必要になる代表顔の選び方を先に切り出したものです。confidence cutoff、IoU NMS、ROI grow、center bias を変えると、複数人の画面でどの顔を hero ROI にするかが変わります。",
+      "bodyEn": "The main sample overlays detection boxes, six keypoints, keep/drop decisions, and ROI margins on one canvas, showing how downstream crops change as confidence and NMS move. The derivative sample isolates the representative-face selection that would be useful next. Changing confidence cutoff, IoU NMS, ROI grow, and center bias changes which face becomes the hero ROI in multi-person frames.",
+      "links": [
+        {
+          "label": "Open Face Detector Range Gate",
+          "url": "../outputs/2026-08-27_face_detector_range_gate.html"
+        },
+        {
+          "label": "Open Face Box NMS Tuner",
+          "url": "../outputs/2026-08-27_face_box_nms_tuner.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、source image、model choice、confidence threshold、suppression threshold、raw detections、kept detections、box size、keypoint coordinates、ROI margin、representative face id、detect latency です。Face Landmarker に渡して blendshape や mesh の初期 ROI にしたり、Image Segmenter の人物マスクと合わせて顔だけ privacy mask を強めたり、Object Detector の person box と一致する顔だけ採用したりできます。WebRTC のローカル会議画面なら、顔 ROI の安定度を見て自動 framing や blur strength を決める材料にもなります。",
+      "bodyEn": "The samples can accumulate source image, model choice, confidence threshold, suppression threshold, raw detections, kept detections, box size, keypoint coordinates, ROI margin, representative face id, and detection latency. These can initialize Face Landmarker for blendshapes or mesh, strengthen privacy masks only around faces when combined with Image Segmenter person masks, or keep only faces matched to Object Detector person boxes. In a local WebRTC meeting view, ROI stability can drive automatic framing or blur strength."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは `@mediapipe/tasks-vision@0.10.22/+esm` と同 version の WASM path を dynamic import し、公式 README とサンプル実装で示される `blaze_face_short_range` / `blaze_face_full_range` の model URL を使いました。Face Detector の Web guide では `detect()` と `detectForVideo()` が同期実行で UI thread をブロックし得ると説明されているため、今日の自作サンプルでは IMAGE mode の最小確認に留め、camera loop は明日以降の Worker 実装課題として残しました。",
+      "bodyEn": "The static HTML dynamically imports `@mediapipe/tasks-vision@0.10.22/+esm` and the matching WASM path, then uses the `blaze_face_short_range` / `blaze_face_full_range` model URLs shown by the official README and sample implementation. Because the Web guide explains that `detect()` and `detectForVideo()` can synchronously block the UI thread, today's original sample stays with the minimal IMAGE-mode check and leaves camera-loop Worker execution for a later entry.",
+      "links": [
+        {
+          "label": "MediaPipe Tasks Vision README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        },
+        {
+          "label": "Official Face Detector task implementation",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/face-detector.ts"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Face Detector の Worker / OffscreenCanvas 化、`detectForVideo()` の timestamp 管理、short-range と full-range の切り替え条件、full-range sparse model の Web Tasks 側公開状況、Face Landmarker へ渡す crop margin、privacy notice と on-device metrics 表示、MediaPipe v1.0.0 以降の JS bundle / IIFE bundle / base options 更新を見ます。Web ML 側では WebGPU service と LiteRT / WebNN の実装更新も継続して比較します。",
+      "bodyEn": "Next watch Worker / OffscreenCanvas execution for Face Detector, timestamp handling for `detectForVideo()`, switching conditions between short-range and full-range, Web Tasks availability for full-range sparse models, crop margins passed to Face Landmarker, privacy notice and on-device metrics messaging, and JS bundle / IIFE bundle / base options updates after MediaPipe v1.0.0. On the Web ML side, keep comparing WebGPU service and LiteRT / WebNN implementation updates.",
+      "links": [
+        {
+          "label": "MediaPipe v1.0.0 release notes",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.0.0"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず `Face Detector Range Gate` を開き、Synthetic ready のまま confidence を下げて小さい顔が入るかを見ます。次に NMS を下げて重複 box が落ちる様子を確認し、ROI margin を増やして後段 crop がどれだけ広がるかを見ます。モデル取得が通る環境では Load Task を押して、short-range と full-range を切り替えて同じ入力の挙動差を確認します。派生の `Face Box NMS Tuner` では preset を `Group photo` にして center bias を上げると、最高 score だけではなく画面中心の顔を代表 ROI にする判断を試せます。",
+      "bodyEn": "First open `Face Detector Range Gate`, keep Synthetic ready, and lower confidence to see whether smaller faces enter. Then lower NMS to watch overlapping boxes drop, and increase ROI margin to see how far downstream crops expand. When model loading works, press Load Task and switch between short-range and full-range for the same input. In the derivative `Face Box NMS Tuner`, choose `Group photo` and raise center bias to test selecting the central face as representative ROI instead of only using the highest score.",
+      "links": [
+        {
+          "label": "Open Face Detector Range Gate",
+          "url": "../outputs/2026-08-27_face_detector_range_gate.html"
+        },
+        {
+          "label": "Open Face Box NMS Tuner",
+          "url": "../outputs/2026-08-27_face_box_nms_tuner.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Face Detector Web guide、task guide、FaceDetector API reference、MediaPipe Tasks Vision README、公式 sample repository、MediaPipe v1.0.0 release notes、公式 demo page を確認。設計: 外部デモ一覧ではなく、モデル選択と ROI gate の判断を自作最小サンプルにする。実装: 本命HTMLに seed scene、upload image、short / full model URL、MediaPipe dynamic import、confidence / NMS / margin controls、keypoint overlay、synthetic fallback を追加。派生HTMLに confidence cutoff、IoU NMS、ROI grow、center bias、hero ROI 判定を追加。検証: JSON parse、gallery build、publish command、公開URL応答を確認する。",
+      "bodyEn": "Research: checked the Face Detector Web guide, task guide, FaceDetector API reference, MediaPipe Tasks Vision README, official sample repository, MediaPipe v1.0.0 release notes, and official demo page. Design: use an original model-choice and ROI-gate decision tool rather than listing external demos. Implementation: added seed scene, uploaded image, short / full model URLs, MediaPipe dynamic import, confidence / NMS / margin controls, keypoint overlay, and synthetic fallback to the main HTML. Added confidence cutoff, IoU NMS, ROI grow, center bias, and hero ROI decisions to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and public URL responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月後半の試作は gesture、segmenter、prompt UI など「入力をどう判断へ変換するか」に寄ってきました。Face Detector はさらに手前の ROI 生成を担うため、単独 task の結果だけでなく、後段 task の初期条件として見ると使いどころが増えます。今日の2本は、検出結果をそのまま描くだけでなく、どれを採用し、どれだけ余白を持たせ、どの face を代表にするかを小さく分解しました。",
+      "bodyEn": "The late-August prototypes have moved toward how input becomes decisions: gestures, segmenters, and prompt UIs. Face Detector sits even earlier as an ROI generator, so it becomes more useful when treated as an initial condition for downstream tasks, not only as a standalone result. Today's two samples break down not just drawing detections, but which detections to keep, how much margin to give them, and which face becomes representative."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Face Detector Range Gate` です。実際に動く部分は、合成 face scene、upload image、short-range / full-range model 選択、MediaPipe Face Detector task load、confidence / NMS / ROI margin controls、6 keypoint overlay、synthetic fallback、検出採用リストです。次に足すなら Worker 内 `detectForVideo()`、camera freeze、Face Landmarker への crop handoff、privacy blur strength、box history export を追加します。派生試作は `Face Box NMS Tuner` で、レポート中の「次に足すなら」の代表 ROI 選択、NMS 閾値、center bias、余白調整を短時間で試せます。",
+      "bodyEn": "The selected main prototype is `Face Detector Range Gate`. The working pieces are a synthetic face scene, uploaded images, short-range / full-range model selection, MediaPipe Face Detector task loading, confidence / NMS / ROI margin controls, six-keypoint overlays, synthetic fallback, and a detection keep list. Next additions should include Worker-side `detectForVideo()`, camera freeze, crop handoff to Face Landmarker, privacy blur strength, and box history export. The derivative prototype is `Face Box NMS Tuner`, which quickly tests representative ROI selection, NMS thresholds, center bias, and margin tuning listed as next additions in the report.",
+      "links": [
+        {
+          "label": "Open Face Detector Range Gate",
+          "url": "../outputs/2026-08-27_face_detector_range_gate.html"
+        },
+        {
+          "label": "Open Face Box NMS Tuner",
+          "url": "../outputs/2026-08-27_face_box_nms_tuner.html"
+        }
+      ]
+    }
+  ]
+}

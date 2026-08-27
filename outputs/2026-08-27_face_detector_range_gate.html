@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Detector Range Gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #080b0c;
+      color: #f7fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(126, 216, 255, .055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 212, 98, .045) 1px, transparent 1px),
+        linear-gradient(135deg, #080b0c 0%, #111d22 44%, #281d15 100%);
+      background-size: 38px 38px, 38px 38px, auto;
+    }
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      border-bottom: 1px solid rgba(247, 251, 255, .15);
+      padding-bottom: 14px;
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.75rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #bbc8ce; line-height: 1.55; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(126, 216, 255, .38);
+      background: rgba(126, 216, 255, .11);
+      color: #f7fbff;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    button.primary { background: #7ed8ff; border-color: #7ed8ff; color: #061017; font-weight: 760; }
+    button:disabled { opacity: .58; cursor: wait; }
+    select, input[type="range"] { width: 100%; accent-color: #7ed8ff; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(247, 251, 255, .16);
+      background: #0c1215;
+      color: #f7fbff;
+      padding: 0 10px;
+    }
+    input[type="file"] { max-width: 100%; color: #bbc8ce; }
+    .badge {
+      min-width: 162px;
+      border: 1px solid rgba(255, 212, 98, .45);
+      background: rgba(255, 212, 98, .12);
+      color: #ffe29c;
+      padding: 8px 10px;
+      text-align: center;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(247, 251, 255, .14);
+      background: #030507;
+      overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 100%; min-height: 660px; touch-action: none; }
+    .hud {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    .metric, section {
+      border: 1px solid rgba(247, 251, 255, .13);
+      background: rgba(8, 11, 12, .8);
+      backdrop-filter: blur(12px);
+    }
+    .metric { min-height: 58px; padding: 9px 10px; }
+    .metric span { display: block; color: #91a0a8; font-size: .68rem; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 7px; font-size: .98rem; line-height: 1.12; overflow-wrap: anywhere; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section { padding: 14px; }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #bbc8ce; font-size: .86rem; }
+    .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .row { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; }
+    output { color: #ffe29c; text-align: right; font-variant-numeric: tabular-nums; }
+    .detections { display: grid; gap: 8px; }
+    .det {
+      display: grid;
+      grid-template-columns: 58px 1fr 54px;
+      align-items: center;
+      gap: 8px;
+      color: #dce7ee;
+      font-size: .82rem;
+    }
+    .bar { height: 10px; background: rgba(247, 251, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7ed8ff, #ff7e9d, #ffe29c); }
+    .log { color: #bbc8ce; font-size: .84rem; line-height: 1.5; }
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stage, canvas { min-height: 560px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Face Detector Range Gate</h1>
+        <p>Compare short-range and full-range Face Detector settings on a generated scene or an uploaded image. The lab draws boxes, six keypoints, suppression decisions, and a downstream ROI gate.</p>
+      </div>
+      <div class="badge" id="status">synthetic ready</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="stage" width="960" height="660" aria-label="face detector range gate"></canvas>
+      <div class="hud">
+        <div class="metric"><span>runtime</span><strong id="runtime">synthetic</strong></div>
+        <div class="metric"><span>model</span><strong id="modelName">short</strong></div>
+        <div class="metric"><span>detect</span><strong id="detectMs">- ms</strong></div>
+        <div class="metric"><span>kept</span><strong id="kept">0 / 0</strong></div>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Source</h2>
+        <div class="buttons">
+          <button class="primary" id="loadTask">Load Task</button>
+          <button id="resetScene">Reset Scene</button>
+        </div>
+        <label>Upload image
+          <input id="fileInput" type="file" accept="image/*">
+        </label>
+        <label>Model
+          <select id="model">
+            <option value="short">BlazeFace short-range</option>
+            <option value="full">BlazeFace full-range</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>Gate</h2>
+        <label class="row">Detection confidence <input id="confidence" type="range" min="20" max="95" value="52"><output id="confidenceOut">0.52</output></label>
+        <label class="row">NMS overlap <input id="suppression" type="range" min="5" max="85" value="30"><output id="suppressionOut">0.30</output></label>
+        <label class="row">ROI margin <input id="margin" type="range" min="0" max="40" value="14"><output id="marginOut">14%</output></label>
+        <label class="row">Keypoint opacity <input id="opacity" type="range" min="25" max="100" value="82"><output id="opacityOut">82%</output></label>
+      </section>
+
+      <section>
+        <h2>Detections</h2>
+        <div class="detections" id="detections"></div>
+        <p class="log" id="log">Synthetic faces are available immediately. Load Task uses @mediapipe/tasks-vision and the official Face Detector models when network and browser support allow it.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const source = document.createElement("canvas");
+    source.width = canvas.width;
+    source.height = canvas.height;
+    const sctx = source.getContext("2d", { willReadFrequently: true });
+    const W = canvas.width;
+    const H = canvas.height;
+    const modelUrls = {
+      short: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+      full: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite"
+    };
+    let api = null;
+    let detector = null;
+    let rawDetections = [];
+    let keptDetections = [];
+
+    function drawFace(x, y, r, hue, score) {
+      sctx.save();
+      sctx.translate(x, y);
+      sctx.fillStyle = hue;
+      sctx.beginPath();
+      sctx.ellipse(0, 0, r * .78, r, 0, 0, Math.PI * 2);
+      sctx.fill();
+      sctx.fillStyle = "rgba(8,11,12,.82)";
+      sctx.beginPath(); sctx.arc(-r * .27, -r * .18, r * .08, 0, Math.PI * 2); sctx.fill();
+      sctx.beginPath(); sctx.arc(r * .27, -r * .18, r * .08, 0, Math.PI * 2); sctx.fill();
+      sctx.strokeStyle = "rgba(8,11,12,.72)";
+      sctx.lineWidth = Math.max(3, r * .045);
+      sctx.beginPath(); sctx.arc(0, r * .1, r * .32, .1, Math.PI - .1); sctx.stroke();
+      sctx.restore();
+      return {
+        id: crypto.randomUUID().slice(0, 4),
+        score,
+        boundingBox: { originX: x - r * .78, originY: y - r, width: r * 1.56, height: r * 2 },
+        keypoints: [
+          { x: (x - r * .27) / W, y: (y - r * .18) / H },
+          { x: (x + r * .27) / W, y: (y - r * .18) / H },
+          { x: x / W, y: (y + r * .02) / H },
+          { x: x / W, y: (y + r * .38) / H },
+          { x: (x - r * .72) / W, y: (y - r * .04) / H },
+          { x: (x + r * .72) / W, y: (y - r * .04) / H }
+        ]
+      };
+    }
+
+    function seedScene() {
+      const g = sctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, "#102430");
+      g.addColorStop(.56, "#121414");
+      g.addColorStop(1, "#332013");
+      sctx.fillStyle = g;
+      sctx.fillRect(0, 0, W, H);
+      sctx.strokeStyle = "rgba(247,251,255,.12)";
+      sctx.lineWidth = 2;
+      for (let x = 70; x < W; x += 118) {
+        sctx.beginPath();
+        sctx.moveTo(x, 56);
+        sctx.lineTo(x - 58, H - 34);
+        sctx.stroke();
+      }
+      rawDetections = [
+        drawFace(246, 306, 116, "#f2c18f", .91),
+        drawFace(548, 292, 82, "#d4977f", .78),
+        drawFace(676, 398, 54, "#f4d1a3", .61),
+        drawFace(761, 220, 36, "#c98a73", .49),
+        drawFace(568, 304, 70, "#d4977f", .57)
+      ];
+      $("status").textContent = "synthetic ready";
+      detector = null;
+      $("runtime").textContent = "synthetic";
+      runSynthetic();
+    }
+
+    function normalizeDetection(det, index) {
+      const box = det.boundingBox || {};
+      const cat = det.categories?.[0] || det.category || {};
+      const kp = det.keypoints || det.keyPoints || det.normalizedKeypoints || [];
+      return {
+        id: String(index + 1),
+        score: Number(cat.score ?? det.score ?? .5),
+        boundingBox: {
+          originX: Number(box.originX ?? box.origin_x ?? box.xCenter - box.width / 2 ?? 0),
+          originY: Number(box.originY ?? box.origin_y ?? box.yCenter - box.height / 2 ?? 0),
+          width: Number(box.width ?? 0),
+          height: Number(box.height ?? 0)
+        },
+        keypoints: kp.map((p) => ({ x: Number(p.x), y: Number(p.y) }))
+      };
+    }
+
+    async function loadTask() {
+      $("loadTask").disabled = true;
+      $("status").textContent = "loading task";
+      const t0 = performance.now();
+      try {
+        api = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+        const vision = await api.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm");
+        detector = await api.FaceDetector.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: modelUrls[$("model").value], delegate: "CPU" },
+          runningMode: "IMAGE",
+          minDetectionConfidence: Number($("confidence").value) / 100,
+          minSuppressionThreshold: Number($("suppression").value) / 100
+        });
+        $("runtime").textContent = "MediaPipe";
+        $("status").textContent = `loaded ${Math.round(performance.now() - t0)} ms`;
+        await runDetect();
+      } catch (error) {
+        $("runtime").textContent = "synthetic";
+        $("status").textContent = "synthetic fallback";
+        $("log").textContent = `Task load failed; synthetic gate is still active. ${error.message}`;
+        detector = null;
+        runSynthetic();
+      } finally {
+        $("loadTask").disabled = false;
+      }
+    }
+
+    async function runDetect() {
+      if (!detector) return runSynthetic();
+      const t0 = performance.now();
+      await detector.setOptions?.({
+        minDetectionConfidence: Number($("confidence").value) / 100,
+        minSuppressionThreshold: Number($("suppression").value) / 100
+      });
+      const result = detector.detect(source);
+      rawDetections = (result.detections || []).map(normalizeDetection);
+      keptDetections = rawDetections;
+      $("detectMs").textContent = `${Math.round(performance.now() - t0)} ms`;
+      draw();
+    }
+
+    function iou(a, b) {
+      const ax2 = a.originX + a.width, ay2 = a.originY + a.height;
+      const bx2 = b.originX + b.width, by2 = b.originY + b.height;
+      const ix = Math.max(0, Math.min(ax2, bx2) - Math.max(a.originX, b.originX));
+      const iy = Math.max(0, Math.min(ay2, by2) - Math.max(a.originY, b.originY));
+      const inter = ix * iy;
+      return inter / (a.width * a.height + b.width * b.height - inter || 1);
+    }
+
+    function runSynthetic() {
+      const t0 = performance.now();
+      const confidence = Number($("confidence").value) / 100;
+      const suppression = Number($("suppression").value) / 100;
+      const sorted = rawDetections.filter((d) => d.score >= confidence).sort((a, b) => b.score - a.score);
+      keptDetections = [];
+      for (const det of sorted) {
+        if (keptDetections.every((other) => iou(det.boundingBox, other.boundingBox) < suppression)) keptDetections.push(det);
+      }
+      $("detectMs").textContent = `${Math.max(1, Math.round(performance.now() - t0))} ms`;
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(source, 0, 0);
+      const margin = Number($("margin").value) / 100;
+      const alpha = Number($("opacity").value) / 100;
+      for (const det of rawDetections) drawDetection(det, keptDetections.includes(det), margin, alpha);
+      $("modelName").textContent = $("model").value;
+      $("kept").textContent = `${keptDetections.length} / ${rawDetections.length}`;
+      renderList();
+    }
+
+    function drawDetection(det, kept, margin, alpha) {
+      const b = det.boundingBox;
+      const m = Math.max(b.width, b.height) * margin;
+      ctx.save();
+      ctx.globalAlpha = kept ? 1 : .28;
+      ctx.strokeStyle = kept ? "#7ed8ff" : "#ff7e9d";
+      ctx.lineWidth = kept ? 4 : 2;
+      ctx.strokeRect(b.originX, b.originY, b.width, b.height);
+      if (kept) {
+        ctx.strokeStyle = "rgba(255,226,156,.85)";
+        ctx.setLineDash([9, 7]);
+        ctx.strokeRect(b.originX - m, b.originY - m, b.width + m * 2, b.height + m * 2);
+      }
+      ctx.setLineDash([]);
+      ctx.fillStyle = kept ? "rgba(126,216,255,.88)" : "rgba(255,126,157,.82)";
+      ctx.fillRect(b.originX, Math.max(0, b.originY - 24), 94, 24);
+      ctx.fillStyle = "#071015";
+      ctx.font = "700 13px system-ui";
+      ctx.fillText(`${Math.round(det.score * 100)}% ${kept ? "keep" : "drop"}`, b.originX + 8, Math.max(16, b.originY - 8));
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#ffe29c";
+      for (const p of det.keypoints.slice(0, 6)) {
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function renderList() {
+      $("detections").innerHTML = rawDetections.map((det) => {
+        const kept = keptDetections.includes(det);
+        return `<div class="det"><b>${kept ? "keep" : "drop"}</b><div class="bar"><i style="width:${Math.round(det.score * 100)}%"></i></div><span>${Math.round(det.score * 100)}%</span></div>`;
+      }).join("") || "<p class=\"log\">No detections above the current gate.</p>";
+    }
+
+    function updateOutputs() {
+      $("confidenceOut").value = (Number($("confidence").value) / 100).toFixed(2);
+      $("suppressionOut").value = (Number($("suppression").value) / 100).toFixed(2);
+      $("marginOut").value = `${$("margin").value}%`;
+      $("opacityOut").value = `${$("opacity").value}%`;
+    }
+
+    $("loadTask").addEventListener("click", loadTask);
+    $("resetScene").addEventListener("click", seedScene);
+    $("model").addEventListener("change", () => {
+      detector = null;
+      $("runtime").textContent = "synthetic";
+      $("status").textContent = "model changed";
+      runSynthetic();
+    });
+    ["confidence", "suppression", "margin", "opacity"].forEach((id) => $(id).addEventListener("input", () => {
+      updateOutputs();
+      detector ? runDetect() : runSynthetic();
+    }));
+    $("fileInput").addEventListener("change", () => {
+      const file = $("fileInput").files?.[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        sctx.fillStyle = "#030507";
+        sctx.fillRect(0, 0, W, H);
+        const scale = Math.min(W / img.width, H / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        sctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+        rawDetections = [];
+        detector ? runDetect() : runSynthetic();
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    updateOutputs();
+    seedScene();
+  </script>
+</body>
+</html>

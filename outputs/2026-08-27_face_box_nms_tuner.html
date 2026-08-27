@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Box NMS Tuner</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #09090b; color: #fbfbfe; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(255, 197, 82, .055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(119, 225, 201, .05) 1px, transparent 1px),
+        linear-gradient(135deg, #09090b, #181721 48%, #1d261f);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+    }
+    header { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 16px; align-items: end; border-bottom: 1px solid rgba(251,251,254,.15); padding-bottom: 14px; }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.65rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #c6c8d0; line-height: 1.55; }
+    canvas { width: 100%; min-height: 650px; height: 100%; display: block; background: #050507; border: 1px solid rgba(251,251,254,.14); }
+    section, .badge { border: 1px solid rgba(251,251,254,.14); background: rgba(9,9,11,.78); backdrop-filter: blur(12px); }
+    aside { display: grid; gap: 12px; align-content: start; }
+    section { padding: 14px; }
+    .badge { min-width: 150px; padding: 8px 10px; color: #ffc552; text-align: center; font-size: .78rem; text-transform: uppercase; }
+    label { display: grid; grid-template-columns: 1fr 62px; gap: 9px; align-items: center; color: #c6c8d0; font-size: .86rem; margin: 12px 0; }
+    input, select, button { font: inherit; }
+    input[type="range"], select { width: 100%; accent-color: #77e1c9; }
+    select, button { min-height: 38px; border: 1px solid rgba(119,225,201,.32); background: rgba(119,225,201,.1); color: #fbfbfe; padding: 0 10px; }
+    output { color: #ffc552; text-align: right; font-variant-numeric: tabular-nums; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .stat { min-height: 68px; border: 1px solid rgba(251,251,254,.12); padding: 9px; }
+    .stat span { display: block; color: #8e929e; font-size: .68rem; text-transform: uppercase; }
+    .stat strong { display: block; margin-top: 7px; font-size: 1rem; }
+    .list { display: grid; gap: 8px; }
+    .item { display: grid; grid-template-columns: 58px 1fr 52px; gap: 8px; align-items: center; color: #e9edf2; font-size: .82rem; }
+    .bar { height: 9px; background: rgba(251,251,254,.1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #77e1c9, #ffc552, #ff7094); }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 14px; } header { display: block; } .badge { display: inline-block; margin-top: 12px; } canvas { min-height: 560px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Face Box NMS Tuner</h1>
+        <p>A derivative sandbox for testing Face Detector post-processing: confidence cutoff, overlap suppression, box growth, and which face becomes the representative ROI.</p>
+      </div>
+      <div class="badge" id="badge">postprocess</div>
+    </header>
+
+    <canvas id="stage" width="900" height="650" aria-label="face box nms tuner"></canvas>
+
+    <aside>
+      <section>
+        <h2>Preset</h2>
+        <select id="preset">
+          <option value="selfie">Selfie cluster</option>
+          <option value="group">Group photo</option>
+          <option value="far">Far range room</option>
+        </select>
+        <button id="jitter">Jitter boxes</button>
+      </section>
+      <section>
+        <h2>Suppression</h2>
+        <label>Confidence <input id="confidence" type="range" min="20" max="95" value="45"><output id="confidenceOut">0.45</output></label>
+        <label>NMS IoU <input id="nms" type="range" min="5" max="85" value="32"><output id="nmsOut">0.32</output></label>
+        <label>ROI grow <input id="grow" type="range" min="0" max="45" value="18"><output id="growOut">18%</output></label>
+        <label>Center bias <input id="centerBias" type="range" min="0" max="60" value="24"><output id="centerBiasOut">24%</output></label>
+      </section>
+      <section>
+        <h2>Result</h2>
+        <div class="stats">
+          <div class="stat"><span>raw</span><strong id="raw">0</strong></div>
+          <div class="stat"><span>kept</span><strong id="kept">0</strong></div>
+          <div class="stat"><span>hero</span><strong id="hero">-</strong></div>
+        </div>
+        <div class="list" id="list"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    let boxes = [];
+    const presets = {
+      selfie: [
+        [292, 205, 236, 288, .92], [318, 218, 214, 264, .71], [114, 285, 106, 128, .55], [628, 258, 138, 168, .49]
+      ],
+      group: [
+        [100, 194, 116, 142, .82], [278, 160, 142, 174, .88], [488, 186, 118, 144, .76], [652, 174, 132, 162, .69], [290, 174, 128, 154, .51]
+      ],
+      far: [
+        [124, 222, 66, 78, .48], [278, 204, 72, 88, .58], [444, 230, 58, 70, .41], [604, 198, 82, 98, .63], [708, 250, 62, 76, .52]
+      ]
+    };
+
+    function loadPreset() {
+      boxes = presets[$("preset").value].map((b, i) => ({ id: `F${i + 1}`, x: b[0], y: b[1], w: b[2], h: b[3], score: b[4] }));
+      update();
+    }
+    function jitter() {
+      boxes = boxes.map((b) => ({
+        ...b,
+        x: b.x + (Math.random() - .5) * 34,
+        y: b.y + (Math.random() - .5) * 28,
+        score: Math.max(.2, Math.min(.98, b.score + (Math.random() - .5) * .12))
+      }));
+      update();
+    }
+    function iou(a, b) {
+      const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      const inter = ix * iy;
+      return inter / (a.w * a.h + b.w * b.h - inter || 1);
+    }
+    function rankedScore(b) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      const center = 1 - Math.min(1, Math.hypot((cx - W / 2) / (W / 2), (cy - H / 2) / (H / 2)));
+      return b.score * (1 - Number($("centerBias").value) / 100) + center * Number($("centerBias").value) / 100;
+    }
+    function suppress() {
+      const confidence = Number($("confidence").value) / 100;
+      const nms = Number($("nms").value) / 100;
+      const sorted = boxes.filter((b) => b.score >= confidence).sort((a, b) => rankedScore(b) - rankedScore(a));
+      const kept = [];
+      const dropped = new Map();
+      for (const box of sorted) {
+        const blocker = kept.find((k) => iou(box, k) >= nms);
+        if (blocker) dropped.set(box.id, blocker.id);
+        else kept.push(box);
+      }
+      return { kept, dropped };
+    }
+    function drawFace(b) {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = Math.min(b.w, b.h) / 2;
+      ctx.fillStyle = "rgba(255,197,82,.2)";
+      ctx.beginPath(); ctx.ellipse(cx, cy, r * .75, r, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(251,251,254,.75)";
+      ctx.beginPath(); ctx.arc(cx - r * .25, cy - r * .15, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + r * .25, cy - r * .15, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    function update() {
+      $("confidenceOut").value = (Number($("confidence").value) / 100).toFixed(2);
+      $("nmsOut").value = (Number($("nms").value) / 100).toFixed(2);
+      $("growOut").value = `${$("grow").value}%`;
+      $("centerBiasOut").value = `${$("centerBias").value}%`;
+      const { kept, dropped } = suppress();
+      const hero = kept[0];
+      ctx.clearRect(0, 0, W, H);
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, "#10141c"); g.addColorStop(.5, "#151219"); g.addColorStop(1, "#16241d");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(251,251,254,.12)";
+      for (let x = 45; x < W; x += 90) { ctx.beginPath(); ctx.moveTo(x, 48); ctx.lineTo(x - 28, H - 38); ctx.stroke(); }
+      boxes.forEach(drawFace);
+      const grow = Number($("grow").value) / 100;
+      for (const b of boxes) {
+        const isKept = kept.includes(b);
+        const isHero = hero === b;
+        const m = Math.max(b.w, b.h) * grow;
+        ctx.save();
+        ctx.globalAlpha = isKept ? 1 : .26;
+        ctx.strokeStyle = isHero ? "#ffc552" : isKept ? "#77e1c9" : "#ff7094";
+        ctx.lineWidth = isHero ? 5 : isKept ? 3 : 2;
+        ctx.strokeRect(b.x, b.y, b.w, b.h);
+        if (isKept) {
+          ctx.setLineDash([10, 8]);
+          ctx.strokeRect(b.x - m, b.y - m, b.w + m * 2, b.h + m * 2);
+        }
+        ctx.setLineDash([]);
+        ctx.fillStyle = isHero ? "#ffc552" : isKept ? "#77e1c9" : "#ff7094";
+        ctx.fillRect(b.x, Math.max(0, b.y - 23), 86, 23);
+        ctx.fillStyle = "#07070a";
+        ctx.font = "700 13px system-ui";
+        ctx.fillText(`${b.id} ${Math.round(b.score * 100)}%`, b.x + 8, Math.max(15, b.y - 7));
+        ctx.restore();
+      }
+      $("raw").textContent = String(boxes.length);
+      $("kept").textContent = String(kept.length);
+      $("hero").textContent = hero?.id || "-";
+      $("list").innerHTML = boxes.map((b) => {
+        const state = kept.includes(b) ? (hero === b ? "hero" : "keep") : `by ${dropped.get(b.id) || "gate"}`;
+        return `<div class="item"><b>${b.id}</b><div class="bar"><i style="width:${Math.round(rankedScore(b) * 100)}%"></i></div><span>${state}</span></div>`;
+      }).join("");
+      $("badge").textContent = `${kept.length} kept`;
+    }
+    $("preset").addEventListener("change", loadPreset);
+    $("jitter").addEventListener("click", jitter);
+    ["confidence", "nms", "grow", "centerBias"].forEach((id) => $(id).addEventListener("input", update));
+    loadPreset();
+  </script>
+</body>
+</html>
