@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Feature Command Mixer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #09080b;
+      color: #faf7fb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(118, 199, 255, .055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 206, 107, .04) 1px, transparent 1px),
+        linear-gradient(135deg, #09080b 0%, #151821 55%, #241915 100%);
+      background-size: 42px 42px, 42px 42px, auto;
+    }
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      border-bottom: 1px solid rgba(250, 247, 251, .14);
+      padding-bottom: 14px;
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.6rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #c6c1ca; line-height: 1.55; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(118, 199, 255, .38);
+      background: rgba(118, 199, 255, .11);
+      color: #faf7fb;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    button.primary { background: #76c7ff; border-color: #76c7ff; color: #061019; font-weight: 760; }
+    select, input[type="range"] { width: 100%; accent-color: #76c7ff; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(250, 247, 251, .16);
+      background: #0f1116;
+      color: #faf7fb;
+      padding: 0 10px;
+    }
+    .stage {
+      position: relative;
+      min-height: 640px;
+      border: 1px solid rgba(250, 247, 251, .14);
+      background: #030306;
+      overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 100%; min-height: 640px; touch-action: none; }
+    .command {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid rgba(250, 247, 251, .14);
+      background: rgba(9, 8, 11, .84);
+      padding: 12px;
+      backdrop-filter: blur(12px);
+    }
+    .command strong { font-size: clamp(1.5rem, 4vw, 3rem); line-height: 1; }
+    .command span { color: #ffce6b; font-variant-numeric: tabular-nums; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section {
+      border: 1px solid rgba(250, 247, 251, .13);
+      background: rgba(9, 8, 11, .82);
+      padding: 14px;
+    }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #c6c1ca; font-size: .86rem; }
+    .row { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; }
+    output { color: #ffce6b; text-align: right; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; gap: 9px; }
+    .meter { display: grid; grid-template-columns: 82px 1fr 44px; gap: 8px; align-items: center; color: #c6c1ca; font-size: .82rem; }
+    .bar { height: 11px; background: rgba(250, 247, 251, .09); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #76c7ff, #ff8ba7, #ffce6b); }
+    .history { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+    .history div { height: 28px; border: 1px solid rgba(250, 247, 251, .12); background: rgba(250, 247, 251, .06); }
+    .history .active { background: #76c7ff; border-color: #76c7ff; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .stage, canvas { min-height: 520px; }
+      .command { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Hand Feature Command Mixer</h1>
+        <p>A derivative sandbox that turns 21 hand landmarks into pinch, spread, tilt and stable command decisions.</p>
+      </div>
+      <button class="primary" id="playBtn">Play</button>
+    </header>
+
+    <div class="stage">
+      <canvas id="canvas" width="840" height="640"></canvas>
+      <div class="command">
+        <strong id="commandText">IDLE</strong>
+        <span id="scoreText">confidence 0.00</span>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Gesture Source</h2>
+        <label>Preset
+          <select id="preset">
+            <option value="pinch">Pinch scrub</option>
+            <option value="open">Open palm</option>
+            <option value="tilt">Tilt confirm</option>
+            <option value="mixed">Mixed handoff</option>
+          </select>
+        </label>
+        <label>Noise
+          <div class="row"><input id="noise" type="range" min="0" max="0.08" step="0.005" value="0.02"><output id="noiseOut">0.02</output></div>
+        </label>
+      </section>
+
+      <section>
+        <h2>Command Gates</h2>
+        <label>Pinch threshold
+          <div class="row"><input id="pinchGate" type="range" min="0.02" max="0.22" step="0.005" value="0.105"><output id="pinchGateOut">0.11</output></div>
+        </label>
+        <label>Spread threshold
+          <div class="row"><input id="spreadGate" type="range" min="0.15" max="0.55" step="0.01" value="0.34"><output id="spreadGateOut">0.34</output></div>
+        </label>
+        <label>Tilt threshold
+          <div class="row"><input id="tiltGate" type="range" min="0.02" max="0.24" step="0.005" value="0.10"><output id="tiltGateOut">0.10</output></div>
+        </label>
+        <label>Hold frames
+          <div class="row"><input id="hold" type="range" min="1" max="8" step="1" value="3"><output id="holdOut">3</output></div>
+        </label>
+      </section>
+
+      <section>
+        <h2>Features</h2>
+        <div class="meters" id="meters"></div>
+        <div class="history" id="history"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const controls = Object.fromEntries(["noise", "pinchGate", "spreadGate", "tiltGate", "hold"].map((id) => [id, document.getElementById(id)]));
+    const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+    const state = { playing: false, phase: 0, candidates: [], history: [] };
+
+    function val(id) {
+      return Number(controls[id].value);
+    }
+
+    function bind() {
+      Object.keys(controls).forEach((id) => {
+        const out = document.getElementById(`${id}Out`);
+        const update = () => { out.value = id === "hold" ? val(id) : val(id).toFixed(2); };
+        controls[id].addEventListener("input", () => { update(); draw(); });
+        update();
+      });
+      document.getElementById("preset").addEventListener("change", () => {
+        state.candidates = [];
+        state.history = [];
+        draw();
+      });
+      document.getElementById("playBtn").addEventListener("click", () => {
+        state.playing = !state.playing;
+        document.getElementById("playBtn").textContent = state.playing ? "Pause" : "Play";
+        if (state.playing) loop();
+      });
+    }
+
+    function handShape() {
+      const preset = document.getElementById("preset").value;
+      state.phase += .065;
+      const wave = Math.sin(state.phase);
+      const pinch = preset === "pinch" ? .5 + .5 * wave : preset === "mixed" ? .5 + .5 * Math.sin(state.phase * .7) : preset === "open" ? 0 : .2;
+      const spread = preset === "open" ? 1.22 : preset === "mixed" ? .9 + .25 * Math.cos(state.phase * .6) : .92;
+      const tilt = preset === "tilt" ? Math.sin(state.phase) * .18 : preset === "mixed" ? Math.sin(state.phase * .45) * .16 : 0;
+      const noise = val("noise");
+      const base = [
+        [0, .22], [-.18, .04], [-.25, -.15], [-.25, -.31], [-.22 + pinch * .30, -.45 + pinch * .23],
+        [-.08, -.08], [-.12, -.33], [-.13, -.56], [-.13, -.76],
+        [.05, -.10], [.06, -.38], [.07, -.64], [.08, -.89],
+        [.17, -.07], [.23, -.31], [.28, -.53], [.32, -.71],
+        [.28, .02], [.38, -.15], [.47, -.31], [.56, -.45]
+      ];
+      return base.map(([x, y], index) => {
+        const nx = (Math.sin(state.phase * 1.9 + index) * noise);
+        const ny = (Math.cos(state.phase * 1.7 + index * .8) * noise);
+        return {
+          x: .50 + (x * spread + y * tilt + nx) * .82,
+          y: .76 + (y + ny) * .82
+        };
+      });
+    }
+
+    function dist(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function features(hand) {
+      const pinch = dist(hand[4], hand[8]);
+      const spread = dist(hand[4], hand[20]);
+      const tilt = Math.abs(hand[0].x - hand[9].x);
+      const compact = dist(hand[0], hand[12]);
+      return { pinch, spread, tilt, compact };
+    }
+
+    function decide(f) {
+      let candidate = "IDLE";
+      let score = .35;
+      if (f.pinch < val("pinchGate")) {
+        candidate = "SCRUB";
+        score = 1 - f.pinch / val("pinchGate");
+      } else if (f.spread > val("spreadGate")) {
+        candidate = "EXPAND";
+        score = Math.min(1, (f.spread - val("spreadGate")) / .24);
+      } else if (f.tilt > val("tiltGate")) {
+        candidate = "CONFIRM";
+        score = Math.min(1, (f.tilt - val("tiltGate")) / .14);
+      }
+      state.candidates.push(candidate);
+      state.candidates = state.candidates.slice(-val("hold"));
+      const stable = state.candidates.length >= val("hold") && state.candidates.every((item) => item === candidate);
+      const command = stable ? candidate : "HOLD";
+      state.history.push(command);
+      state.history = state.history.slice(-12);
+      return { command, score };
+    }
+
+    function drawHand(hand) {
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#76c7ff";
+      connections.forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(hand[a].x * canvas.width, hand[a].y * canvas.height);
+        ctx.lineTo(hand[b].x * canvas.width, hand[b].y * canvas.height);
+        ctx.stroke();
+      });
+      hand.forEach((point, index) => {
+        ctx.beginPath();
+        ctx.fillStyle = [4, 8, 12, 16, 20].includes(index) ? "#ffce6b" : "#faf7fb";
+        ctx.arc(point.x * canvas.width, point.y * canvas.height, index === 0 ? 7 : 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function renderMeters(f) {
+      const specs = [
+        ["pinch", f.pinch, .24],
+        ["spread", f.spread, .62],
+        ["tilt", f.tilt, .26],
+        ["compact", f.compact, .86]
+      ];
+      document.getElementById("meters").innerHTML = specs.map(([name, raw, max]) => {
+        const pct = Math.max(0, Math.min(1, raw / max));
+        return `<div class="meter"><span>${name}</span><div class="bar"><i style="width:${pct * 100}%"></i></div><span>${raw.toFixed(2)}</span></div>`;
+      }).join("");
+      document.getElementById("history").innerHTML = state.history.map((item) => `<div class="${item !== "HOLD" && item !== "IDLE" ? "active" : ""}" title="${item}"></div>`).join("");
+    }
+
+    function draw() {
+      canvas.width = canvas.clientWidth * devicePixelRatio;
+      canvas.height = canvas.clientHeight * devicePixelRatio;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#030306";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(250,247,251,.08)";
+      for (let x = 0; x < canvas.width; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      const hand = handShape();
+      const f = features(hand);
+      const decision = decide(f);
+      drawHand(hand);
+      document.getElementById("commandText").textContent = decision.command;
+      document.getElementById("scoreText").textContent = `confidence ${decision.score.toFixed(2)}`;
+      renderMeters(f);
+    }
+
+    function loop() {
+      if (!state.playing) return;
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    bind();
+    draw();
+  </script>
+</body>
+</html>

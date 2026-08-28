@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Landmark Tracking Budget Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #070908;
+      color: #f4f8f2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(131, 229, 178, .055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(250, 202, 93, .045) 1px, transparent 1px),
+        linear-gradient(135deg, #070908 0%, #10231b 54%, #271b13 100%);
+      background-size: 40px 40px, 40px 40px, auto;
+    }
+    main {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid rgba(244, 248, 242, .14);
+      padding-bottom: 14px;
+    }
+    h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.65rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 8px 0 0; color: #bdc9bf; line-height: 1.55; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 39px;
+      border: 1px solid rgba(131, 229, 178, .38);
+      background: rgba(131, 229, 178, .11);
+      color: #f4f8f2;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    button.primary { background: #83e5b2; border-color: #83e5b2; color: #06110b; font-weight: 760; }
+    button:disabled { opacity: .58; cursor: wait; }
+    select, input[type="range"] { width: 100%; accent-color: #83e5b2; }
+    select {
+      min-height: 38px;
+      border: 1px solid rgba(244, 248, 242, .16);
+      background: #0b1110;
+      color: #f4f8f2;
+      padding: 0 10px;
+    }
+    .badge {
+      min-width: 160px;
+      border: 1px solid rgba(250, 202, 93, .45);
+      background: rgba(250, 202, 93, .12);
+      color: #ffe39e;
+      padding: 8px 10px;
+      text-align: center;
+      font-size: .78rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      min-height: 660px;
+      border: 1px solid rgba(244, 248, 242, .14);
+      background: #020403;
+      overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 100%; min-height: 660px; touch-action: none; }
+    .hud {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+    .metric, section {
+      border: 1px solid rgba(244, 248, 242, .13);
+      background: rgba(7, 9, 8, .82);
+      backdrop-filter: blur(12px);
+    }
+    .metric { min-height: 58px; padding: 9px 10px; }
+    .metric span { display: block; color: #91a396; font-size: .68rem; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 7px; font-size: .98rem; line-height: 1.12; overflow-wrap: anywhere; }
+    aside { display: grid; align-content: start; gap: 12px; }
+    section { padding: 14px; }
+    label { display: grid; gap: 7px; margin: 12px 0; color: #bdc9bf; font-size: .86rem; }
+    .buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .row { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; }
+    output { color: #ffe39e; text-align: right; font-variant-numeric: tabular-nums; }
+    .timeline { display: grid; grid-template-columns: repeat(28, minmax(0, 1fr)); gap: 3px; margin-top: 10px; }
+    .tick { height: 22px; background: rgba(244, 248, 242, .08); border: 1px solid rgba(244, 248, 242, .08); }
+    .tick.detect { background: #83e5b2; border-color: #83e5b2; }
+    .tick.track { background: rgba(131, 229, 178, .18); border-color: rgba(131, 229, 178, .42); }
+    .tick.drop { background: rgba(255, 111, 102, .28); border-color: rgba(255, 111, 102, .6); }
+    .log { color: #bdc9bf; font-size: .84rem; line-height: 1.5; }
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      header { align-items: start; flex-direction: column; }
+      .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stage, canvas { min-height: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Hand Landmark Tracking Budget Lab</h1>
+        <p>21 landmarks, presence confidence, tracking IoU and detection fallback as a tiny on-device workflow sketch.</p>
+      </div>
+      <div class="badge" id="runtime">Synthetic ready</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="canvas" width="900" height="660"></canvas>
+      <div class="hud">
+        <div class="metric"><span>Mode</span><strong id="modeMetric">Synthetic</strong></div>
+        <div class="metric"><span>Detector calls</span><strong id="detectMetric">0 / 0</strong></div>
+        <div class="metric"><span>Tracking reuse</span><strong id="trackMetric">0%</strong></div>
+        <div class="metric"><span>Hand state</span><strong id="stateMetric">Waiting</strong></div>
+      </div>
+    </div>
+
+    <aside>
+      <section>
+        <h2>Input</h2>
+        <div class="buttons">
+          <button class="primary" id="runBtn">Run timeline</button>
+          <button id="pauseBtn">Pause</button>
+          <button id="taskBtn">Load Task</button>
+          <button id="resetBtn">Reset seed</button>
+        </div>
+        <label>Preset
+          <select id="preset">
+            <option value="desk">Desk reach</option>
+            <option value="pinch">Pinch closeup</option>
+            <option value="fast">Fast wave</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>Task Options</h2>
+        <label>Hands
+          <div class="row"><input id="numHands" type="range" min="1" max="2" step="1" value="2"><output id="numHandsOut">2</output></div>
+        </label>
+        <label>Detection confidence
+          <div class="row"><input id="detConf" type="range" min="0" max="1" step="0.01" value="0.50"><output id="detConfOut">0.50</output></div>
+        </label>
+        <label>Presence confidence
+          <div class="row"><input id="presConf" type="range" min="0" max="1" step="0.01" value="0.54"><output id="presConfOut">0.54</output></div>
+        </label>
+        <label>Tracking confidence
+          <div class="row"><input id="trackConf" type="range" min="0" max="1" step="0.01" value="0.62"><output id="trackConfOut">0.62</output></div>
+        </label>
+      </section>
+
+      <section>
+        <h2>Frame Budget</h2>
+        <label>UI budget per frame
+          <div class="row"><input id="budget" type="range" min="4" max="24" step="1" value="12"><output id="budgetOut">12ms</output></div>
+        </label>
+        <label>Detector cost
+          <div class="row"><input id="detCost" type="range" min="8" max="42" step="1" value="24"><output id="detCostOut">24ms</output></div>
+        </label>
+        <div class="timeline" id="timeline"></div>
+        <p class="log" id="log">Tracking mode reuses the last rectangle while presence and IoU remain above threshold. If either drops, the detector is charged again.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const runtime = document.getElementById("runtime");
+    const state = {
+      running: false,
+      frame: 0,
+      task: null,
+      taskStatus: "Synthetic",
+      events: [],
+      preset: "desk",
+      phase: 0
+    };
+    const ids = ["numHands", "detConf", "presConf", "trackConf", "budget", "detCost"];
+    const controls = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+    const metrics = {
+      mode: document.getElementById("modeMetric"),
+      detect: document.getElementById("detectMetric"),
+      track: document.getElementById("trackMetric"),
+      hand: document.getElementById("stateMetric"),
+      log: document.getElementById("log"),
+      timeline: document.getElementById("timeline")
+    };
+    const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+
+    function value(id) {
+      return Number(controls[id].value);
+    }
+
+    function bindOutputs() {
+      ids.forEach((id) => {
+        const out = document.getElementById(`${id}Out`);
+        const suffix = id === "budget" || id === "detCost" ? "ms" : "";
+        const update = () => { out.value = id.includes("Conf") ? value(id).toFixed(2) : `${value(id)}${suffix}`; };
+        controls[id].addEventListener("input", () => { update(); draw(); });
+        update();
+      });
+      document.getElementById("preset").addEventListener("change", (event) => {
+        state.preset = event.target.value;
+        state.events = [];
+        state.frame = 0;
+        draw();
+      });
+    }
+
+    function makeHand(cx, cy, scale, curl, spread, mirror = 1) {
+      const palm = [
+        [0, .20], [-.18, .02], [-.24, -.18], [-.21, -.34], [-.15, -.48],
+        [-.08, -.08], [-.11, -.34], [-.12, -.54], [-.11, -.72],
+        [.04, -.10], [.05, -.38], [.05, -.62], [.06, -.84],
+        [.16, -.06], [.20, -.30], [.23, -.50], [.25, -.68],
+        [.26, .02], [.34, -.15], [.40, -.30], [.46, -.43]
+      ];
+      return palm.map(([x, y], index) => {
+        const finger = index > 4 ? Math.floor((index - 1) / 4) : 0;
+        const wave = Math.sin(state.phase + index * .9) * .018;
+        const bend = index % 4 === 0 ? 0 : curl * (index % 4) * .055;
+        return {
+          x: cx + mirror * (x * spread + wave) * scale,
+          y: cy + (y + bend) * scale,
+          z: -Math.abs(y) * .08 + curl * .04
+        };
+      });
+    }
+
+    function syntheticFrame() {
+      const t = state.frame / 28;
+      state.phase += .09;
+      if (state.preset === "pinch") {
+        const curl = .25 + .55 * (Math.sin(t * Math.PI * 2) * .5 + .5);
+        return [makeHand(.52, .68, 310, curl, .86, 1)];
+      }
+      if (state.preset === "fast") {
+        const cx = .48 + Math.sin(t * Math.PI * 4) * .22;
+        return [makeHand(cx, .70, 250, .12, 1.1, 1)];
+      }
+      return [
+        makeHand(.36 + Math.sin(t * Math.PI * 2) * .06, .72, 230, .16, 1.0, 1),
+        makeHand(.68, .74 + Math.cos(t * Math.PI * 2) * .035, 205, .32, .92, -1)
+      ].slice(0, value("numHands"));
+    }
+
+    function bounds(hand) {
+      const xs = hand.map((p) => p.x);
+      const ys = hand.map((p) => p.y);
+      return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
+    }
+
+    function iou(a, b) {
+      const x1 = Math.max(a.x1, b.x1);
+      const y1 = Math.max(a.y1, b.y1);
+      const x2 = Math.min(a.x2, b.x2);
+      const y2 = Math.min(a.y2, b.y2);
+      const hit = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+      const areaA = Math.max(0, a.x2 - a.x1) * Math.max(0, a.y2 - a.y1);
+      const areaB = Math.max(0, b.x2 - b.x1) * Math.max(0, b.y2 - b.y1);
+      return hit / Math.max(1e-6, areaA + areaB - hit);
+    }
+
+    function scoreFrame(hands) {
+      const previous = state.events.at(-1);
+      const rect = hands[0] ? bounds(hands[0]) : null;
+      const motion = previous?.rect && rect ? iou(previous.rect, rect) : 0;
+      const presence = .52 + .25 * Math.sin(state.phase * .75) + (state.preset === "fast" ? -.14 : .1);
+      const detection = .48 + .32 * Math.cos(state.phase * .55) + hands.length * .08;
+      const needsDetection = !previous || presence < value("presConf") || motion < value("trackConf");
+      const accepted = needsDetection ? detection >= value("detConf") : true;
+      const cost = needsDetection ? value("detCost") : 4;
+      const overBudget = cost > value("budget");
+      const event = { rect, presence, detection, motion, needsDetection, accepted, cost, overBudget };
+      state.events.push(event);
+      state.events = state.events.slice(-28);
+      return event;
+    }
+
+    function drawHand(hand, index, accepted) {
+      const color = accepted ? (index ? "#faca5d" : "#83e5b2") : "#ff6f66";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = accepted ? .9 : .42;
+      connections.forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(hand[a].x * canvas.width, hand[a].y * canvas.height);
+        ctx.lineTo(hand[b].x * canvas.width, hand[b].y * canvas.height);
+        ctx.stroke();
+      });
+      hand.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.fillStyle = i === 0 ? "#f4f8f2" : color;
+        ctx.arc(p.x * canvas.width, p.y * canvas.height, i === 0 ? 6 : 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    function drawTimeline() {
+      metrics.timeline.innerHTML = "";
+      state.events.forEach((event) => {
+        const tick = document.createElement("div");
+        tick.className = `tick ${event.accepted ? (event.needsDetection ? "detect" : "track") : "drop"}`;
+        tick.title = `${event.needsDetection ? "detect" : "track"} ${event.cost}ms`;
+        metrics.timeline.append(tick);
+      });
+    }
+
+    function draw() {
+      canvas.width = canvas.clientWidth * devicePixelRatio;
+      canvas.height = canvas.clientHeight * devicePixelRatio;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#020403";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(244,248,242,.08)";
+      for (let x = 0; x < canvas.width; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 48) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      const hands = syntheticFrame();
+      const event = scoreFrame(hands);
+      hands.forEach((hand, index) => drawHand(hand, index, event.accepted));
+      const detects = state.events.filter((item) => item.needsDetection).length;
+      const accepted = state.events.filter((item) => item.accepted).length;
+      const tracks = state.events.filter((item) => !item.needsDetection && item.accepted).length;
+      metrics.mode.textContent = state.taskStatus;
+      metrics.detect.textContent = `${detects} / ${state.events.length}`;
+      metrics.track.textContent = `${Math.round((tracks / Math.max(1, accepted)) * 100)}%`;
+      metrics.hand.textContent = event.accepted ? (event.needsDetection ? "Detector refresh" : "Tracking reuse") : "Dropped";
+      metrics.log.textContent = `presence ${event.presence.toFixed(2)}, detection ${event.detection.toFixed(2)}, IoU ${event.motion.toFixed(2)}, estimated cost ${event.cost}ms ${event.overBudget ? "over budget" : "within budget"}.`;
+      drawTimeline();
+    }
+
+    async function loadTask() {
+      const button = document.getElementById("taskBtn");
+      button.disabled = true;
+      runtime.textContent = "Loading task";
+      try {
+        const visionModule = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+        const vision = await visionModule.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm");
+        state.task = await visionModule.HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate: "CPU"
+          },
+          runningMode: "IMAGE",
+          numHands: value("numHands"),
+          minHandDetectionConfidence: value("detConf"),
+          minHandPresenceConfidence: value("presConf"),
+          minTrackingConfidence: value("trackConf")
+        });
+        state.taskStatus = "Task loaded";
+        runtime.textContent = "Task loaded";
+      } catch (error) {
+        state.taskStatus = "Synthetic fallback";
+        runtime.textContent = "Fallback";
+        metrics.log.textContent = `MediaPipe load failed, keeping the same thresholds in synthetic mode: ${error.message}`;
+      } finally {
+        button.disabled = false;
+        draw();
+      }
+    }
+
+    function loop() {
+      if (!state.running) return;
+      state.frame += 1;
+      draw();
+      setTimeout(() => requestAnimationFrame(loop), 120);
+    }
+
+    bindOutputs();
+    document.getElementById("runBtn").addEventListener("click", () => {
+      state.running = true;
+      loop();
+    });
+    document.getElementById("pauseBtn").addEventListener("click", () => { state.running = false; });
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      state.events = [];
+      state.frame = 0;
+      state.phase = 0;
+      draw();
+    });
+    document.getElementById("taskBtn").addEventListener("click", loadTask);
+    draw();
+  </script>
+</body>
+</html>

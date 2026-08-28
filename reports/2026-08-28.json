@@ -1,0 +1,180 @@
+{
+  "date": "2026-08-28",
+  "category": "MediaPipe Tasks / Hand Landmarker / Web ML",
+  "headline": "Hand Landmarker の tracking 閾値とフレーム予算を分解する最小ラボ",
+  "headlineEn": "A small lab for decomposing Hand Landmarker tracking thresholds and frame budget",
+  "summary": "Google AI Edge の Hand Landmarker Web guide、overview、JS API reference、MediaPipe Tasks Vision README、公式 mediapipe-samples-web 実装と worker、MediaPipe v1.0.0 release notes を参考に、21点ランドマーク、presence confidence、tracking confidence、detector fallback、UI thread budget を自作の静的サンプルとして追加しました。さらに派生試作として、同じ21点ランドマークから pinch、spread、tilt、hold frames を使って安定コマンドに変換する `Hand Feature Command Mixer` も追加しました。",
+  "summaryEn": "Based on the Google AI Edge Hand Landmarker Web guide, overview, JS API reference, MediaPipe Tasks Vision README, official mediapipe-samples-web task and worker implementation, and MediaPipe v1.0.0 release notes, this adds an original static sample for 21 landmarks, presence confidence, tracking confidence, detector fallback, and UI-thread budget. A second derivative prototype, `Hand Feature Command Mixer`, converts the same 21 landmarks into stable commands using pinch, spread, tilt, and hold frames.",
+  "keyTopics": [
+    "Hand Landmarker Web guide は `@mediapipe/tasks-vision`、`FilesetResolver.forVisionTasks()`、`HandLandmarker.createFromOptions()`、`detect()` / `detectForVideo()` の最小導線を示している。",
+    "設定値は `numHands`、`minHandDetectionConfidence`、`minHandPresenceConfidence`、`minTrackingConfidence` が中心で、検出を再実行するか tracking を再利用するかの判断に直結する。",
+    "Web guide は `detect()` と `detectForVideo()` が同期実行で UI thread をブロックし得ると説明しており、camera loop では Worker / OffscreenCanvas 化が重要になる。",
+    "Overview は出力として handedness、21個の image landmarks、21個の world landmarks を整理しており、座標を UI コマンドや可視効果へ渡す前処理が作りやすい。",
+    "MediaPipe v1.0.0 release notes では JS bundle / IIFE bundle、Tasks privacy notice、Web LLM / Text Embedder 周辺の更新が続き、静的サンプルでも version pin と fallback 表示を明示する価値がある。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide shows the minimal flow around `@mediapipe/tasks-vision`, `FilesetResolver.forVisionTasks()`, `HandLandmarker.createFromOptions()`, and `detect()` / `detectForVideo()`.",
+    "`numHands`, `minHandDetectionConfidence`, `minHandPresenceConfidence`, and `minTrackingConfidence` are central options, directly shaping whether detection reruns or tracking is reused.",
+    "The Web guide explains that `detect()` and `detectForVideo()` are synchronous and can block the UI thread, making Worker / OffscreenCanvas routing important for camera loops.",
+    "The overview organizes the output as handedness, 21 image landmarks, and 21 world landmarks, which makes it practical to preprocess coordinates into UI commands and visual effects.",
+    "MediaPipe v1.0.0 release notes continue to update JS bundles / IIFE bundles, Tasks privacy notice, and Web LLM / Text Embedder pieces, so static samples benefit from explicit version pins and fallback status."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Hand Landmark Tracking Budget Lab",
+      "url": "../outputs/2026-08-28_hand_landmark_tracking_budget_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Hand Feature Command Mixer",
+      "url": "../outputs/2026-08-28_hand_feature_command_mixer.html"
+    },
+    {
+      "label": "Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Hand landmarks detection overview",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker"
+    },
+    {
+      "label": "HandLandmarker class API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.handlandmarker"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official Hand Landmarker task implementation in mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/hand-landmarker.ts"
+    },
+    {
+      "label": "Official Hand Landmarker worker implementation in mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/hand-landmarker.worker.ts"
+    },
+    {
+      "label": "MediaPipe v1.0.0 release notes",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.0.0"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-28-hand-landmarker-tracking-budget.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Hand Landmarker を「手の骨格を描くデモ」ではなく、detector fallback と tracking reuse の設計対象として見ることです。公式 Web guide は `detect()` / `detectForVideo()` の同期実行と Worker の必要性を明示し、overview は 21個の image landmarks と world landmarks、handedness を出力として整理しています。本命サンプルでは、合成ランドマーク列に detection confidence、presence confidence、tracking confidence、detector cost、UI frame budget を重ね、どのフレームで detector を再実行するか、どのフレームで tracking を再利用するかを小さく可視化しました。",
+      "bodyEn": "Today's notable angle is treating Hand Landmarker not as a skeleton drawing demo, but as a design surface for detector fallback and tracking reuse. The official Web guide makes the synchronous nature of `detect()` / `detectForVideo()` and the need for Workers explicit, while the overview organizes 21 image landmarks, world landmarks, and handedness as outputs. The main sample overlays detection confidence, presence confidence, tracking confidence, detector cost, and UI frame budget on a synthetic landmark sequence to show which frames rerun detection and which frames reuse tracking.",
+      "links": [
+        {
+          "label": "Hand landmarks detection guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+        },
+        {
+          "label": "Open Hand Landmark Tracking Budget Lab",
+          "url": "../outputs/2026-08-28_hand_landmark_tracking_budget_lab.html"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプルは、手の動き、presence、IoU、detector / tracking の切り替え、推定コストを同じ画面で見せます。閾値を上げると検出が落ちやすくなり、tracking confidence を上げると動きの速い手で detector refresh が増える構図です。派生サンプルは、次に足すなら必要になる landmark feature layer を先に切り出しました。親指と人差し指の距離、親指と小指の spread、手首と中指根元の tilt、hold frames を使って `SCRUB`、`EXPAND`、`CONFIRM`、`HOLD` に変換します。",
+      "bodyEn": "The main sample shows hand motion, presence, IoU, detector / tracking switching, and estimated cost in the same view. Raising thresholds makes detections easier to drop, and raising tracking confidence causes more detector refreshes on fast hands. The derivative sample isolates the landmark feature layer that would be useful next. It maps thumb-index distance, thumb-pinky spread, wrist-to-middle-base tilt, and hold frames into `SCRUB`, `EXPAND`, `CONFIRM`, and `HOLD`.",
+      "links": [
+        {
+          "label": "Open Hand Landmark Tracking Budget Lab",
+          "url": "../outputs/2026-08-28_hand_landmark_tracking_budget_lab.html"
+        },
+        {
+          "label": "Open Hand Feature Command Mixer",
+          "url": "../outputs/2026-08-28_hand_feature_command_mixer.html"
+        }
+      ]
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、frame index、numHands、presence confidence、detection confidence、tracking IoU、detector refresh flag、estimated inference cost、21点 image landmarks、pinch distance、spread distance、tilt、hold history、stable command です。Gesture Recognizer と合わせれば既存 gesture label の前後に独自 feature gate を追加できます。Face Landmarker や Pose Landmarker と合わせると、手が顔や肩に近づいた時だけ UI を出すような空間的な条件を作れます。Web Audio と組み合わせれば pinch で scrubbing、spread で filter width、tilt で confirm といった連続入力にも展開できます。",
+      "bodyEn": "The samples can accumulate frame index, numHands, presence confidence, detection confidence, tracking IoU, detector refresh flags, estimated inference cost, 21 image landmarks, pinch distance, spread distance, tilt, hold history, and stable commands. Combined with Gesture Recognizer, custom feature gates can wrap existing gesture labels. Combined with Face Landmarker or Pose Landmarker, spatial conditions can show UI only when a hand approaches the face or shoulder. With Web Audio, pinch can scrub, spread can control filter width, and tilt can confirm continuous input."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは `@mediapipe/tasks-vision@0.10.22/+esm` と同 version の WASM path を dynamic import し、公式 README と公式サンプルにある `hand_landmarker.task` の model URL を使う構成にしました。モデル取得に失敗しても、同じ閾値と同じ UI で合成ランドマークを動かせる synthetic fallback を残しています。実際の camera loop では `detectForVideo()` の同期ブロックを避けるため、公式サンプルの worker 実装のように Worker 側で task instance と option update を持つ構成が良さそうです。",
+      "bodyEn": "The static HTML dynamically imports `@mediapipe/tasks-vision@0.10.22/+esm` and the matching WASM path, using the `hand_landmarker.task` model URL shown in the official README and sample implementation. If model loading fails, the same thresholds and UI still drive a synthetic fallback. For a real camera loop, the synchronous blocking of `detectForVideo()` suggests keeping the task instance and option updates inside a Worker, as in the official sample worker.",
+      "links": [
+        {
+          "label": "MediaPipe Tasks Vision README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        },
+        {
+          "label": "Official Hand Landmarker worker implementation",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/hand-landmarker.worker.ts"
+        }
+      ]
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Hand Landmarker の Worker / OffscreenCanvas 化、`detectForVideo()` の timestamp 管理、real camera での presence と tracking confidence のログ、world landmarks の meter scale の扱い、Gesture Recognizer との feature fusion、MediaPipe v1.0.0 以降の JS bundle / IIFE bundle 更新、Tasks privacy notice の表示方法を見ます。Web ML 側では WebGPU service、LiteRT-LM、WebNN delegate のブラウザ対応も継続して追います。",
+      "bodyEn": "Next watch Worker / OffscreenCanvas routing for Hand Landmarker, timestamp handling for `detectForVideo()`, presence and tracking-confidence logs on real camera input, meter-scale handling for world landmarks, feature fusion with Gesture Recognizer, JS bundle / IIFE bundle updates after MediaPipe v1.0.0, and how to present the Tasks privacy notice. On the Web ML side, keep following WebGPU service, LiteRT-LM, and WebNN delegate browser support.",
+      "links": [
+        {
+          "label": "MediaPipe v1.0.0 release notes",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.0.0"
+        }
+      ]
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "まず `Hand Landmark Tracking Budget Lab` を開き、`Run timeline` を押して synthetic のまま動かします。`Fast wave` preset にして tracking confidence を上げると detector refresh が増え、detector cost を UI budget より大きくすると over budget 表示が出ます。モデル取得が通る環境では `Load Task` を押して、同じ閾値を実 Task 初期化にも渡せます。派生の `Hand Feature Command Mixer` では `Pinch scrub` と `Mixed handoff` を切り替え、hold frames を増やすとコマンドが安定する代わりに反応が遅れることを確認できます。",
+      "bodyEn": "First open `Hand Landmark Tracking Budget Lab`, press `Run timeline`, and keep it synthetic. Switch to the `Fast wave` preset and raise tracking confidence to increase detector refreshes; raise detector cost above the UI budget to see over-budget states. When model loading works, press `Load Task` to pass the same thresholds into a real Task initialization. In the derivative `Hand Feature Command Mixer`, switch between `Pinch scrub` and `Mixed handoff`; increasing hold frames stabilizes commands while making the response slower.",
+      "links": [
+        {
+          "label": "Open Hand Landmark Tracking Budget Lab",
+          "url": "../outputs/2026-08-28_hand_landmark_tracking_budget_lab.html"
+        },
+        {
+          "label": "Open Hand Feature Command Mixer",
+          "url": "../outputs/2026-08-28_hand_feature_command_mixer.html"
+        }
+      ]
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Hand Landmarker Web guide、overview、HandLandmarker API reference、MediaPipe Tasks Vision README、公式 sample task、公式 sample worker、MediaPipe v1.0.0 release notes、公式 demo page を確認。設計: 外部デモ一覧ではなく、tracking reuse と frame budget の判断を自作最小サンプルにする。実装: 本命HTMLに synthetic 21 landmarks、preset、numHands、detection / presence / tracking confidence controls、detector cost、UI budget、timeline、optional MediaPipe dynamic import を追加。派生HTMLに pinch / spread / tilt feature、hold frames、command history を追加。検証: JSON parse、gallery build、publish command、公開URL応答を確認する。",
+      "bodyEn": "Research: checked the Hand Landmarker Web guide, overview, HandLandmarker API reference, MediaPipe Tasks Vision README, official sample task, official sample worker, MediaPipe v1.0.0 release notes, and official demo page. Design: use an original tracking-reuse and frame-budget decision sample rather than listing external demos. Implementation: added synthetic 21 landmarks, presets, numHands, detection / presence / tracking confidence controls, detector cost, UI budget, timeline, and optional MediaPipe dynamic import to the main HTML. Added pinch / spread / tilt features, hold frames, and command history to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and public URL responses."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月後半の試作は、Face Detector の ROI gate、Gesture Recognizer の command router、Interactive Segmenter の prompt UI など、Task の出力を後段の判断へ変換する方向に進んでいます。Hand Landmarker は検出結果そのものよりも、tracking をいつ信用するか、ランドマークをどの feature に変換するかがプロダクト差になりやすい領域です。今日の2本は、推論と UI の時間予算、そしてランドマークからコマンドへの feature layer を分けて確認できるようにしました。",
+      "bodyEn": "The late-August samples are moving toward converting Task outputs into downstream decisions: Face Detector ROI gates, Gesture Recognizer command routers, and Interactive Segmenter prompt UIs. For Hand Landmarker, product behavior often depends less on drawing detections and more on when tracking should be trusted and which features landmarks become. Today's two samples separate inference / UI time budget from the feature layer that turns landmarks into commands."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Hand Landmark Tracking Budget Lab` です。実際に動く部分は、合成21点ランドマーク、desk / pinch / fast presets、numHands、detection / presence / tracking confidence、detector cost、UI budget、detector refresh / tracking reuse timeline、optional MediaPipe Task load です。次に足すなら Worker 内 `detectForVideo()`、camera freeze、world landmarks の奥行き表示、Gesture Recognizer への handoff、per-frame JSON export を追加します。派生試作は `Hand Feature Command Mixer` で、レポート中の「次に足すなら」の feature layer と command stabilization を短時間で試せます。",
+      "bodyEn": "The selected main prototype is `Hand Landmark Tracking Budget Lab`. The working pieces are synthetic 21 landmarks, desk / pinch / fast presets, numHands, detection / presence / tracking confidence, detector cost, UI budget, detector-refresh / tracking-reuse timeline, and optional MediaPipe Task loading. Next additions should include Worker-side `detectForVideo()`, camera freeze, world-landmark depth display, handoff to Gesture Recognizer, and per-frame JSON export. The derivative prototype is `Hand Feature Command Mixer`, which quickly tests the feature layer and command stabilization listed as next additions in the report.",
+      "links": [
+        {
+          "label": "Open Hand Landmark Tracking Budget Lab",
+          "url": "../outputs/2026-08-28_hand_landmark_tracking_budget_lab.html"
+        },
+        {
+          "label": "Open Hand Feature Command Mixer",
+          "url": "../outputs/2026-08-28_hand_feature_command_mixer.html"
+        }
+      ]
+    }
+  ]
+}
