@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasks Version Pin Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0e1014;
+      color: #f6f3ed;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #0e1014; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px; }
+    header { border-bottom: 1px solid #303642; padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.8rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #b8b6b0; line-height: 1.65; }
+    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 14px; margin-top: 16px; }
+    .panel { border: 1px solid #303642; background: #151820; padding: 14px; }
+    .controls { display: grid; gap: 13px; }
+    label { display: grid; gap: 7px; color: #eee9df; }
+    input[type="range"] { width: 100%; accent-color: #8ed4ff; }
+    select, button {
+      min-height: 40px;
+      border: 1px solid #4c5361;
+      background: #10131a;
+      color: #f6f3ed;
+      padding: 9px 12px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .metric { border: 1px solid #303642; background: #10131a; padding: 12px; min-height: 104px; }
+    .metric strong { display: block; font-size: 1.9rem; margin: 8px 0 2px; }
+    .good { color: #8ed4ff; }
+    .warn { color: #ffd57c; }
+    .bad { color: #ff9f9f; }
+    canvas { width: 100%; height: 330px; border: 1px solid #303642; background: #090b10; display: block; margin-top: 12px; }
+    .list { display: grid; gap: 8px; margin-top: 12px; }
+    .item { display: grid; grid-template-columns: 120px 1fr 90px; gap: 10px; border-top: 1px solid #303642; padding-top: 8px; align-items: center; }
+    .bar { height: 14px; border: 1px solid #4c5361; background: #090b10; }
+    .bar span { display: block; height: 100%; width: 0%; background: #8ed4ff; }
+    .bar.warn span { background: #ffd57c; }
+    .bar.bad span { background: #ff9f9f; }
+    @media (max-width: 820px) {
+      main { padding: 14px; }
+      .layout, .grid { grid-template-columns: 1fr; }
+      .item { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Tasks Version Pin Router</h1>
+    <p>本命プローブの「次に足すなら」を小さく検証する派生試作。最新追従、旧デモ互換、WASM取得安定性、回帰リスクから、MediaPipe Tasks Web の採用ルートを即時計算する。</p>
+  </header>
+
+  <section class="layout">
+    <aside class="panel controls">
+      <label>Target surface
+        <select id="surface">
+          <option value="camera">Camera task</option>
+          <option value="static">Static image/text task</option>
+          <option value="worker">Worker pipeline</option>
+        </select>
+      </label>
+      <label>Latest package confidence <span id="latestValue">72</span>
+        <input id="latest" type="range" min="0" max="100" value="72">
+      </label>
+      <label>Legacy demo compatibility <span id="legacyValue">58</span>
+        <input id="legacy" type="range" min="0" max="100" value="58">
+      </label>
+      <label>WASM path confidence <span id="wasmValue">82</span>
+        <input id="wasm" type="range" min="0" max="100" value="82">
+      </label>
+      <label>Regression tolerance <span id="riskValue">35</span>
+        <input id="risk" type="range" min="0" max="100" value="35">
+      </label>
+      <button id="tick">Add release tick</button>
+      <p>数値は実プローブやCI結果で置き換える想定。ここでは version pin の意思決定UIだけを独立して試す。</p>
+    </aside>
+
+    <section class="panel">
+      <div class="grid">
+        <div class="metric"><span>Decision</span><strong id="decision">-</strong><small id="decisionSub">計算待ち</small></div>
+        <div class="metric"><span>Pin</span><strong id="pin">-</strong><small id="pinSub">計算待ち</small></div>
+        <div class="metric"><span>Next</span><strong id="next">-</strong><small id="nextSub">計算待ち</small></div>
+      </div>
+      <canvas id="chart" width="900" height="360" aria-label="version route score"></canvas>
+      <div class="list" id="list"></div>
+    </section>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const history = [];
+  const profiles = {
+    camera: { name: "Camera task", latest: .24, legacy: .16, wasm: .28, risk: .32 },
+    static: { name: "Static task", latest: .30, legacy: .22, wasm: .24, risk: .24 },
+    worker: { name: "Worker pipeline", latest: .20, legacy: .14, wasm: .30, risk: .36 }
+  };
+
+  function values() {
+    return {
+      surface: $("surface").value,
+      latest: Number($("latest").value),
+      legacy: Number($("legacy").value),
+      wasm: Number($("wasm").value),
+      risk: Number($("risk").value)
+    };
+  }
+
+  function score(v) {
+    const p = profiles[v.surface];
+    const stability = 100 - v.risk;
+    const latestRoute = v.latest * p.latest + v.wasm * p.wasm + stability * p.risk + (100 - v.legacy) * p.legacy;
+    const legacyRoute = v.legacy * .36 + v.wasm * .24 + stability * .28 + (100 - v.latest) * .12;
+    const canaryRoute = v.latest * .34 + v.legacy * .18 + v.wasm * .18 + v.risk * .30;
+    return { latestRoute, legacyRoute, canaryRoute };
+  }
+
+  function update() {
+    const v = values();
+    ["latest", "legacy", "wasm", "risk"].forEach((id) => $(`${id}Value`).textContent = $(id).value);
+    const s = score(v);
+    const options = [
+      { key: "latest", label: "Use latest", score: s.latestRoute, pin: "1.0.1" },
+      { key: "legacy", label: "Keep pin", score: s.legacyRoute, pin: "0.10.34" },
+      { key: "canary", label: "Canary first", score: s.canaryRoute, pin: "1.0.1-rc" }
+    ].sort((a, b) => b.score - a.score);
+    const top = options[0];
+    $("decision").textContent = top.label;
+    $("decision").className = top.key === "latest" ? "good" : top.key === "canary" ? "warn" : "bad";
+    $("decisionSub").textContent = `${profiles[v.surface].name} score ${Math.round(top.score)}`;
+    $("pin").textContent = top.pin;
+    $("pinSub").textContent = top.key === "latest" ? "named import と /wasm をCI確認" : "既存デモ互換を優先";
+    $("next").textContent = top.key === "canary" ? "Probe" : top.key === "legacy" ? "Audit" : "Ship";
+    $("nextSub").textContent = top.key === "latest" ? "代表Taskを1本だけ実ロード" : "差分をmatrixで確認";
+    renderList(options);
+    draw(options);
+  }
+
+  function renderList(options) {
+    $("list").innerHTML = options.map((item) => {
+      const tone = item.key === "latest" ? "" : item.key === "canary" ? "warn" : "bad";
+      return `<div class="item"><strong>${item.label}</strong><div class="bar ${tone}"><span style="width:${Math.round(item.score)}%"></span></div><span>${Math.round(item.score)}</span></div>`;
+    }).join("");
+  }
+
+  function draw(options) {
+    const canvas = $("chart");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#090b10";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#303642";
+    for (let y = 50; y <= 300; y += 50) {
+      ctx.beginPath();
+      ctx.moveTo(40, y);
+      ctx.lineTo(860, y);
+      ctx.stroke();
+    }
+    options.forEach((item, i) => {
+      const x = 110 + i * 260;
+      const h = item.score * 2.4;
+      ctx.fillStyle = item.key === "latest" ? "#8ed4ff" : item.key === "canary" ? "#ffd57c" : "#ff9f9f";
+      ctx.fillRect(x, 300 - h, 110, h);
+      ctx.fillStyle = "#f6f3ed";
+      ctx.font = "16px system-ui";
+      ctx.fillText(item.label, x - 8, 330);
+      ctx.fillText(Math.round(item.score), x + 36, 292 - h);
+    });
+    if (history.length > 1) {
+      ctx.strokeStyle = "#d7f8ff";
+      ctx.beginPath();
+      history.slice(-20).forEach((point, i) => {
+        const x = 44 + i * 42;
+        const y = 300 - point * 2.4;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+  }
+
+  function addTick() {
+    const v = values();
+    const s = score(v);
+    history.push(Math.max(s.latestRoute, s.legacyRoute, s.canaryRoute));
+    $("latest").value = Math.max(0, Math.min(100, Number($("latest").value) + Math.round(Math.random() * 12 - 4)));
+    $("wasm").value = Math.max(0, Math.min(100, Number($("wasm").value) + Math.round(Math.random() * 10 - 3)));
+    $("risk").value = Math.max(0, Math.min(100, Number($("risk").value) + Math.round(Math.random() * 10 - 5)));
+    update();
+  }
+
+  document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", update));
+  $("tick").addEventListener("click", addTick);
+  update();
+</script>
+</body>
+</html>

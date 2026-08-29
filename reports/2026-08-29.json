@@ -1,0 +1,140 @@
+{
+  "date": "2026-08-29",
+  "category": "MediaPipe Tasks / Web ML / Packaging",
+  "headline": "Tasks Vision の import と WASM path を推論前に検査する最小プローブ",
+  "headlineEn": "A minimal pre-inference probe for Tasks Vision imports and WASM paths",
+  "summary": "Google AI Edge / MediaPipe Tasks Vision README、公式 mediapipe-samples-web、npm の `@mediapipe/tasks-vision` 公開状況、GitHub issue、Google I/O 2026 の Google AI Edge セッションを参考に、実Task推論の前で壊れやすい ESM import、named exports、WASM path、version pin をブラウザ内で確認する自作サンプルを追加しました。さらに派生試作として、latest / legacy / canary の採用判断を小さく動かせる version pin router も追加しました。",
+  "summaryEn": "Based on the Google AI Edge / MediaPipe Tasks Vision README, the official mediapipe-samples-web project, npm package status for `@mediapipe/tasks-vision`, a GitHub issue, and the Google I/O 2026 Google AI Edge session, this adds an original browser probe for fragile pre-inference points: ESM imports, named exports, WASM paths, and version pins. A derivative version-pin router tests latest / legacy / canary adoption decisions.",
+  "keyTopics": [
+    "MediaPipe Tasks Vision README は `FilesetResolver.forVisionTasks()` と Vision Task class の named export を使う初期化導線を示している。",
+    "公式 mediapipe-samples-web は Audio、Vision、Text の Tasks をブラウザで動かす公式デモ集で、Task instance、worker、UI state の分離が参考になる。",
+    "npm の `@mediapipe/tasks-vision` は 2026-08-29 時点で latest が 1.0.1、rc 系も継続しており、静的サンプルでは version pin と import endpoint の明示が重要になる。",
+    "GitHub issue #6033 は package root import と default export 期待のずれがWebサンプルの破断点になることを示している。",
+    "Google I/O 2026 の Google AI Edge セッションは、MediaPipe Tasks、Gemma、LiteRT を on-device AI の用途別レイヤーとして扱う見方を補強している。"
+  ],
+  "keyTopicsEn": [
+    "The MediaPipe Tasks Vision README shows the initialization path around `FilesetResolver.forVisionTasks()` and named Vision Task class exports.",
+    "The official mediapipe-samples-web project runs Audio, Vision, and Text Tasks in the browser, and is useful for separating task instances, workers, and UI state.",
+    "As of 2026-08-29, npm lists `@mediapipe/tasks-vision` latest as 1.0.1 with continuing rc builds, making version pins and import endpoints important for static samples.",
+    "GitHub issue #6033 highlights how package-root imports and default-export assumptions can break web samples.",
+    "The Google I/O 2026 Google AI Edge session reinforces a layered view of MediaPipe Tasks, Gemma, and LiteRT for on-device AI."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Tasks Vision Import WASM Probe",
+      "url": "../outputs/2026-08-29_tasks_vision_import_wasm_probe.html"
+    },
+    {
+      "label": "Today's derivative sample: Tasks Version Pin Router",
+      "url": "../outputs/2026-08-29_tasks_version_pin_router.html"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks demo page",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official interactive segmenter task implementation",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/interactive-segmenter.ts"
+    },
+    {
+      "label": "@mediapipe/tasks-vision on npm",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-vision"
+    },
+    {
+      "label": "GitHub issue: latest web example import mismatch",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues/6033"
+    },
+    {
+      "label": "Google I/O 2026 Google AI Edge and Gemma session",
+      "url": "https://io.google/2026/explore/technical-session-36"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-29-tasks-vision-import-wasm.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、推論そのものではなく、推論前の初期化面を小さく検査対象にしたことです。MediaPipe Tasks Vision README は `FilesetResolver.forVisionTasks()` と各 Vision Task class を named import で使う流れを示し、公式 mediapipe-samples-web はブラウザ上で複数Taskを動かす構成を持っています。一方で npm では 1.0.1 が latest になり、過去のWeb例や issue では default export 期待、package root import、WASM path の差で壊れる余地があります。本命サンプルでは、その破断点を一画面で走査します。",
+      "bodyEn": "Today's notable example is probing the initialization surface before inference rather than inference itself. The MediaPipe Tasks Vision README shows `FilesetResolver.forVisionTasks()` and named Vision Task class imports, while the official mediapipe-samples-web project demonstrates multiple browser Tasks. With npm listing 1.0.1 as latest and older web examples surfacing default-export, package-root, and WASM-path mismatches, the main sample scans those fragile points in one screen.",
+      "links": [
+        {
+          "label": "Open Tasks Vision Import WASM Probe",
+          "url": "../outputs/2026-08-29_tasks_vision_import_wasm_probe.html"
+        },
+        {
+          "label": "MediaPipe Tasks Vision README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプルは、version、import endpoint、WASM path を切り替えて `Run probe` すると、import成否、named exportの充足、WASM取得、採用ルートを棒グラフとログで表示します。`Try matrix` は複数versionを連続検査し、CIや手元ブラウザでの初期化ヘルスチェックに近い体験にしました。派生サンプルは、その結果をどう採用判断へ変えるかをUI化し、latest confidence、legacy compatibility、WASM confidence、regression tolerance から `Use latest`、`Keep pin`、`Canary first` を選びます。",
+      "bodyEn": "The main sample lets the user switch version, import endpoint, and WASM path, then displays import status, named-export coverage, WASM fetch status, and the recommended route with bars and logs. `Try matrix` checks multiple versions in sequence, approximating a local browser or CI initialization health check. The derivative sample turns those results into an adoption decision, choosing `Use latest`, `Keep pin`, or `Canary first` from latest confidence, legacy compatibility, WASM confidence, and regression tolerance."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、package version、import endpoint、import latency、named export一覧、default export有無、WASM URL、HTTP status、route recommendation、latest / legacy / canary score、surface type、regression tolerance です。Hand Landmarker や Image Segmenter のような重いTaskを起動する前に、このデータを保存しておくと、サンプル失敗がモデル、WASM、CDN、API export、ブラウザ機能のどこで起きたかを切り分けやすくなります。WebGPU / WebNN / LiteRT-LM の capability probe と合わせると、Web ML の起動前診断パネルにできます。",
+      "bodyEn": "The samples can accumulate package version, import endpoint, import latency, named export lists, default-export presence, WASM URL, HTTP status, route recommendation, latest / legacy / canary scores, surface type, and regression tolerance. Capturing this before heavier Tasks such as Hand Landmarker or Image Segmenter helps separate model, WASM, CDN, API export, and browser capability failures. Combined with WebGPU / WebNN / LiteRT-LM capability probes, it can become a preflight diagnostics panel for Web ML."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLで `await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@VERSION/+esm')` を実行し、`FilesetResolver` や主要 Vision Task class の named export を確認する構成にしました。WASM側は `fetch()` の HEAD / GET fallback で path の到達性だけを検査します。実Task作成までは行わないため、カメラ権限やモデルDLの揺れを避けて、packagingの問題だけを短時間で再現できます。実運用に足すなら、検査結果をJSON化し、代表Taskを1本だけ実ロードする smoke test を別段に置くのがよさそうです。",
+      "bodyEn": "The static HTML runs `await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@VERSION/+esm')` and checks named exports such as `FilesetResolver` and key Vision Task classes. The WASM side only checks path reachability using `fetch()` with HEAD / GET fallback. Because it does not create a real Task, it avoids camera permission and model-download variability and isolates packaging failures quickly. For production use, export the probe result as JSON and add a separate smoke test that loads one representative Task."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、`@mediapipe/tasks-vision` 1.x の export surface、jsDelivr / npm のEsm変換差、公式 mediapipe-samples-web の version pin、worker内Task初期化、Tasks Text / Audio package の同種プローブ、LiteRT-LM と WebGPU service の初期化ログ、WebNN delegate のブラウザ対応を見ます。特に公式サンプルが 1.x pin に寄るタイミングと、古い `default import` 前提のサンプルがどこまで残るかを継続確認します。",
+      "bodyEn": "Next, watch the `@mediapipe/tasks-vision` 1.x export surface, jsDelivr / npm ESM conversion differences, official mediapipe-samples-web version pins, Task initialization inside workers, similar probes for Tasks Text / Audio packages, LiteRT-LM and WebGPU service startup logs, and WebNN delegate browser support. In particular, keep checking when official samples move toward 1.x pins and how long older default-import assumptions remain visible."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Tasks Vision Import WASM Probe` を開き、まず `1.0.1 latest`、`jsDelivr +esm`、`/wasm` のまま `Run probe` を押します。import が通り named export が揃うか、WASM path が 200 系で返るかを確認してください。次に `package root` に切り替えると、古いサンプルで起きがちな export 期待違いをログで見られます。派生の `Tasks Version Pin Router` では regression tolerance を上げ、camera task で canary route に寄る条件を確認します。",
+      "bodyEn": "Open `Tasks Vision Import WASM Probe` and first press `Run probe` with `1.0.1 latest`, `jsDelivr +esm`, and `/wasm`. Check whether import succeeds, named exports are present, and the WASM path returns a 200-class status. Then switch to `package root` to see the kind of export mismatch older examples can hit. In the derivative `Tasks Version Pin Router`, increase regression tolerance and see when a camera task shifts toward the canary route."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: MediaPipe Tasks Vision README、公式 mediapipe-samples-web、interactive segmenter実装、npm package、GitHub issue、Google I/O 2026 Google AI Edge session、公式デモページを確認。設計: 外部デモ一覧ではなく、推論前のWeb ML初期化プローブを自作サンプル化。実装: 本命HTMLに dynamic import、named export scan、WASM fetch probe、matrix runner、canvas timeline、route recommendation を追加。派生HTMLに version pin score、surface別weight、release tick履歴を追加。検証: JSON parse、gallery build、publish command、GitHub Pagesのトップ、日付ページ、代表サンプルURLのHTTP 200を確認する。",
+      "bodyEn": "Research: checked the MediaPipe Tasks Vision README, official mediapipe-samples-web, interactive segmenter implementation, npm package status, GitHub issue, Google I/O 2026 Google AI Edge session, and official demo page. Design: make an original Web ML initialization probe instead of listing external demos. Implementation: added dynamic import, named-export scan, WASM fetch probe, matrix runner, canvas timeline, and route recommendation to the main HTML. Added version-pin scoring, surface-specific weights, and release-tick history to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月後半の試作は、各Taskの結果をUI判断へ渡すラボが増えていました。今日は一段戻り、Taskが起動する前のpackagingとruntime入口を扱いました。MediaPipe / Web ML の静的サンプル集では、モデルや推論ロジックだけでなく、CDN、WASM、ESM、version pin の安定性が体験の土台になります。この層を可視化しておくと、明日以降の実Taskサンプルの失敗原因も切り分けやすくなります。",
+      "bodyEn": "The late-August samples have mostly turned Task outputs into UI decisions. Today steps back one layer to packaging and runtime entry before a Task starts. For a static MediaPipe / Web ML sample archive, the experience depends not only on models and inference logic but also on CDN, WASM, ESM, and version-pin stability. Visualizing this layer makes later real-Task sample failures easier to diagnose."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Tasks Vision Import WASM Probe` です。実際に動く部分は、`@mediapipe/tasks-vision` のversion選択、ESM endpoint選択、dynamic import、named export充足率、default export有無、WASM path到達性、複数versionのmatrix実行、canvas timeline、採用route表示です。次に足すなら、実際の `FilesetResolver.forVisionTasks()` 呼び出し、代表Taskの1モデルだけの smoke load、probe結果のJSON export、CIでの失敗差分表示を追加します。派生試作は `Tasks Version Pin Router` で、同じ発展案のうち version pin 判断だけを短時間で試せるようにしました。",
+      "bodyEn": "The selected main prototype is `Tasks Vision Import WASM Probe`. The working pieces are `@mediapipe/tasks-vision` version selection, ESM endpoint selection, dynamic import, named-export coverage, default-export presence, WASM path reachability, multi-version matrix runs, canvas timeline, and route display. Next additions should include a real `FilesetResolver.forVisionTasks()` call, a single-model smoke load for one representative Task, JSON export of probe results, and CI failure diffs. The derivative prototype is `Tasks Version Pin Router`, isolating the version-pin decision part of that next-step idea.",
+      "links": [
+        {
+          "label": "Open Tasks Vision Import WASM Probe",
+          "url": "../outputs/2026-08-29_tasks_vision_import_wasm_probe.html"
+        },
+        {
+          "label": "Open Tasks Version Pin Router",
+          "url": "../outputs/2026-08-29_tasks_version_pin_router.html"
+        }
+      ]
+    }
+  ]
+}
