@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-30",
+  "category": "Google AI Edge / LiteRT-LM / Web ML",
+  "headline": "LiteRT-LM JS 移行前に WebGPU とモデル入口を検査する最小 preflight",
+  "headlineEn": "A minimal WebGPU and model-entry preflight before moving to LiteRT-LM JS",
+  "summary": "Google AI Edge の LiteRT-LM API Overview、LiteRT-LM JS README、MediaPipe LLM Inference Web guide、MediaPipe Web setup、LiteRT.js README、公式 mediapipe-samples-web を参考に、巨大モデルを読み込む前の WebGPU、cross-origin isolation、CDN import、model URL、backend 方針をブラウザ内で確認する自作サンプルを追加しました。派生試作として、実 Engine 作成前の prompt budget、stream chunk、cancel UI を検証する小さなストリーミング設計サンプルも追加しました。",
+  "summaryEn": "Based on the Google AI Edge LiteRT-LM API Overview, LiteRT-LM JS README, MediaPipe LLM Inference Web guide, MediaPipe Web setup, LiteRT.js README, and the official mediapipe-samples-web repository, this adds an original browser preflight for WebGPU, cross-origin isolation, CDN import, model URL, and backend routing before loading a large model. A derivative sample explores prompt budget, stream chunks, and cancel UI before creating a real Engine.",
+  "keyTopics": [
+    "MediaPipe LLM Inference Web guide は API を maintenance-only とし、Web projects では LiteRT-LM JavaScript API への移行を推奨している。",
+    "LiteRT-LM API Overview は JavaScript で `@litert-lm/core` の `Engine` を使い、model URL から Engine、Conversation、message へ進む流れを示している。",
+    "LiteRT-LM JS README は Web 版を WebGPU 上の text-in / text-out early preview と説明し、web-compatible な Gemma 4 E2B / E4B `.litertlm` モデルを挙げている。",
+    "LiteRT.js README は WebGPU、WebNN、WASM、JSPI による fallback / partitioning の考え方を示しており、実モデル前の環境診断UIに向いている。",
+    "npm 確認では 2026-08-30 JST 時点で `@litert-lm/core` は 0.16.0、`@mediapipe/tasks-genai` は 0.10.29、`@litertjs/core` は 2.5.3 だった。"
+  ],
+  "keyTopicsEn": [
+    "The MediaPipe LLM Inference Web guide marks the API as maintenance-only and recommends migrating Web projects to the LiteRT-LM JavaScript API.",
+    "The LiteRT-LM API Overview shows the JavaScript flow from `@litert-lm/core` `Engine` creation to Conversation and message calls.",
+    "The LiteRT-LM JS README describes the Web API as an early preview for text-in / text-out on WebGPU and lists web-compatible Gemma 4 E2B / E4B `.litertlm` models.",
+    "The LiteRT.js README explains WebGPU, WebNN, WASM, and JSPI fallback / partitioning, which fits a pre-model environment diagnostics UI.",
+    "npm checks on 2026-08-30 JST showed `@litert-lm/core` at 0.16.0, `@mediapipe/tasks-genai` at 0.10.29, and `@litertjs/core` at 2.5.3."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: LiteRT-LM Web Preflight",
+      "url": "../outputs/2026-08-30_litert_lm_web_preflight.html"
+    },
+    {
+      "label": "Today's derivative sample: LiteRT-LM Prompt Stream Budget",
+      "url": "../outputs/2026-08-30_litert_lm_prompt_stream_budget.html"
+    },
+    {
+      "label": "LiteRT-LM API Overview",
+      "url": "https://developers.google.com/edge/litert-lm/api_overview"
+    },
+    {
+      "label": "LiteRT-LM JS core README",
+      "url": "https://github.com/google-ai-edge/litert-lm/blob/main/js/packages/core/README.md"
+    },
+    {
+      "label": "MediaPipe LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "MediaPipe setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "LiteRT.js README",
+      "url": "https://github.com/google-ai-edge/LiteRT/blob/main/litert/js/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-30-litert-lm-web-preflight.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe LLM Inference Web guide が maintenance-only を明記し、LiteRT-LM JavaScript API への移行を促している点です。実際の LLM 実行はモデルサイズ、WebGPU、COOP/COEP、CDN、cache、backend fallback が絡んで重くなりがちなので、本命サンプルでは Engine 作成の一歩手前を検査対象にしました。`LiteRT-LM Web Preflight` は WebGPU、cross-origin isolation、secure context、deviceMemory、CDN import、Hugging Face model URL を一画面で採点し、WebGPU / Hybrid / WASM の採用ルートを返します。",
+      "bodyEn": "Today's notable point is that the MediaPipe LLM Inference Web guide marks the API as maintenance-only and points Web projects toward the LiteRT-LM JavaScript API. Real LLM execution can be heavy because model size, WebGPU, COOP/COEP, CDN, cache, and backend fallback all interact, so the main sample focuses on the step before Engine creation. `LiteRT-LM Web Preflight` scores WebGPU, cross-origin isolation, secure context, deviceMemory, CDN import, and Hugging Face model URL in one screen, then recommends WebGPU, Hybrid, or WASM routing.",
+      "links": [
+        {
+          "label": "Open LiteRT-LM Web Preflight",
+          "url": "../outputs/2026-08-30_litert_lm_web_preflight.html"
+        },
+        {
+          "label": "MediaPipe LLM Inference guide for Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "preflight は `Run preflight` で現在ブラウザの WebGPU / isolation / secure context を即時計測し、`@litert-lm/core` の dynamic import と model URL の HEAD probe を走らせます。`Try backend matrix` は static hosted demo、PWA / offline cache、lab experiment の3プロファイルを比較し、どの条件で WebGPU first から Hybrid / WASM first へ倒すべきかを可視化します。派生の `Prompt Stream Budget` は、実モデルを読む前に prompt token、max output、chunk size、cancel 動線を触って、ストリーミングUIの感触だけを短時間で確認します。",
+      "bodyEn": "The preflight runs local WebGPU / isolation / secure-context checks, dynamic-imports `@litert-lm/core`, and probes the model URL with HEAD. `Try backend matrix` compares static hosted demo, PWA / offline cache, and lab experiment profiles to show when to shift from WebGPU first to Hybrid or WASM first. The derivative `Prompt Stream Budget` lets the user tune prompt tokens, max output, chunk size, and cancel behavior before loading a real model, checking the streaming UI feel quickly."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、package version、module URL、dynamic import latency、Engine export 有無、model URL、HTTP status、content-length、WebGPU availability、crossOriginIsolated、secure context、deviceMemory hint、route recommendation、prompt tokens、output tokens、chunk count、cancel state です。MediaPipe Tasks Vision の FilesetResolver probe、LiteRT.js の WebNN / WASM runtime probe、Service Worker cache audit、PerformanceObserver、GitHub Pages の COOP/COEP 設定確認と組み合わせると、Web ML 起動前の診断ダッシュボードになります。",
+      "bodyEn": "The samples can accumulate package version, module URL, dynamic import latency, Engine export presence, model URL, HTTP status, content-length, WebGPU availability, crossOriginIsolated, secure context, deviceMemory hint, route recommendation, prompt tokens, output tokens, chunk count, and cancel state. Combined with a MediaPipe Tasks Vision FilesetResolver probe, LiteRT.js WebNN / WASM runtime probe, Service Worker cache audit, PerformanceObserver, and GitHub Pages COOP/COEP checks, this becomes a Web ML startup diagnostics dashboard."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLから `await import('https://cdn.jsdelivr.net/npm/@litert-lm/core@0.16.0/+esm')` を試し、`Engine` export の有無と import latency を記録します。model URL は `fetch(..., { method: 'HEAD' })` で content-length を見るだけにして、数GB級の取得や Engine 作成は行いません。WebGPU は `navigator.gpu`、isolation は `crossOriginIsolated`、secure context は `isSecureContext` を見る構成です。実運用では explicit opt-in の `Engine.create()` smoke test、`engine.delete()` の finally cleanup、JSON export を次段に置くのがよさそうです。",
+      "bodyEn": "The static HTML tries `await import('https://cdn.jsdelivr.net/npm/@litert-lm/core@0.16.0/+esm')`, then records whether `Engine` exists and how long the import took. The model URL check only uses `fetch(..., { method: 'HEAD' })` to inspect content-length, avoiding multi-GB downloads and Engine creation. WebGPU uses `navigator.gpu`, isolation uses `crossOriginIsolated`, and secure context uses `isSecureContext`. For production, add an explicit opt-in `Engine.create()` smoke test, `engine.delete()` in finally cleanup, and JSON export as the next layer."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、`@litert-lm/core` の npm version と CDN export surface、LiteRT-LM JS の対応モデル一覧、WebGPU / WebNN / JSPI のブラウザ実装差、MediaPipe LLM Inference API から LiteRT-LM への移行文言、公式サンプル側の GenAI デモ更新、Hugging Face の web `.litertlm` model 配布名、GitHub issue の WebGPU compile / model artifact 関連を継続確認します。",
+      "bodyEn": "Next, keep watching the `@litert-lm/core` npm version and CDN export surface, LiteRT-LM JS supported model list, WebGPU / WebNN / JSPI browser differences, migration wording from MediaPipe LLM Inference API to LiteRT-LM, official sample updates for GenAI demos, Hugging Face web `.litertlm` model names, and GitHub issues around WebGPU compile or model artifacts."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`LiteRT-LM Web Preflight` を開き、`0.16.0 current npm` と `Gemma 4 E2B web` のまま `Run preflight` を押します。GitHub Pages 上では secure context は通りやすい一方、COOP/COEP がない場合は crossOriginIsolated が警告になるはずです。次に `Try backend matrix` を押し、PWA化した場合に cache plan がどう採点されるかを見ます。派生サンプルでは output tokens と chunk size を上げ、cancel が常時必要になる境界を確認します。",
+      "bodyEn": "Open `LiteRT-LM Web Preflight`, keep `0.16.0 current npm` and `Gemma 4 E2B web`, then press `Run preflight`. On GitHub Pages, secure context should usually pass, while crossOriginIsolated may warn when COOP/COEP is absent. Then press `Try backend matrix` and inspect how the cache plan changes for a PWA profile. In the derivative sample, raise output tokens and chunk size to find when persistent cancel UI becomes necessary."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: LiteRT-LM API Overview、LiteRT-LM JS README、MediaPipe LLM Inference Web guide、MediaPipe Web setup、LiteRT.js README、公式 mediapipe-samples-web、npm package version を確認。設計: 外部デモ一覧ではなく、モデル実行前の起動条件を自作サンプル化。実装: 本命HTMLに dynamic import、WebGPU / isolation check、model URL probe、profile matrix、canvas chart、route recommendation を追加。派生HTMLに prompt budget、latency hint、疑似stream、cancel 動線を追加。検証: JSON parse、gallery build、publish command、GitHub Pages 3 URL の HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the LiteRT-LM API Overview, LiteRT-LM JS README, MediaPipe LLM Inference Web guide, MediaPipe Web setup, LiteRT.js README, official mediapipe-samples-web, and npm package versions. Design: make the pre-model startup conditions an original sample instead of listing external demos. Implementation: added dynamic import, WebGPU / isolation checks, model URL probe, profile matrix, canvas chart, and route recommendation to the main HTML. Added prompt budget, latency hint, simulated stream, and cancel behavior to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the three GitHub Pages URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月末の流れは、MediaPipe Tasks の各Taskそのものから、WASM path、version pin、runtime capability、そして GenAI / LiteRT-LM への入口診断へ広がっています。Web ML のサンプル集では、推論結果の見せ方だけでなく、どの環境なら実行に進んでよいかをユーザーに早く伝えるUIが重要です。今日の2本は、重いモデルを読み込まずに失敗の種類を先に分けるための足場です。",
+      "bodyEn": "The late-August thread has expanded from individual MediaPipe Tasks to WASM paths, version pins, runtime capability, and now the GenAI / LiteRT-LM entry point. For a Web ML sample archive, the UI needs to show not only inference results but also whether the current environment should proceed to execution. Today's two samples are scaffolding for separating failure types before loading a heavy model."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `LiteRT-LM Web Preflight` です。実際に動く部分は、package version 選択、model preset 選択、dynamic import、Engine export 確認、WebGPU / isolation / secure context / memory hint 検査、model URL HEAD probe、profile matrix、canvas chart、route recommendation です。次に足すなら、明示ボタン付きの `Engine.create()` smoke test、`engine.delete()` の finally cleanup、JSON export、COOP/COEP header 検査を追加します。派生試作は `LiteRT-LM Prompt Stream Budget` で、その発展案から prompt / output / chunk / cancel の設計だけを短時間で試せるようにしました。",
+      "bodyEn": "The selected main prototype is `LiteRT-LM Web Preflight`. The working pieces are package version selection, model preset selection, dynamic import, Engine export check, WebGPU / isolation / secure context / memory-hint checks, model URL HEAD probe, profile matrix, canvas chart, and route recommendation. Next additions should include an explicit-button `Engine.create()` smoke test, `engine.delete()` in finally cleanup, JSON export, and COOP/COEP header checks. The derivative prototype is `LiteRT-LM Prompt Stream Budget`, isolating prompt / output / chunk / cancel design from that next-step idea.",
+      "links": [
+        {
+          "label": "Open LiteRT-LM Web Preflight",
+          "url": "../outputs/2026-08-30_litert_lm_web_preflight.html"
+        },
+        {
+          "label": "Open LiteRT-LM Prompt Stream Budget",
+          "url": "../outputs/2026-08-30_litert_lm_prompt_stream_budget.html"
+        }
+      ]
+    }
+  ]
+}
