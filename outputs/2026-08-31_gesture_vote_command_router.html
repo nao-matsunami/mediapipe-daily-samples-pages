@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Vote Command Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b0e11;
+      color: #f2f7ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #11191e, #0b0e11 55%, #231b22); }
+    main { width: min(1060px, 100%); margin: 0 auto; padding: 22px; display: grid; gap: 14px; }
+    header, section { border: 1px solid rgba(214, 229, 245, .15); background: rgba(12, 17, 21, .82); padding: 16px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 3vw, 2.5rem); letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; color: #8ed7ff; letter-spacing: 0; }
+    p, label, li { color: #bac7d3; line-height: 1.65; }
+    button, input, select { font: inherit; color: #f2f7ff; background: #141b21; border: 1px solid rgba(214, 229, 245, .22); padding: 9px 10px; }
+    button { cursor: pointer; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .toolbar, .gestures, .row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+    .gestures button { min-width: 112px; border-color: rgba(245, 193, 90, .42); }
+    .output { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tile { background: #10171b; border: 1px solid rgba(214, 229, 245, .12); padding: 14px; min-height: 110px; }
+    .label { color: #8ed7ff; font-size: .8rem; text-transform: uppercase; }
+    .value { font-size: 2rem; margin-top: 8px; }
+    .timeline { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
+    .tick { min-height: 42px; display: grid; place-items: center; background: #151d23; border: 1px solid rgba(214, 229, 245, .12); color: #f5c15a; font-size: .78rem; overflow: hidden; }
+    .log { white-space: pre-wrap; min-height: 132px; max-height: 180px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; color: #c8d2da; }
+    @media (max-width: 760px) {
+      main { padding: 12px; }
+      .grid, .output { grid-template-columns: 1fr; }
+      .timeline { grid-template-columns: repeat(6, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Gesture Vote Command Router</h1>
+    <p>Gesture Recognizer の出力をそのまま操作に使わず、直近フレームの投票、最低得票、クールダウンでコマンド化する派生試作です。ボタン入力だけで、誤発火を抑える条件を短時間で確認できます。</p>
+  </header>
+
+  <div class="grid">
+    <section>
+      <h2>Input gesture frames</h2>
+      <div class="gestures" id="gestureButtons"></div>
+      <div class="row">
+        <label>Window <input id="window" type="range" min="3" max="12" value="7"></label>
+        <strong id="windowOut">7</strong>
+      </div>
+      <div class="row">
+        <label>Min votes <input id="votes" type="range" min="2" max="8" value="4"></label>
+        <strong id="votesOut">4</strong>
+      </div>
+      <div class="row">
+        <label>Cooldown ms <input id="cooldown" type="range" min="0" max="1600" step="100" value="700"></label>
+        <strong id="cooldownOut">700</strong>
+      </div>
+      <div class="toolbar">
+        <button id="runDemo">Run noisy demo</button>
+        <button id="clear">Clear</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Routed command</h2>
+      <div class="output">
+        <div class="tile"><div class="label">Winner</div><div class="value" id="winner">Idle</div></div>
+        <div class="tile"><div class="label">Command</div><div class="value" id="command">Standby</div></div>
+      </div>
+      <p id="reason">ジェスチャを連続投入すると、投票条件を満たした時だけ command が発火します。</p>
+    </section>
+  </div>
+
+  <section>
+    <h2>Recent frames</h2>
+    <div class="timeline" id="timeline"></div>
+  </section>
+
+  <section>
+    <h2>Decision log</h2>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<script type="module">
+  const gestures = ["Open_Palm", "Closed_Fist", "Thumb_Up", "Pointing_Up", "None"];
+  const commands = {
+    Open_Palm: "Pan mode",
+    Closed_Fist: "Hold",
+    Thumb_Up: "Accept",
+    Pointing_Up: "Cursor mode",
+    None: "Standby",
+  };
+  const state = { frames: [], lastFire: 0 };
+  const els = {
+    buttons: document.querySelector("#gestureButtons"),
+    window: document.querySelector("#window"),
+    votes: document.querySelector("#votes"),
+    cooldown: document.querySelector("#cooldown"),
+    windowOut: document.querySelector("#windowOut"),
+    votesOut: document.querySelector("#votesOut"),
+    cooldownOut: document.querySelector("#cooldownOut"),
+    runDemo: document.querySelector("#runDemo"),
+    clear: document.querySelector("#clear"),
+    winner: document.querySelector("#winner"),
+    command: document.querySelector("#command"),
+    reason: document.querySelector("#reason"),
+    timeline: document.querySelector("#timeline"),
+    log: document.querySelector("#log"),
+  };
+
+  function log(line) {
+    els.log.textContent = `${new Date().toLocaleTimeString()} ${line}\n${els.log.textContent}`.slice(0, 1500);
+  }
+
+  function updateLabels() {
+    els.windowOut.textContent = els.window.value;
+    els.votesOut.textContent = els.votes.value;
+    els.cooldownOut.textContent = els.cooldown.value;
+  }
+
+  function evaluate() {
+    const windowSize = Number(els.window.value);
+    const minVotes = Number(els.votes.value);
+    const cooldown = Number(els.cooldown.value);
+    const recent = state.frames.slice(-windowSize);
+    const counts = Object.fromEntries(gestures.map((name) => [name, 0]));
+    for (const item of recent) counts[item] += 1;
+    const [winner, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    els.winner.textContent = `${winner} ${count}/${recent.length}`;
+    const now = performance.now();
+    const eligible = winner !== "None" && count >= minVotes;
+    const cooled = now - state.lastFire >= cooldown;
+    if (eligible && cooled) {
+      state.lastFire = now;
+      els.command.textContent = commands[winner];
+      els.reason.textContent = `${winner} が ${count} 票に到達したため発火。`;
+      log(`FIRE ${commands[winner]} from ${winner} (${count}/${recent.length})`);
+    } else if (eligible) {
+      els.reason.textContent = `${winner} は閾値到達、ただし cooldown 中。`;
+    } else {
+      els.reason.textContent = `まだ安定していません。必要票: ${minVotes}`;
+    }
+    renderTimeline();
+  }
+
+  function renderTimeline() {
+    const view = state.frames.slice(-12);
+    els.timeline.innerHTML = Array.from({ length: 12 }, (_, index) => {
+      const name = view[index] || "";
+      return `<div class="tick">${name.replace("_", "<br>")}</div>`;
+    }).join("");
+  }
+
+  function pushGesture(name) {
+    state.frames.push(name);
+    const max = Math.max(12, Number(els.window.value));
+    state.frames = state.frames.slice(-max);
+    evaluate();
+  }
+
+  for (const name of gestures) {
+    const button = document.createElement("button");
+    button.textContent = name;
+    button.addEventListener("click", () => pushGesture(name));
+    els.buttons.append(button);
+  }
+
+  els.runDemo.addEventListener("click", () => {
+    const sequence = ["Open_Palm", "Open_Palm", "None", "Open_Palm", "Open_Palm", "Closed_Fist", "Open_Palm", "Thumb_Up", "Thumb_Up", "None", "Thumb_Up", "Thumb_Up"];
+    sequence.forEach((name, index) => setTimeout(() => pushGesture(name), index * 160));
+  });
+  els.clear.addEventListener("click", () => {
+    state.frames = [];
+    state.lastFire = 0;
+    els.command.textContent = "Standby";
+    els.winner.textContent = "Idle";
+    els.reason.textContent = "履歴を消去しました。";
+    renderTimeline();
+    log("CLEAR");
+  });
+  [els.window, els.votes, els.cooldown].forEach((input) => input.addEventListener("input", () => {
+    updateLabels();
+    evaluate();
+  }));
+  updateLabels();
+  renderTimeline();
+</script>
+</body>
+</html>

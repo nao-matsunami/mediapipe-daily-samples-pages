@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Face Detector / Web ML</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks / Web ML / Packaging</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">31 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Face Detector / Web ML</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks / Web ML / Packaging</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span><span class="badge">OpenCV.js</span></p></div><p class="date">32 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-31</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span></p>
+      <h2>Gesture Recognizer の同期推論をフレーム予算内に収める最小スケジューラ</h2>
+      <p class="en">A minimal frame scheduler for keeping Gesture Recognizer sync inference within budget</p>
+      <p>Google AI Edge の Gesture Recognizer guide、Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web、legacy Hands pipeline note を参考に、Gesture Recognizer の同期推論を目標FPS、同一フレームskip、疑似UI block、latency meter で観察する自作サンプルを追加しました。派生試作として、認識結果をそのまま操作に使わず、投票窓、最低得票、cooldown でコマンド化する小さなルータも追加しました。</p>
+      <div class="actions">
+        <a href="days/2026-08-31.html">日付ページ</a>
+        <a href="outputs/2026-08-31_gesture_recognizer_frame_scheduler.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="outputs/2026-08-31_gesture_vote_command_router.html"><span>MediaPipe</span>Gesture Vote Command Router</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-30</span><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span></p>
       <h2>LiteRT-LM JS 移行前に WebGPU とモデル入口を検査する最小 preflight</h2>
       <p class="en">A minimal WebGPU and model-entry preflight before moving to LiteRT-LM JS</p>

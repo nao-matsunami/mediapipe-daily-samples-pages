@@ -1,0 +1,126 @@
+{
+  "date": "2026-08-31",
+  "category": "MediaPipe Tasks / Gesture Recognizer / Web ML",
+  "headline": "Gesture Recognizer の同期推論をフレーム予算内に収める最小スケジューラ",
+  "headlineEn": "A minimal frame scheduler for keeping Gesture Recognizer sync inference within budget",
+  "summary": "Google AI Edge の Gesture Recognizer guide、Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web、legacy Hands pipeline note を参考に、Gesture Recognizer の同期推論を目標FPS、同一フレームskip、疑似UI block、latency meter で観察する自作サンプルを追加しました。派生試作として、認識結果をそのまま操作に使わず、投票窓、最低得票、cooldown でコマンド化する小さなルータも追加しました。",
+  "summaryEn": "Based on the Google AI Edge Gesture Recognizer guide, Web guide, MediaPipe Tasks Vision README, official mediapipe-samples-web, and legacy Hands pipeline notes, this adds an original sample for observing Gesture Recognizer synchronous inference with target FPS, same-frame skipping, simulated UI blocking, and a latency meter. A derivative prototype adds a small router that turns recognition frames into commands through a vote window, minimum votes, and cooldown.",
+  "keyTopics": [
+    "Gesture Recognizer は手の gesture categories だけでなく、hand landmarks、world landmarks、handedness も返すため、操作UIと可視化UIを同じ結果から組み立てられる。",
+    "Web guide は `recognize()` と `recognizeForVideo()` が同期実行で UI thread をブロックし得ると説明しており、video では Worker 化やフレーム制御が重要になる。",
+    "Tasks Vision README は CDN wasm fileset と hosted task model URL から Gesture Recognizer を作る最小パターンを示している。",
+    "公式 mediapipe-samples-web は Vision / Audio / Text Tasks をブラウザで動かす参照実装として更新されており、Task UI の分割や worker 方針を見る入口になる。",
+    "npm 確認では 2026-08-31 JST 時点で `@mediapipe/tasks-vision`、`@mediapipe/tasks-text`、`@mediapipe/tasks-audio` はいずれも 1.0.1 だった。"
+  ],
+  "keyTopicsEn": [
+    "Gesture Recognizer returns gesture categories as well as hand landmarks, world landmarks, and handedness, so interaction UI and visualization UI can be built from the same result.",
+    "The Web guide explains that `recognize()` and `recognizeForVideo()` run synchronously and can block the UI thread, making workers and frame control important for video.",
+    "The Tasks Vision README shows the compact pattern of creating Gesture Recognizer from a CDN wasm fileset and hosted task model URL.",
+    "The official mediapipe-samples-web repository remains a reference implementation for running Vision, Audio, and Text Tasks in the browser and for studying task UI and worker structure.",
+    "An npm check on 2026-08-31 JST showed `@mediapipe/tasks-vision`, `@mediapipe/tasks-text`, and `@mediapipe/tasks-audio` all at 1.0.1."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Recognizer Frame Scheduler",
+      "url": "../outputs/2026-08-31_gesture_recognizer_frame_scheduler.html"
+    },
+    {
+      "label": "Today's derivative sample: Gesture Vote Command Router",
+      "url": "../outputs/2026-08-31_gesture_vote_command_router.html"
+    },
+    {
+      "label": "Gesture recognition task guide",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/gesture_recognizer"
+    },
+    {
+      "label": "Gesture recognition guide for Web",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official hand landmarker sample implementation",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/hand-landmarker.ts"
+    },
+    {
+      "label": "Legacy MediaPipe Hands pipeline note",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/hands.md"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-08-31-gesture-recognizer-frame-scheduler.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Gesture Recognizer の Web guide が synchronous な `recognize()` / `recognizeForVideo()` と UI thread block の注意を明示している点です。ジェスチャ操作は結果カテゴリの精度だけでなく、入力fps、同一video frameの重複推論、UI側の処理時間、発火の安定化が体験を左右します。本命サンプル `Gesture Recognizer Frame Scheduler` は、実モデルをロードできる構成を持ちつつ、手動フレームだけでも目標FPS、skip、疑似block、latencyの関係を確認できます。",
+      "bodyEn": "Today's notable point is that the Gesture Recognizer Web guide explicitly calls out synchronous `recognize()` / `recognizeForVideo()` calls and possible UI thread blocking. Gesture interaction quality depends not only on category accuracy, but also input FPS, duplicate inference on the same video frame, UI-side processing time, and trigger stabilization. The main sample, `Gesture Recognizer Frame Scheduler`, can load the real model while also letting the scheduler be tested with manual frames only."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "サンプルは `Load MediaPipe model`、`Start camera`、`Start loop` を分離し、permission や CDN で失敗しても手動gestureで動くようにしました。latency meter は `1000 / targetFPS` を予算として塗り分け、予算超過時は Worker 化または fps 低下を提案します。派生の `Gesture Vote Command Router` では Open_Palm、Closed_Fist、Thumb_Up、Pointing_Up を直近フレームの投票で command に変換し、cooldown 中の抑制理由も表示します。",
+      "bodyEn": "The sample separates `Load MediaPipe model`, `Start camera`, and `Start loop`, so it still works through manual gestures when permissions or CDN loading fail. The latency meter uses `1000 / targetFPS` as the frame budget and suggests workers or lower FPS when over budget. The derivative `Gesture Vote Command Router` converts Open_Palm, Closed_Fist, Thumb_Up, and Pointing_Up into commands through recent-frame voting and shows why triggers are suppressed during cooldown."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、targetFPS、simulated UI block、run frames、skipped frames、last latency、gesture category、manual / MediaPipe source、vote window、minimum votes、cooldown、winner、command fire log です。これを Hand Landmarker の tracking confidence、Gesture Recognizer の category score、PerformanceObserver、Worker postMessage latency、camera resolution selector と組み合わせると、Web ML gesture UI の起動前診断から操作安定化までを一続きで検証できます。",
+      "bodyEn": "The samples can accumulate target FPS, simulated UI blocking, run frames, skipped frames, last latency, gesture category, manual / MediaPipe source, vote window, minimum votes, cooldown, winner, and command fire logs. Combined with Hand Landmarker tracking confidence, Gesture Recognizer category score, PerformanceObserver, Worker postMessage latency, and a camera resolution selector, this can test Web ML gesture UI from startup diagnostics through interaction stabilization."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装は静的HTMLから `@mediapipe/tasks-vision@1.0.1/+esm` を dynamic import し、`FilesetResolver.forVisionTasks()` と hosted `gesture_recognizer.task` で `GestureRecognizer.createFromOptions()` を呼びます。video loop では `video.currentTime` が変わらないフレームを skip し、`performance.now()` で推論と疑似blockを合わせた時間を測ります。次段では `recognizeForVideo()` を Worker に移し、main thread では描画と command routing だけを担当させるのが自然です。",
+      "bodyEn": "The implementation dynamically imports `@mediapipe/tasks-vision@1.0.1/+esm` from static HTML, then calls `FilesetResolver.forVisionTasks()` and `GestureRecognizer.createFromOptions()` with the hosted `gesture_recognizer.task`. The video loop skips frames when `video.currentTime` has not changed and measures inference plus simulated blocking with `performance.now()`. The next step is to move `recognizeForVideo()` into a worker and keep drawing and command routing on the main thread."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Gesture Recognizer Web guide の worker 推奨文言、`@mediapipe/tasks-vision` の npm version、公式 mediapipe-samples-web の worker 実装、Gesture Recognizer model の hosted path、WebGPU delegate のブラウザ差、camera permission UX、category score の閾値設計、handedness と selfie mirror の扱いを継続確認します。",
+      "bodyEn": "Next, keep watching the Gesture Recognizer Web guide's worker recommendation, `@mediapipe/tasks-vision` npm versions, worker implementation in the official mediapipe-samples-web repository, Gesture Recognizer hosted model paths, browser differences in WebGPU delegate behavior, camera permission UX, category score threshold design, and handedness with selfie mirroring."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Gesture Recognizer Frame Scheduler` を開き、まずモデルなしで manual gesture と `Simulated UI block` を動かします。target FPS を 30 に上げると、同じ処理時間でも frame budget が厳しくなることが見えます。次に camera permission を許可できる環境で `Load MediaPipe model` と `Start camera` を押し、実認識時の latency と skip count を見ます。派生サンプルでは noisy demo を流し、min votes と cooldown を変えて Thumb_Up がどれだけ誤発火しにくくなるかを確認します。",
+      "bodyEn": "Open `Gesture Recognizer Frame Scheduler` and first test manual gestures with `Simulated UI block` before loading the model. Raising target FPS to 30 shows how the same processing time consumes more of the frame budget. Then, in an environment where camera permission is available, press `Load MediaPipe model` and `Start camera` to inspect real-recognition latency and skip counts. In the derivative sample, run the noisy demo and tune min votes and cooldown to see how Thumb_Up false triggers are reduced."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer task guide、Web guide、Tasks Vision README、公式 mediapipe-samples-web、hand landmarker sample、legacy Hands pipeline note、npm package version を確認。設計: 外部デモ一覧ではなく、同期推論のフレーム予算とジェスチャ発火安定化を自作サンプル化。実装: 本命HTMLに model load、camera start、manual fallback、scheduler loop、same-frame skip、latency meter、budget recommendation を追加。派生HTMLに vote window、min votes、cooldown、noisy demo、command log を追加。検証: JSON parse、gallery build、publish command、GitHub Pages 3 URL の HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer task guide, Web guide, Tasks Vision README, official mediapipe-samples-web, hand landmarker sample, legacy Hands pipeline note, and npm package versions. Design: instead of listing external demos, build original samples for synchronous-inference frame budgeting and gesture-trigger stabilization. Implementation: added model loading, camera start, manual fallback, scheduler loop, same-frame skipping, latency meter, and budget recommendation to the main HTML. Added vote window, min votes, cooldown, noisy demo, and command log to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the three GitHub Pages URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月末の流れは、version pin、WASM path、LiteRT-LM preflight のような起動前検査から、実時間UIでの frame budget と command stability に戻ってきました。Web ML の日次サンプルでは、推論APIを呼ぶだけでなく、ユーザー操作として成立させるための時間制御と誤発火抑制を小さく分解しておく価値があります。今日の2本は Gesture Recognizer を操作UIに接続する前の下地です。",
+      "bodyEn": "The late-August thread moved from startup checks such as version pins, WASM paths, and LiteRT-LM preflight back into frame budgeting and command stability for real-time UI. For daily Web ML samples, it is useful to break down timing control and false-trigger suppression, not just inference API calls. Today's two samples are groundwork before connecting Gesture Recognizer to an actual control surface."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Gesture Recognizer Frame Scheduler` です。実際に動く部分は、MediaPipe model load、camera start、manual gesture fallback、target FPS slider、same-frame skip、simulated UI block、latency meter、frame budget recommendation です。次に足すなら Worker 化、category score threshold、camera resolution selector、JSON log export、landmark connector 描画を追加します。派生試作は `Gesture Vote Command Router` で、その発展案から vote window、min votes、cooldown による command routing だけを短時間で試せるようにしました。",
+      "bodyEn": "The selected main prototype is `Gesture Recognizer Frame Scheduler`. The working pieces are MediaPipe model loading, camera start, manual gesture fallback, target FPS slider, same-frame skipping, simulated UI blocking, latency meter, and frame-budget recommendation. Next additions should include worker offload, category score thresholds, camera resolution selection, JSON log export, and landmark connector drawing. The derivative prototype is `Gesture Vote Command Router`, isolating vote window, min votes, and cooldown command routing from that next-step idea.",
+      "links": [
+        {
+          "label": "Open Gesture Recognizer Frame Scheduler",
+          "url": "../outputs/2026-08-31_gesture_recognizer_frame_scheduler.html"
+        },
+        {
+          "label": "Open Gesture Vote Command Router",
+          "url": "../outputs/2026-08-31_gesture_vote_command_router.html"
+        }
+      ]
+    }
+  ]
+}

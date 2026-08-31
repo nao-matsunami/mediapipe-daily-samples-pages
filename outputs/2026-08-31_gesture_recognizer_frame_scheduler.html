@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Recognizer Frame Scheduler</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0a1012;
+      color: #eff8f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(42, 197, 130, .22), transparent 28%),
+        linear-gradient(135deg, rgba(21, 38, 47, .9), rgba(10, 16, 18, 1) 52%, rgba(32, 21, 39, .88));
+    }
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+    }
+    header, section {
+      border: 1px solid rgba(210, 241, 231, .16);
+      background: rgba(8, 14, 17, .78);
+      padding: 16px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1.4fr .8fr;
+      gap: 14px;
+      align-items: end;
+    }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: clamp(1.6rem, 3vw, 2.7rem); letter-spacing: 0; margin-bottom: 8px; }
+    h2 { font-size: 1rem; letter-spacing: 0; color: #9ff0bf; }
+    p, label, output, li { color: #b8c9c4; line-height: 1.65; }
+    button, select, input {
+      font: inherit;
+      color: #eff8f6;
+      background: #121d22;
+      border: 1px solid rgba(210, 241, 231, .24);
+      padding: 9px 10px;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #1f6f55; border-color: #72e1aa; }
+    button:disabled { opacity: .48; cursor: not-allowed; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 1fr) 360px; gap: 14px; }
+    .stage { position: relative; aspect-ratio: 16 / 10; min-height: 320px; background: #030607; overflow: hidden; }
+    video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    canvas { pointer-events: none; }
+    .toolbar, .row, .chips { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+    .row { justify-content: space-between; border-top: 1px solid rgba(210, 241, 231, .12); padding-top: 10px; margin-top: 10px; }
+    .meter { height: 10px; background: #162226; overflow: hidden; }
+    .meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #7be495, #f5c15a, #f06b75); }
+    .panel { display: grid; gap: 14px; align-content: start; }
+    .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .big { font-size: 2rem; color: #ffffff; }
+    .badge { padding: 4px 8px; border: 1px solid rgba(159, 240, 191, .35); color: #9ff0bf; }
+    .warn { color: #ffcd78; }
+    .ok { color: #8fe6ff; }
+    .log { min-height: 112px; max-height: 170px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; color: #b7c8d9; white-space: pre-wrap; }
+    @media (max-width: 820px) {
+      main { padding: 12px; }
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 240px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Gesture Recognizer Frame Scheduler</h1>
+      <p>MediaPipe Gesture Recognizer の同期推論を、目標FPS、同一 video frame のスキップ、疑似ブロック時間で観察する自作ミニサンプルです。モデルを読み込まない場合も手動ジェスチャでスケジューラだけ試せます。</p>
+    </div>
+    <div class="toolbar">
+      <button id="loadModel" class="primary">Load MediaPipe model</button>
+      <button id="startCamera">Start camera</button>
+      <button id="toggleLoop">Start loop</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay" width="960" height="600"></canvas>
+      </div>
+      <div class="row">
+        <label>Target FPS <input id="fps" type="range" min="4" max="30" value="12"></label>
+        <output id="fpsOut">12 fps</output>
+      </div>
+      <div class="row">
+        <label>Simulated UI block <input id="blockMs" type="range" min="0" max="80" value="12"></label>
+        <output id="blockOut">12 ms</output>
+      </div>
+      <div class="row">
+        <label>Manual gesture
+          <select id="manualGesture">
+            <option>Open_Palm</option>
+            <option>Closed_Fist</option>
+            <option>Thumb_Up</option>
+            <option>Pointing_Up</option>
+            <option>None</option>
+          </select>
+        </label>
+        <button id="pushManual">Push manual frame</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div>
+        <h2>Current result</h2>
+        <div class="big" id="gesture">Idle</div>
+        <p id="route">モデルを読むか、手動フレームを投入してください。</p>
+      </div>
+      <div class="stat"><span>Model</span><strong id="modelState">not loaded</strong></div>
+      <div class="stat"><span>Camera</span><strong id="cameraState">off</strong></div>
+      <div class="stat"><span>Frames run / skipped</span><strong id="frames">0 / 0</strong></div>
+      <div class="stat"><span>Last latency</span><strong id="latency">0 ms</strong></div>
+      <div class="meter" aria-label="frame budget"><span id="budgetBar"></span></div>
+      <div class="chips" id="chips"></div>
+      <div>
+        <h2>Scheduler log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <h2>Reference implementation notes</h2>
+    <ul>
+      <li>MediaPipe Tasks Vision は CDN の wasm fileset と gesture recognizer task model を使います。</li>
+      <li>Web guide が注意する同期実行の UI block を、目標FPSと skip gate で軽く観察します。</li>
+      <li>本番化するなら Worker 化、timestamp 管理、camera permission 失敗時のフォールバックを足します。</li>
+    </ul>
+  </section>
+</main>
+
+<script type="module">
+  const els = {
+    loadModel: document.querySelector("#loadModel"),
+    startCamera: document.querySelector("#startCamera"),
+    toggleLoop: document.querySelector("#toggleLoop"),
+    video: document.querySelector("#video"),
+    overlay: document.querySelector("#overlay"),
+    fps: document.querySelector("#fps"),
+    fpsOut: document.querySelector("#fpsOut"),
+    blockMs: document.querySelector("#blockMs"),
+    blockOut: document.querySelector("#blockOut"),
+    manualGesture: document.querySelector("#manualGesture"),
+    pushManual: document.querySelector("#pushManual"),
+    gesture: document.querySelector("#gesture"),
+    route: document.querySelector("#route"),
+    modelState: document.querySelector("#modelState"),
+    cameraState: document.querySelector("#cameraState"),
+    frames: document.querySelector("#frames"),
+    latency: document.querySelector("#latency"),
+    budgetBar: document.querySelector("#budgetBar"),
+    chips: document.querySelector("#chips"),
+    log: document.querySelector("#log"),
+  };
+
+  let GestureRecognizer;
+  let FilesetResolver;
+  let recognizer;
+  let drawingUtils;
+  let running = false;
+  let lastVideoTime = -1;
+  let lastRunAt = 0;
+  let runCount = 0;
+  let skipCount = 0;
+  const ctx = els.overlay.getContext("2d");
+
+  function log(message) {
+    const time = new Date().toLocaleTimeString();
+    els.log.textContent = `[${time}] ${message}\n${els.log.textContent}`.slice(0, 1600);
+  }
+
+  function busyWait(ms) {
+    const end = performance.now() + ms;
+    while (performance.now() < end) {}
+  }
+
+  function updateControls() {
+    els.fpsOut.value = `${els.fps.value} fps`;
+    els.blockOut.value = `${els.blockMs.value} ms`;
+  }
+
+  function drawGuide(result) {
+    ctx.clearRect(0, 0, els.overlay.width, els.overlay.height);
+    ctx.fillStyle = "rgba(10, 16, 18, .45)";
+    ctx.fillRect(0, 0, els.overlay.width, 54);
+    ctx.fillStyle = "#eff8f6";
+    ctx.font = "22px system-ui";
+    ctx.fillText(els.gesture.textContent, 18, 35);
+    if (!result?.landmarks?.length) return;
+    ctx.strokeStyle = "#78e0b0";
+    ctx.fillStyle = "#f5c15a";
+    for (const hand of result.landmarks) {
+      ctx.beginPath();
+      for (const point of hand) {
+        ctx.moveTo(point.x * els.overlay.width + 4, point.y * els.overlay.height);
+        ctx.arc(point.x * els.overlay.width, point.y * els.overlay.height, 4, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    }
+  }
+
+  function renderResult(name, latency, source, result) {
+    runCount += 1;
+    els.gesture.textContent = name || "None";
+    els.latency.textContent = `${latency.toFixed(1)} ms`;
+    els.frames.textContent = `${runCount} / ${skipCount}`;
+    const budget = 1000 / Number(els.fps.value);
+    els.budgetBar.style.width = `${Math.min(100, (latency / budget) * 100)}%`;
+    els.route.innerHTML = latency > budget
+      ? `<span class="warn">frame budget 超過: fps を落とすか Worker 化を検討</span>`
+      : `<span class="ok">${source}: budget 内で更新</span>`;
+    els.chips.innerHTML = [source, `${Number(els.fps.value)}fps`, `${Number(els.blockMs.value)}ms block`]
+      .map((chip) => `<span class="badge">${chip}</span>`).join("");
+    drawGuide(result);
+  }
+
+  async function loadModel() {
+    els.loadModel.disabled = true;
+    els.modelState.textContent = "loading";
+    try {
+      ({ GestureRecognizer, FilesetResolver, DrawingUtils: drawingUtils } =
+        await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm"));
+      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm");
+      recognizer = await GestureRecognizer.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+      });
+      els.modelState.textContent = "loaded";
+      log("MediaPipe Gesture Recognizer loaded.");
+    } catch (error) {
+      els.modelState.textContent = "failed";
+      els.loadModel.disabled = false;
+      log(`Model load failed: ${error.message}`);
+    }
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 600 }, audio: false });
+      els.video.srcObject = stream;
+      await els.video.play();
+      els.cameraState.textContent = "on";
+      log("Camera stream started.");
+    } catch (error) {
+      els.cameraState.textContent = "blocked";
+      log(`Camera failed: ${error.message}`);
+    }
+  }
+
+  function recognizeFrame() {
+    const t0 = performance.now();
+    let result = null;
+    let name = els.manualGesture.value;
+    let source = "manual";
+    if (recognizer && els.video.readyState >= 2 && els.video.videoWidth) {
+      result = recognizer.recognizeForVideo(els.video, performance.now());
+      name = result.gestures?.[0]?.[0]?.categoryName || "None";
+      source = "MediaPipe";
+    }
+    busyWait(Number(els.blockMs.value));
+    renderResult(name, performance.now() - t0, source, result);
+  }
+
+  function loop(now) {
+    if (!running) return;
+    const interval = 1000 / Number(els.fps.value);
+    if (now - lastRunAt >= interval) {
+      if (els.video.readyState >= 2 && els.video.currentTime === lastVideoTime) {
+        skipCount += 1;
+        els.frames.textContent = `${runCount} / ${skipCount}`;
+      } else {
+        lastVideoTime = els.video.currentTime;
+        lastRunAt = now;
+        recognizeFrame();
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  els.loadModel.addEventListener("click", loadModel);
+  els.startCamera.addEventListener("click", startCamera);
+  els.pushManual.addEventListener("click", recognizeFrame);
+  els.toggleLoop.addEventListener("click", () => {
+    running = !running;
+    els.toggleLoop.textContent = running ? "Stop loop" : "Start loop";
+    lastRunAt = 0;
+    if (running) requestAnimationFrame(loop);
+  });
+  els.fps.addEventListener("input", updateControls);
+  els.blockMs.addEventListener("input", updateControls);
+  updateControls();
+  drawGuide();
+</script>
+</body>
+</html>
