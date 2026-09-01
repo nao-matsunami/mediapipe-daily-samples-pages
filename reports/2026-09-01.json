@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-01",
+  "category": "MediaPipe Tasks / Hand Landmarker / Web ML",
+  "headline": "Hand Landmarker の再取得しきい値を触って理解する最小チューナ",
+  "headlineEn": "A minimal tuner for understanding Hand Landmarker reacquire thresholds",
+  "summary": "Google AI Edge の Hand Landmarker Web guide、Gesture Recognizer Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web、LLM Inference Web guide を確認し、Hand Landmarker の presence / tracking confidence 閾値が再検出とフレーム予算にどう効くかを観察する自作サンプルを追加しました。派生試作として、発展案のうち normalized z / world z を使った奥行きdwellゲートだけを切り出した小さなサンプルも実装しました。",
+  "summaryEn": "Based on the Google AI Edge Hand Landmarker Web guide, Gesture Recognizer Web guide, MediaPipe Tasks Vision README, official mediapipe-samples-web, and LLM Inference Web guide, this adds an original sample for observing how Hand Landmarker presence and tracking confidence thresholds affect reacquisition and frame budgeting. A derivative prototype isolates a depth dwell gate based on normalized z / world z from the next-step ideas.",
+  "keyTopics": [
+    "Hand Landmarker Web guide は `minHandPresenceConfidence` を下回ると palm detection model が呼ばれ、`minTrackingConfidence` は前後フレームの手の bounding box IoU 閾値として使われると説明している。",
+    "`detect()` / `detectForVideo()` は同期実行で UI thread をブロックし得るため、カメラ動画では Worker 化、フレーム間引き、予算メーターを先に設計する価値がある。",
+    "Hand Landmarker の出力は 21 landmarks、world landmarks、handedness を含むため、同じ結果から描画、操作、奥行きゲート、安定化ログを作れる。",
+    "Gesture Recognizer は手の landmark と gesture category を同時に返すため、Hand Landmarker 側で作った tracking / dwell 設計をコマンドUIへ流用しやすい。",
+    "npm 確認では 2026-09-01 JST 時点で `@mediapipe/tasks-vision` は 1.0.1、`@mediapipe/tasks-genai` は 0.10.29 だった。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide explains that `minHandPresenceConfidence` below threshold triggers the palm detection model, while `minTrackingConfidence` is used as a hand bounding box IoU threshold across frames.",
+    "`detect()` and `detectForVideo()` run synchronously and can block the UI thread, so camera video benefits from worker boundaries, frame skipping, and budget meters.",
+    "Hand Landmarker output includes 21 landmarks, world landmarks, and handedness, enabling drawing, interaction, depth gating, and stabilization logs from one result.",
+    "Gesture Recognizer returns both hand landmarks and gesture categories, making the Hand Landmarker tracking and dwell design reusable for command UIs.",
+    "An npm check on 2026-09-01 JST showed `@mediapipe/tasks-vision` at 1.0.1 and `@mediapipe/tasks-genai` at 0.10.29."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Hand Reacquire Threshold Tuner",
+      "url": "../outputs/2026-09-01_hand_reacquire_threshold_tuner.html"
+    },
+    {
+      "label": "Today's derivative sample: Hand Depth Dwell Gate",
+      "url": "../outputs/2026-09-01_hand_depth_dwell_gate.html"
+    },
+    {
+      "label": "Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-01-hand-reacquire-threshold-tuner.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Hand Landmarker Web guide が presence / tracking confidence と再検出の関係をかなり実装寄りに説明している点です。Video mode では、手の存在確信度が下がる、または tracking confidence が閾値を下回ると、軽量trackingだけで次フレームへ進むのではなく palm detector に戻る設計になります。これは精度だけの話ではなく、再検出が増えるほど同期推論のフレーム予算を圧迫するというUI設計上の問題でもあります。",
+      "bodyEn": "Today's notable point is that the Hand Landmarker Web guide describes the relationship between presence / tracking confidence and reacquisition in implementation-oriented terms. In video mode, when hand presence or tracking confidence falls below threshold, the pipeline returns to the palm detector instead of only continuing lightweight tracking. This is not only an accuracy issue; more reacquisition can consume more of the synchronous inference frame budget."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Hand Reacquire Threshold Tuner` は、実モデルをロードできるボタンを持ちつつ、カメラやCDNが使えない場合も疑似スコア列で動きます。presence threshold、tracking threshold、frame budget を触ると、同じ手の状態でも「track existing hand」と「reacquire palm detector」の判断が切り替わり、latency meter とログで負荷の見え方が変わります。派生の `Hand Depth Dwell Gate` は、次に足すならと考えた z-depth 操作のうち、近距離に一定時間留まったら一度だけ発火するUI部品だけを切り出しました。",
+      "bodyEn": "The main sample, `Hand Reacquire Threshold Tuner`, can load the real model but also runs with simulated score streams when camera or CDN access is unavailable. Changing presence threshold, tracking threshold, and frame budget flips the same hand state between `track existing hand` and `reacquire palm detector`, while the latency meter and log show the cost. The derivative `Hand Depth Dwell Gate` isolates one next-step idea: fire once when a z-depth hand signal stays in the near zone for a dwell period."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、presence score、tracking score、閾値、reacquire count、frame latency、budget ratio、source、z depth、near-zone entry/exit、dwell progress、command fire log です。これを Hand Landmarker の landmarks/world landmarks、Gesture Recognizer の category score、PerformanceObserver、Worker postMessage latency、camera resolution selector、localStorage の session replay と組み合わせると、Web ML 操作UIの「認識できたか」ではなく「操作として安定したか」を短いログで比較できます。",
+      "bodyEn": "The samples can accumulate presence score, tracking score, thresholds, reacquire count, frame latency, budget ratio, source, z depth, near-zone entry/exit, dwell progress, and command fire logs. Combined with Hand Landmarker landmarks/world landmarks, Gesture Recognizer category score, PerformanceObserver, worker postMessage latency, camera resolution selection, and localStorage session replay, they can compare whether a Web ML control is stable as an interaction, not just whether recognition worked."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは `@mediapipe/tasks-vision@1.0.1/+esm` を dynamic import し、`FilesetResolver.forVisionTasks()` に同じversionの wasm path を渡しました。モデルは hosted `hand_landmarker.task` を使い、`HandLandmarker.createFromOptions()` で `runningMode: \"VIDEO\"`、`numHands: 2`、presence / tracking 閾値を指定します。閾値スライダー変更時は `setOptions()` で再設定し、実推論が使えない場合も同じUIが疑似スコアに対して動くようにしました。",
+      "bodyEn": "The static HTML dynamically imports `@mediapipe/tasks-vision@1.0.1/+esm` and passes a same-version wasm path to `FilesetResolver.forVisionTasks()`. It uses the hosted `hand_landmarker.task` and configures `HandLandmarker.createFromOptions()` with `runningMode: \"VIDEO\"`, `numHands: 2`, and presence / tracking thresholds. Slider changes call `setOptions()`, while the same UI also runs against simulated scores when real inference is unavailable."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Hand Landmarker Web guide の最終更新、Tasks Vision package version、公式 mediapipe-samples-web の worker/camera scheduler、Tasks Vision README の privacy notice、Gesture Recognizer の category score と landmark 同時利用、`@mediapipe/tasks-genai` の WebGPU / LiteRT-LM 移行情報、ブラウザごとの camera permission と WebAssembly 読み込み失敗を継続確認します。",
+      "bodyEn": "Next, keep watching the Hand Landmarker Web guide's update date, Tasks Vision package versions, worker/camera scheduler patterns in mediapipe-samples-web, the Tasks Vision README privacy notice, combined Gesture Recognizer categories and landmarks, `@mediapipe/tasks-genai` WebGPU / LiteRT-LM migration details, and browser differences in camera permission and WebAssembly loading failures."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Hand Reacquire Threshold Tuner` を開き、まず model なしで scenario を `jitter / partial occlusion` にして `Start loop` を押します。presence / tracking threshold を上げるほど reacquire count が増え、latency meter が予算を食う前提に変わります。次に `lost then reacquire` を選ぶと、一時的な手の消失に対して閾値が厳しすぎるかを確認できます。派生サンプルでは `Play pattern` を押し、near threshold と dwell を変えて意図しない発火を抑えられるかを見ます。",
+      "bodyEn": "Open `Hand Reacquire Threshold Tuner`, first choose `jitter / partial occlusion` without loading the model, and press `Start loop`. Raising presence / tracking thresholds increases reacquire count and changes the latency meter assumption. Then choose `lost then reacquire` to see whether thresholds are too strict for temporary hand loss. In the derivative sample, press `Play pattern` and tune near threshold plus dwell to suppress accidental firing."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Hand Landmarker Web guide、Gesture Recognizer Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web、LLM Inference Web guide、npm package version を確認。設計: 外部デモ一覧ではなく、再検出しきい値と奥行きdwellゲートを自作サンプル化。実装: 本命HTMLに real model load、camera start、simulated fallback、presence/tracking threshold、reacquire log、latency budget meter を追加。派生HTMLに z-depth slider、near threshold、dwell timer、one-shot fire、pattern playback を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Hand Landmarker Web guide, Gesture Recognizer Web guide, MediaPipe Tasks Vision README, official mediapipe-samples-web, LLM Inference Web guide, and npm package versions. Design: instead of listing external demos, build original samples for reacquire thresholds and depth dwell gating. Implementation: added real model loading, camera start, simulated fallback, presence/tracking thresholds, reacquire logs, and a latency budget meter to the main HTML. Added z-depth slider, near threshold, dwell timer, one-shot fire, and pattern playback to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月末は WASM path、version pin、Gesture Recognizer の frame scheduler など、起動と同期推論の足場を確認してきました。今日の2本はそこから一段下げて、Hand Landmarker の tracking が途切れたときに何をUIとして見せるか、そしてlandmarkのz成分をどう発火条件に変換するかに絞っています。Web ML の操作UIでは、モデルの呼び出しよりも、閾値、滞在時間、再取得の扱いが体験差を作ります。",
+      "bodyEn": "Late August focused on startup and synchronous-inference groundwork: WASM paths, version pins, and a Gesture Recognizer frame scheduler. Today's two samples go one level lower, focusing on what the UI should show when Hand Landmarker tracking drops and how the z component of landmarks can become a trigger condition. In Web ML interaction UI, thresholds, dwell time, and reacquisition behavior often shape the experience more than the model call itself."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Hand Reacquire Threshold Tuner` です。実際に動く部分は、MediaPipe Hand Landmarker の model load、camera start、疑似スコア fallback、presence / tracking threshold tuning、再取得見積もり、latency budget meter、score window log です。次に足すなら Worker 化、実landmark connector描画、per-hand handedness split、JSON log export、resolution selector を追加します。派生試作は `Hand Depth Dwell Gate` で、次に足すなら本命側の world landmarks から z を直接受け取り、Gesture Recognizer のカテゴリと組み合わせて push / pull / hold コマンドにします。",
+      "bodyEn": "The selected main prototype is `Hand Reacquire Threshold Tuner`. The working pieces are MediaPipe Hand Landmarker model loading, camera start, simulated score fallback, presence / tracking threshold tuning, reacquisition estimation, latency budget meter, and score-window logs. Next additions should include worker offload, real landmark connector drawing, per-hand handedness split, JSON log export, and a resolution selector. The derivative prototype is `Hand Depth Dwell Gate`; next, feed z directly from world landmarks in the main sample and combine it with Gesture Recognizer categories for push / pull / hold commands.",
+      "links": [
+        {
+          "label": "Open Hand Reacquire Threshold Tuner",
+          "url": "../outputs/2026-09-01_hand_reacquire_threshold_tuner.html"
+        },
+        {
+          "label": "Open Hand Depth Dwell Gate",
+          "url": "../outputs/2026-09-01_hand_depth_dwell_gate.html"
+        }
+      ]
+    }
+  ]
+}

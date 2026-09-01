@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Reacquire Threshold Tuner</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #08100f;
+      color: #f3fbf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(75, 174, 143, .18), transparent 36%),
+        linear-gradient(315deg, rgba(225, 178, 80, .14), transparent 42%),
+        #08100f;
+    }
+    main {
+      width: min(1160px, 100%);
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+    }
+    header, section {
+      border: 1px solid rgba(212, 238, 228, .18);
+      background: rgba(8, 16, 15, .82);
+      padding: 16px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1.2fr auto;
+      gap: 14px;
+      align-items: end;
+    }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: clamp(1.55rem, 3vw, 2.55rem); line-height: 1.05; letter-spacing: 0; margin-bottom: 8px; }
+    h2 { font-size: 1rem; letter-spacing: 0; color: #9fe7ca; }
+    p, label, output, li { color: #bacbc5; line-height: 1.65; }
+    button, input, select {
+      font: inherit;
+      color: #f3fbf7;
+      background: #101c1a;
+      border: 1px solid rgba(212, 238, 228, .24);
+      padding: 9px 10px;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #23644f; border-color: #9fe7ca; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 1fr) 360px; gap: 14px; }
+    .stage { position: relative; aspect-ratio: 16 / 10; min-height: 320px; overflow: hidden; background: #030606; }
+    video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    canvas { pointer-events: none; }
+    .toolbar, .row, .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+    .row { justify-content: space-between; border-top: 1px solid rgba(212, 238, 228, .12); padding-top: 10px; margin-top: 10px; }
+    .panel { display: grid; gap: 14px; align-content: start; }
+    .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .big { color: #fff; font-size: 1.8rem; }
+    .meter { height: 10px; background: #162320; overflow: hidden; }
+    .meter span { display: block; width: 0%; height: 100%; background: linear-gradient(90deg, #72e0b1, #e8c86b, #ee7676); }
+    .badge { display: inline-block; border: 1px solid rgba(159, 231, 202, .36); color: #9fe7ca; padding: 4px 8px; }
+    .warn { color: #ffd37a; }
+    .ok { color: #94dcff; }
+    .log { min-height: 120px; max-height: 180px; overflow: auto; white-space: pre-wrap; font: .82rem ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9cbd7; }
+    @media (max-width: 820px) {
+      main { padding: 12px; }
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 240px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Hand Reacquire Threshold Tuner</h1>
+      <p>Hand Landmarker の presence / tracking confidence 閾値を変えたとき、どのフレームで再検出に戻りそうかを観察する自作ミニサンプルです。モデルが使えない環境でも、疑似スコア列で閾値設計だけ試せます。</p>
+    </div>
+    <div class="toolbar">
+      <button id="loadModel" class="primary">Load model</button>
+      <button id="startCamera">Start camera</button>
+      <button id="toggleLoop">Start loop</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay" width="960" height="600"></canvas>
+      </div>
+      <div class="row">
+        <label>Presence threshold <input id="presence" type="range" min="0.1" max="0.95" step="0.05" value="0.55"></label>
+        <output id="presenceOut">0.55</output>
+      </div>
+      <div class="row">
+        <label>Tracking threshold <input id="tracking" type="range" min="0.1" max="0.95" step="0.05" value="0.55"></label>
+        <output id="trackingOut">0.55</output>
+      </div>
+      <div class="row">
+        <label>Frame budget <input id="budget" type="range" min="8" max="80" value="24"></label>
+        <output id="budgetOut">24 ms</output>
+      </div>
+      <div class="row">
+        <label>Scenario
+          <select id="scenario">
+            <option value="steady">steady hand</option>
+            <option value="jitter">jitter / partial occlusion</option>
+            <option value="lost">lost then reacquire</option>
+          </select>
+        </label>
+        <button id="stepFrame">Push simulated frame</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div>
+        <h2>Current decision</h2>
+        <div class="big" id="decision">idle</div>
+        <p id="note">モデルを読むか、疑似フレームを送ってください。</p>
+      </div>
+      <div class="stat"><span>Frames</span><strong id="frames">0</strong></div>
+      <div class="stat"><span>Estimated reacquire</span><strong id="reacquire">0</strong></div>
+      <div class="stat"><span>Last latency</span><strong id="latency">0.0 ms</strong></div>
+      <div>
+        <h2>Latency vs budget</h2>
+        <div class="meter"><span id="latencyBar"></span></div>
+      </div>
+      <div>
+        <h2>Score window</h2>
+        <div class="log" id="log"></div>
+      </div>
+      <div class="chips">
+        <span class="badge" id="modelState">model: not loaded</span>
+        <span class="badge" id="cameraState">camera: stopped</span>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const els = {
+  loadModel: document.getElementById("loadModel"),
+  startCamera: document.getElementById("startCamera"),
+  toggleLoop: document.getElementById("toggleLoop"),
+  stepFrame: document.getElementById("stepFrame"),
+  video: document.getElementById("video"),
+  canvas: document.getElementById("overlay"),
+  presence: document.getElementById("presence"),
+  tracking: document.getElementById("tracking"),
+  budget: document.getElementById("budget"),
+  scenario: document.getElementById("scenario"),
+  presenceOut: document.getElementById("presenceOut"),
+  trackingOut: document.getElementById("trackingOut"),
+  budgetOut: document.getElementById("budgetOut"),
+  decision: document.getElementById("decision"),
+  note: document.getElementById("note"),
+  frames: document.getElementById("frames"),
+  reacquire: document.getElementById("reacquire"),
+  latency: document.getElementById("latency"),
+  latencyBar: document.getElementById("latencyBar"),
+  log: document.getElementById("log"),
+  modelState: document.getElementById("modelState"),
+  cameraState: document.getElementById("cameraState")
+};
+const ctx = els.canvas.getContext("2d");
+let landmarker = null;
+let stream = null;
+let running = false;
+let lastVideoTime = -1;
+let frameIndex = 0;
+let reacquireCount = 0;
+let logRows = [];
+
+function thresholds() {
+  return {
+    presence: Number(els.presence.value),
+    tracking: Number(els.tracking.value),
+    budget: Number(els.budget.value)
+  };
+}
+
+function simulatedScores(mode, i) {
+  const wave = Math.sin(i * 0.73);
+  if (mode === "jitter") {
+    return { presence: 0.62 + wave * 0.24, tracking: 0.58 + Math.sin(i * 1.17) * 0.28 };
+  }
+  if (mode === "lost") {
+    const phase = i % 18;
+    return phase > 7 && phase < 13
+      ? { presence: 0.28 + phase * 0.015, tracking: 0.2 + phase * 0.02 }
+      : { presence: 0.82 + wave * 0.08, tracking: 0.78 + wave * 0.1 };
+  }
+  return { presence: 0.86 + wave * 0.06, tracking: 0.8 + Math.cos(i * 0.41) * 0.08 };
+}
+
+function drawHand(scores, isReacquire) {
+  ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+  ctx.fillStyle = "rgba(3, 6, 6, .52)";
+  ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
+  const baseX = els.canvas.width * .5;
+  const baseY = els.canvas.height * .62;
+  const open = Math.max(.25, scores.presence);
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = isReacquire ? "#ffd37a" : "#72e0b1";
+  ctx.fillStyle = "rgba(159, 231, 202, .12)";
+  ctx.beginPath();
+  ctx.ellipse(baseX, baseY, 90, 110, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  for (let f = 0; f < 5; f += 1) {
+    const angle = -1.1 + f * .55;
+    const len = 110 + open * 70 - Math.abs(f - 2) * 12;
+    ctx.beginPath();
+    ctx.moveTo(baseX + (f - 2) * 24, baseY - 68);
+    ctx.lineTo(baseX + Math.cos(angle) * len, baseY - 80 + Math.sin(angle) * len * .38);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#f3fbf7";
+  ctx.font = "24px ui-monospace, monospace";
+  ctx.fillText(`presence ${scores.presence.toFixed(2)}`, 26, 42);
+  ctx.fillText(`tracking ${scores.tracking.toFixed(2)}`, 26, 76);
+}
+
+function update(scores, latencyMs, source) {
+  const t = thresholds();
+  frameIndex += 1;
+  const isReacquire = scores.presence < t.presence || scores.tracking < t.tracking;
+  if (isReacquire) reacquireCount += 1;
+  els.decision.textContent = isReacquire ? "reacquire palm detector" : "track existing hand";
+  els.decision.className = isReacquire ? "big warn" : "big ok";
+  els.note.textContent = isReacquire
+    ? "閾値を下回ったため、次フレームで検出器へ戻る前提の予算を見ます。"
+    : "tracking を継続できる前提です。描画とUI処理に予算を残せます。";
+  els.frames.textContent = String(frameIndex);
+  els.reacquire.textContent = String(reacquireCount);
+  els.latency.textContent = `${latencyMs.toFixed(1)} ms`;
+  els.latencyBar.style.width = `${Math.min(100, latencyMs / t.budget * 100)}%`;
+  logRows.unshift(`${String(frameIndex).padStart(3, "0")} ${source.padEnd(9)} p=${scores.presence.toFixed(2)} t=${scores.tracking.toFixed(2)} ${isReacquire ? "REACQUIRE" : "track"}`);
+  logRows = logRows.slice(0, 12);
+  els.log.textContent = logRows.join("\n");
+  drawHand(scores, isReacquire);
+}
+
+async function detectVideoFrame() {
+  if (!landmarker || !els.video.videoWidth || els.video.currentTime === lastVideoTime) return false;
+  lastVideoTime = els.video.currentTime;
+  const start = performance.now();
+  const result = landmarker.detectForVideo(els.video, performance.now());
+  const handCount = result.landmarks?.length || 0;
+  const handednessScore = result.handedness?.[0]?.[0]?.score ?? 0;
+  const presence = handCount ? Math.max(.45, handednessScore) : .2;
+  const tracking = handCount ? Math.min(.98, .55 + handednessScore * .42) : .18;
+  update({ presence, tracking }, performance.now() - start, "mediapipe");
+  return true;
+}
+
+function pushSimulated() {
+  const start = performance.now();
+  const scores = simulatedScores(els.scenario.value, frameIndex);
+  const syntheticLatency = 5 + (scores.presence < thresholds().presence ? 18 : 7) + Math.random() * 5;
+  while (performance.now() - start < Math.min(20, syntheticLatency / 3)) {}
+  update(scores, syntheticLatency, "sim");
+}
+
+function loop() {
+  if (!running) return;
+  detectVideoFrame().then((usedRealFrame) => {
+    if (!usedRealFrame) pushSimulated();
+    setTimeout(() => requestAnimationFrame(loop), 90);
+  });
+}
+
+async function loadModel() {
+  els.modelState.textContent = "model: loading";
+  try {
+    const visionModule = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+    const vision = await visionModule.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm");
+    landmarker = await visionModule.HandLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+      },
+      runningMode: "VIDEO",
+      numHands: 2,
+      minHandDetectionConfidence: thresholds().presence,
+      minHandPresenceConfidence: thresholds().presence,
+      minTrackingConfidence: thresholds().tracking
+    });
+    els.modelState.textContent = "model: loaded";
+  } catch (error) {
+    els.modelState.textContent = "model: fallback";
+    els.note.textContent = `モデル読み込みに失敗しました。疑似フレームで続行します: ${error.message}`;
+  }
+}
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 600 }, audio: false });
+    els.video.srcObject = stream;
+    await els.video.play();
+    els.cameraState.textContent = "camera: running";
+  } catch (error) {
+    els.cameraState.textContent = "camera: unavailable";
+    els.note.textContent = `カメラを使えません。疑似フレームで続行します: ${error.message}`;
+  }
+}
+
+async function applyOptions() {
+  els.presenceOut.textContent = Number(els.presence.value).toFixed(2);
+  els.trackingOut.textContent = Number(els.tracking.value).toFixed(2);
+  els.budgetOut.textContent = `${els.budget.value} ms`;
+  if (landmarker) {
+    await landmarker.setOptions({
+      minHandDetectionConfidence: thresholds().presence,
+      minHandPresenceConfidence: thresholds().presence,
+      minTrackingConfidence: thresholds().tracking
+    });
+  }
+}
+
+els.loadModel.addEventListener("click", loadModel);
+els.startCamera.addEventListener("click", startCamera);
+els.stepFrame.addEventListener("click", pushSimulated);
+els.toggleLoop.addEventListener("click", () => {
+  running = !running;
+  els.toggleLoop.textContent = running ? "Stop loop" : "Start loop";
+  if (running) loop();
+});
+for (const input of [els.presence, els.tracking, els.budget]) input.addEventListener("input", applyOptions);
+applyOptions();
+drawHand({ presence: .78, tracking: .74 }, false);
+</script>
+</body>
+</html>

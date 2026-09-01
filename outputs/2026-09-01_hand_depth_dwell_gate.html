@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Depth Dwell Gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      color: #f7fbff;
+      background: #0b0d12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(95, 170, 255, .18), transparent 38%),
+        linear-gradient(320deg, rgba(244, 202, 104, .14), transparent 43%),
+        #0b0d12;
+    }
+    main { width: min(1080px, 100%); margin: 0 auto; padding: 22px; display: grid; gap: 14px; }
+    header, section { border: 1px solid rgba(221, 233, 246, .18); background: rgba(11, 13, 18, .82); padding: 16px; }
+    header { display: grid; grid-template-columns: 1.2fr auto; gap: 14px; align-items: end; }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: clamp(1.55rem, 3vw, 2.5rem); line-height: 1.05; letter-spacing: 0; margin-bottom: 8px; }
+    h2 { font-size: 1rem; color: #9ed0ff; letter-spacing: 0; }
+    p, label, output { color: #c2ccd6; line-height: 1.65; }
+    button, input, select { font: inherit; color: #f7fbff; background: #141923; border: 1px solid rgba(221, 233, 246, .24); padding: 9px 10px; }
+    button { cursor: pointer; }
+    button.primary { background: #24557e; border-color: #9ed0ff; }
+    .layout { display: grid; grid-template-columns: minmax(300px, 1fr) 340px; gap: 14px; }
+    .stage { min-height: 360px; position: relative; overflow: hidden; background: #05070a; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .row, .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; border-top: 1px solid rgba(221, 233, 246, .12); padding-top: 10px; margin-top: 10px; }
+    .toolbar { justify-content: flex-start; border: 0; padding: 0; margin: 0; }
+    .panel { display: grid; align-content: start; gap: 14px; }
+    .big { font-size: 1.9rem; color: #fff; }
+    .meter { height: 12px; background: #18212b; overflow: hidden; }
+    .meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #79d7ff, #ffe08a); }
+    .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .log { min-height: 150px; white-space: pre-wrap; font: .85rem ui-monospace, SFMono-Regular, Menlo, monospace; color: #c1d5e9; }
+    .badge { display: inline-block; border: 1px solid rgba(158, 208, 255, .38); color: #9ed0ff; padding: 4px 8px; }
+    .armed { color: #ffe08a; }
+    .fired { color: #86f0bc; }
+    @media (max-width: 780px) {
+      main { padding: 12px; }
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 280px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Hand Depth Dwell Gate</h1>
+      <p>Hand Landmarker の normalized z / world z から作る奥行き操作を想定し、近づける、止める、発火する、戻す、というdwellゲートだけを切り出した派生試作です。</p>
+    </div>
+    <div class="toolbar">
+      <button id="play" class="primary">Play pattern</button>
+      <button id="step">Step</button>
+      <button id="reset">Reset</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="stage"><canvas id="canvas" width="760" height="520"></canvas></div>
+      <div class="row">
+        <label>Depth z <input id="depth" type="range" min="-0.16" max="0.12" step="0.005" value="-0.02"></label>
+        <output id="depthOut">-0.020</output>
+      </div>
+      <div class="row">
+        <label>Near threshold <input id="threshold" type="range" min="-0.14" max="0.05" step="0.005" value="-0.07"></label>
+        <output id="thresholdOut">-0.070</output>
+      </div>
+      <div class="row">
+        <label>Dwell <input id="dwell" type="range" min="120" max="1200" step="40" value="520"></label>
+        <output id="dwellOut">520 ms</output>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div>
+        <h2>Gate state</h2>
+        <div class="big" id="state">waiting</div>
+        <p id="hint">手を近づけた状態がdwell時間を超えるとコマンドを1回だけ発火します。</p>
+      </div>
+      <div class="stat"><span>Dwell progress</span><strong id="progressText">0%</strong></div>
+      <div class="meter"><span id="progressBar"></span></div>
+      <div class="stat"><span>Fired commands</span><strong id="fires">0</strong></div>
+      <div><span class="badge" id="source">source: manual depth</span></div>
+      <div>
+        <h2>Event log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const els = {
+  canvas: document.getElementById("canvas"),
+  play: document.getElementById("play"),
+  step: document.getElementById("step"),
+  reset: document.getElementById("reset"),
+  depth: document.getElementById("depth"),
+  threshold: document.getElementById("threshold"),
+  dwell: document.getElementById("dwell"),
+  depthOut: document.getElementById("depthOut"),
+  thresholdOut: document.getElementById("thresholdOut"),
+  dwellOut: document.getElementById("dwellOut"),
+  state: document.getElementById("state"),
+  hint: document.getElementById("hint"),
+  progressText: document.getElementById("progressText"),
+  progressBar: document.getElementById("progressBar"),
+  fires: document.getElementById("fires"),
+  source: document.getElementById("source"),
+  log: document.getElementById("log")
+};
+const ctx = els.canvas.getContext("2d");
+let nearSince = 0;
+let firedInVisit = false;
+let fireCount = 0;
+let playing = false;
+let logRows = [];
+let t = 0;
+
+function values() {
+  return {
+    z: Number(els.depth.value),
+    threshold: Number(els.threshold.value),
+    dwell: Number(els.dwell.value)
+  };
+}
+
+function addLog(text) {
+  logRows.unshift(`${new Date().toLocaleTimeString()} ${text}`);
+  logRows = logRows.slice(0, 9);
+  els.log.textContent = logRows.join("\n");
+}
+
+function draw(progress, isNear) {
+  const { z, threshold } = values();
+  ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+  ctx.fillStyle = "#05070a";
+  ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
+  const centerX = els.canvas.width / 2;
+  const centerY = els.canvas.height / 2 + 30;
+  const scale = 1.05 + Math.max(0, threshold - z) * 4.2;
+  ctx.strokeStyle = "rgba(158, 208, 255, .22)";
+  ctx.lineWidth = 2;
+  for (let r = 70; r < 260; r += 46) {
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = isNear ? "rgba(255, 224, 138, .14)" : "rgba(121, 215, 255, .12)";
+  ctx.strokeStyle = isNear ? "#ffe08a" : "#79d7ff";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.ellipse(centerX, centerY, 82 * scale, 100 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  for (let i = 0; i < 5; i += 1) {
+    const x = centerX + (i - 2) * 31 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, centerY - 72 * scale);
+    ctx.lineTo(x + (i - 2) * 14 * scale, centerY - (170 + progress * 38) * scale);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#f7fbff";
+  ctx.font = "24px ui-monospace, monospace";
+  ctx.fillText(`z ${z.toFixed(3)}`, 28, 42);
+  ctx.fillText(`near when z < ${threshold.toFixed(3)}`, 28, 76);
+}
+
+function tick(source = "manual") {
+  const now = performance.now();
+  const { z, threshold, dwell } = values();
+  const isNear = z < threshold;
+  if (isNear && !nearSince) {
+    nearSince = now;
+    firedInVisit = false;
+    addLog("enter near zone");
+  }
+  if (!isNear && nearSince) {
+    nearSince = 0;
+    firedInVisit = false;
+    addLog("leave near zone");
+  }
+  const elapsed = nearSince ? now - nearSince : 0;
+  const progress = Math.min(1, elapsed / dwell);
+  if (progress >= 1 && !firedInVisit) {
+    firedInVisit = true;
+    fireCount += 1;
+    addLog("FIRE depth-select");
+  }
+  els.state.textContent = firedInVisit ? "fired" : isNear ? "armed" : "waiting";
+  els.state.className = firedInVisit ? "big fired" : isNear ? "big armed" : "big";
+  els.hint.textContent = firedInVisit ? "発火済みです。いったん手を戻すと再び待機します。" : isNear ? "近距離にいます。このまま止めると発火します。" : "近距離閾値より奥にいるため待機中です。";
+  els.progressText.textContent = `${Math.round(progress * 100)}%`;
+  els.progressBar.style.width = `${progress * 100}%`;
+  els.fires.textContent = String(fireCount);
+  els.source.textContent = `source: ${source}`;
+  els.depthOut.textContent = z.toFixed(3);
+  els.thresholdOut.textContent = threshold.toFixed(3);
+  els.dwellOut.textContent = `${dwell} ms`;
+  draw(progress, isNear);
+}
+
+function pattern() {
+  if (!playing) return;
+  t += 1;
+  const wave = Math.sin(t / 7);
+  const dip = t % 64 > 18 && t % 64 < 38 ? -0.095 : -0.025;
+  els.depth.value = String(Math.max(-0.16, Math.min(0.12, dip + wave * 0.018)));
+  tick("pattern");
+  requestAnimationFrame(pattern);
+}
+
+els.play.addEventListener("click", () => {
+  playing = !playing;
+  els.play.textContent = playing ? "Pause pattern" : "Play pattern";
+  if (playing) pattern();
+});
+els.step.addEventListener("click", () => {
+  t += 5;
+  els.depth.value = String(-0.025 + Math.sin(t / 8) * 0.08);
+  tick("step");
+});
+els.reset.addEventListener("click", () => {
+  nearSince = 0;
+  firedInVisit = false;
+  fireCount = 0;
+  logRows = [];
+  els.depth.value = "-0.02";
+  tick("reset");
+});
+for (const input of [els.depth, els.threshold, els.dwell]) input.addEventListener("input", () => tick("manual"));
+tick("initial");
+</script>
+</body>
+</html>
