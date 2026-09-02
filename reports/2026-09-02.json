@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-02",
+  "category": "MediaPipe Tasks / Image Segmenter / Web ML",
+  "headline": "Image Segmenter のマスク寿命を見張る最小センチネル",
+  "headlineEn": "A minimal sentinel for Image Segmenter mask lifecycle",
+  "summary": "Google AI Edge の Image Segmenter Web guide、Tasks Vision README、公式 mediapipe-samples-web の Image Segmenter 実装と Worker、DrawingUtils を確認し、category mask / confidence masks の描画後 close、保持、転送コストを観察する自作サンプルを追加しました。派生試作として、confidence mask を UI オーバーレイの alpha curve に変換する小さな調整ラボも実装しました。",
+  "summaryEn": "Based on the Google AI Edge Image Segmenter Web guide, the Tasks Vision README, the official mediapipe-samples-web Image Segmenter implementation and worker, and DrawingUtils, this adds an original sample for observing category/confidence mask close behavior, retention, and transfer-like cost after drawing. A derivative prototype adds a small alpha-curve lab for turning confidence masks into UI overlays.",
+  "keyTopics": [
+    "Image Segmenter の Web 実装では category mask と confidence masks を使い分けるため、表示品質だけでなくマスク寿命と解放境界を UI 側で意識する必要がある。",
+    "公式 mediapipe-samples-web の Image Segmenter worker は OffscreenCanvas / WebGL で mask bitmap を作り、postMessage transfer 後に result mask を close する構成になっている。",
+    "DrawingUtils の confidence mask 描画は default / overlay texture のブレンドとして扱えるため、しきい値や alpha curve を別UIで調整してから本体へ入れると試行錯誤しやすい。",
+    "Face Landmarker Web guide と同様に、Web Tasks の同期推論は UI thread を塞ぎ得るため、動画セグメンテーションでは Worker、フレーム間引き、描画予算の見える化が重要になる。",
+    "npm 確認では 2026-09-02 JST 時点で `@mediapipe/tasks-vision` は 1.0.1、`@mediapipe/tasks-genai` は 0.10.29 だった。"
+  ],
+  "keyTopicsEn": [
+    "Image Segmenter web apps need to choose between category masks and confidence masks, so UI code should care about mask lifetime and release boundaries, not only visual quality.",
+    "The official mediapipe-samples-web Image Segmenter worker renders mask bitmaps with OffscreenCanvas/WebGL, transfers the bitmap through postMessage, and closes result masks.",
+    "DrawingUtils treats confidence-mask display as a blend between default and overlay textures, making threshold and alpha-curve tuning useful before wiring the behavior into the main app.",
+    "As with the Face Landmarker Web guide, Web Tasks synchronous inference can block the UI thread, so video segmentation benefits from workers, frame skipping, and visible paint budgets.",
+    "An npm check on 2026-09-02 JST showed `@mediapipe/tasks-vision` at 1.0.1 and `@mediapipe/tasks-genai` at 0.10.29."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Segmenter Mask Lifecycle Sentinel",
+      "url": "../outputs/2026-09-02_image_segmenter_mask_lifecycle_sentinel.html"
+    },
+    {
+      "label": "Today's derivative sample: Confidence Mask Alpha Curve Lab",
+      "url": "../outputs/2026-09-02_confidence_mask_alpha_curve_lab.html"
+    },
+    {
+      "label": "Image segmentation guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official Image Segmenter sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/image-segmenter.ts"
+    },
+    {
+      "label": "Official Image Segmenter worker",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+    },
+    {
+      "label": "DrawingUtils confidence mask implementation",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/core/drawing_utils.ts"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-02-image-segmenter-mask-lifecycle.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、公式の Image Segmenter サンプルが単にマスクを表示するだけでなく、Worker 内で OffscreenCanvas / WebGL を使って描画用 bitmap を作り、転送後に result mask を close している点です。セグメンテーションは見た目の派手さに目が行きがちですが、動画で毎フレーム mask を生成する場合、close忘れや保持しすぎは UI の重さとして現れます。",
+      "bodyEn": "Today's notable point is that the official Image Segmenter sample does more than display a mask: its worker uses OffscreenCanvas/WebGL to produce a drawable bitmap and closes result masks after transfer. Segmentation demos often focus on the visual result, but in per-frame video pipelines, forgotten closes or excessive retention show up as UI cost."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Image Segmenter Mask Lifecycle Sentinel` は、category mask と confidence mask の疑似フレームを作り、`close after draw` と `retain for inspection` を切り替えながら、保持マスク数、推定バイト数、描画コスト、フレーム予算を表示します。派生の `Confidence Mask Alpha Curve Lab` は、発展案のうち confidence 値を半透明UIへ変換する部分だけを切り出し、threshold、gamma、edge boost を触って境界の出方を調整できます。",
+      "bodyEn": "The main sample, `Image Segmenter Mask Lifecycle Sentinel`, generates synthetic category and confidence mask frames and lets you switch between `close after draw` and `retain for inspection` while watching retained mask count, estimated bytes, paint cost, and frame budget. The derivative `Confidence Mask Alpha Curve Lab` isolates one next-step idea: turning confidence values into a translucent UI overlay with threshold, gamma, and edge-boost controls."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、mask type、mask size、frame cost、budget ratio、retained mask count、estimated bytes、close/retain event、alpha threshold、gamma、edge pixel count、active area ratio です。これを Image Segmenter の実 confidence masks、Object Detector の bounding box、Hand Landmarker の pointer、Canvas captureStream、WebCodecs、Worker postMessage latency、localStorage の session replay と組み合わせると、背景ぼかし、身体領域だけの編集、手元だけのマスク修正、セグメント品質の A/B 比較に発展できます。",
+      "bodyEn": "The samples can accumulate mask type, mask size, frame cost, budget ratio, retained mask count, estimated bytes, close/retain events, alpha threshold, gamma, edge pixel count, and active-area ratio. Combined with real Image Segmenter confidence masks, Object Detector boxes, Hand Landmarker pointers, Canvas captureStream, WebCodecs, worker postMessage latency, and localStorage session replay, they can support background blur, body-only editing, hand-guided mask repair, and segmentation quality A/B tests."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは実モデル推論に依存しすぎず、まず synthetic mask を `Uint8Array` / `Float32Array` として生成し、描画後に `close()` 相当の解放境界を明示しました。API preflight では `@mediapipe/tasks-vision@1.0.1/+esm` と同じ version の wasm path を読み、CDN/WASM 到達性だけ確認できます。本番では `ImageSegmenter.createFromOptions()` を Worker に置き、mask を描画用 bitmap に変換してから元 mask を close する流れにします。",
+      "bodyEn": "The static HTML avoids depending on live model inference first: it generates synthetic masks as `Uint8Array` / `Float32Array` and makes the release boundary explicit with a `close()`-like method after drawing. The API preflight imports `@mediapipe/tasks-vision@1.0.1/+esm` and a same-version wasm path to confirm CDN/WASM availability. In production, `ImageSegmenter.createFromOptions()` should live in a worker, convert masks into drawable bitmaps, and close the original masks."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Image Segmenter Web guide の mask API 記述、公式 worker の OffscreenCanvas / WebGL 実装差分、`@mediapipe/tasks-vision` の release、Selfie Segmenter 系モデル URL、ブラウザごとの OffscreenCanvas と WebGL2 対応、Tasks Vision privacy notice、LiteRT / GenAI 側の WebGPU 要件を継続確認します。",
+      "bodyEn": "Next, keep watching the Image Segmenter Web guide's mask API wording, official worker changes around OffscreenCanvas/WebGL, `@mediapipe/tasks-vision` releases, Selfie Segmenter model URLs, browser support for OffscreenCanvas and WebGL2, the Tasks Vision privacy notice, and LiteRT / GenAI WebGPU requirements."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Image Segmenter Mask Lifecycle Sentinel` を開き、`Start loop` を押してから mode を `retain for inspection` に変えます。保持マスク数と推定バイト数が増え、budget meter も赤寄りになります。次に `Flush retained masks` で戻し、`close after draw` のまま mask size と paint cost を上げると、解放していても描画処理自体がフレーム予算を食うことがわかります。派生では threshold と gamma を上げ、境界のにじみを抑えられるかを見ます。",
+      "bodyEn": "Open `Image Segmenter Mask Lifecycle Sentinel`, start the loop, and switch mode to `retain for inspection`. The retained mask count and estimated bytes grow, and the budget meter moves toward hot. Then flush retained masks and, while staying in `close after draw`, raise mask size and paint cost to see that drawing itself can exceed the frame budget even when masks are released. In the derivative sample, raise threshold and gamma to reduce boundary bleed."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Segmenter Web guide、Tasks Vision README、公式 mediapipe-samples-web、Image Segmenter task/worker、DrawingUtils、npm package version を確認。設計: 外部デモ一覧ではなく、マスク寿命と confidence overlay 変換を自作サンプル化。実装: 本命HTMLに API preflight、synthetic category/confidence mask、close/retain mode、retained bytes、frame budget meter、event log を追加。派生HTMLに alpha transfer function、threshold/gamma/edge controls、active area、mean alpha、recipe 表示を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Segmenter Web guide, Tasks Vision README, official mediapipe-samples-web, Image Segmenter task/worker, DrawingUtils, and npm package versions. Design: instead of listing external demos, build original samples for mask lifecycle and confidence-overlay conversion. Implementation: added API preflight, synthetic category/confidence masks, close/retain mode, retained bytes, frame budget meter, and event log to the main HTML. Added an alpha transfer function, threshold/gamma/edge controls, active area, mean alpha, and recipe display to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "8月末から9月頭は、WASM path、version pin、Gesture Recognizer の frame scheduler、Hand Landmarker の再取得しきい値を確認してきました。今日の2本は、セグメンテーションの結果を「絵」として見る前に、mask object、bitmap、描画、解放の流れをUIで見えるようにしたものです。Web ML の体験品質は、モデル選択だけでなく、結果オブジェクトをいつ捨てるか、どこで描くか、どの値をUIに変換するかで大きく変わります。",
+      "bodyEn": "From late August into early September, the series covered WASM paths, version pins, a Gesture Recognizer frame scheduler, and Hand Landmarker reacquire thresholds. Today's two samples look at segmentation before treating the result as just an image: mask objects, bitmaps, drawing, and release boundaries are made visible in the UI. Web ML experience quality depends not only on model choice, but also on when result objects are discarded, where drawing happens, and how raw values become UI state."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Segmenter Mask Lifecycle Sentinel` です。実際に動く部分は、MediaPipe Tasks Vision API preflight、synthetic category/confidence mask 生成、描画後 close、検査用 retain、推定保持メモリ、frame budget meter、event log です。次に足すなら Worker 化、実 ImageSegmenter の model load、`ImageBitmap` transfer latency、real confidence mask の close audit、JSON log export を追加します。派生試作は `Confidence Mask Alpha Curve Lab` で、次に足すなら本命側の confidence masks から値を受け取り、DrawingUtils の default / overlay texture に同じ curve を適用します。",
+      "bodyEn": "The selected main prototype is `Image Segmenter Mask Lifecycle Sentinel`. The working pieces are MediaPipe Tasks Vision API preflight, synthetic category/confidence mask generation, close-after-draw, inspection retain mode, estimated retained memory, a frame budget meter, and an event log. Next additions should include worker offload, real ImageSegmenter model loading, `ImageBitmap` transfer latency, real confidence-mask close auditing, and JSON log export. The derivative prototype is `Confidence Mask Alpha Curve Lab`; next, feed real confidence masks from the main sample and apply the same curve to DrawingUtils default/overlay textures.",
+      "links": [
+        {
+          "label": "Open Image Segmenter Mask Lifecycle Sentinel",
+          "url": "../outputs/2026-09-02_image_segmenter_mask_lifecycle_sentinel.html"
+        },
+        {
+          "label": "Open Confidence Mask Alpha Curve Lab",
+          "url": "../outputs/2026-09-02_confidence_mask_alpha_curve_lab.html"
+        }
+      ]
+    }
+  ]
+}

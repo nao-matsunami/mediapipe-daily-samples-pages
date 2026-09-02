@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Segmenter Mask Lifecycle Sentinel</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      color: #f5f8f2;
+      background: #10110d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(145deg, rgba(42, 93, 121, .28), transparent 42%),
+        linear-gradient(315deg, rgba(184, 111, 76, .18), transparent 48%),
+        #10110d;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px; display: grid; gap: 14px; }
+    header, section { border: 1px solid rgba(236, 232, 205, .18); background: rgba(15, 16, 13, .82); padding: 16px; }
+    header { display: grid; grid-template-columns: minmax(0, 1.2fr) auto; gap: 14px; align-items: end; }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: clamp(1.55rem, 3vw, 2.55rem); line-height: 1.08; letter-spacing: 0; margin-bottom: 8px; }
+    h2 { font-size: 1rem; color: #9fd3ef; letter-spacing: 0; }
+    p, label, output, li { color: #c8c7b9; line-height: 1.62; }
+    button, select, input {
+      font: inherit;
+      color: #f5f8f2;
+      background: #191d1c;
+      border: 1px solid rgba(236, 232, 205, .24);
+      padding: 9px 10px;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #235a71; border-color: #8ecbe8; }
+    button.warn { background: #5b392b; border-color: #df9f74; }
+    button:disabled { opacity: .48; cursor: not-allowed; }
+    .layout { display: grid; grid-template-columns: minmax(320px, 1fr) 360px; gap: 14px; }
+    .stage { position: relative; min-height: 410px; background: #080a09; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; min-height: 410px; }
+    .toolbar, .row, .chips { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+    .toolbar { justify-content: flex-start; }
+    .row { justify-content: space-between; border-top: 1px solid rgba(236, 232, 205, .12); padding-top: 10px; margin-top: 10px; }
+    .panel { display: grid; gap: 14px; align-content: start; }
+    .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .big { font-size: 2rem; color: #fff; }
+    .meter { height: 12px; background: #22251d; overflow: hidden; }
+    .meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #8ecbe8, #e7c46c, #df7f74); }
+    .badge { display: inline-block; border: 1px solid rgba(159, 211, 239, .36); color: #9fd3ef; padding: 4px 8px; }
+    .good { color: #9ee6a8; }
+    .hot { color: #f1b07d; }
+    .log { min-height: 150px; max-height: 210px; overflow: auto; white-space: pre-wrap; font: .84rem ui-monospace, SFMono-Regular, Menlo, monospace; color: #c7d5d6; }
+    @media (max-width: 820px) {
+      main { padding: 12px; }
+      header, .layout { grid-template-columns: 1fr; }
+      .stage, canvas { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Image Segmenter Mask Lifecycle Sentinel</h1>
+      <p>MediaPipe Image Segmenter の category mask / confidence masks を想定し、マスク描画、転送、close忘れがフレーム予算と保持メモリにどう見えるかを観察する自作ミニサンプルです。</p>
+    </div>
+    <div class="toolbar">
+      <button id="loadApi" class="primary">Load API preflight</button>
+      <button id="start" class="primary">Start loop</button>
+      <button id="step">Step frame</button>
+      <button id="flush" class="warn">Flush retained masks</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="stage"><canvas id="canvas" width="880" height="560"></canvas></div>
+      <div class="row">
+        <label>Output type
+          <select id="outputType">
+            <option value="category">CATEGORY_MASK</option>
+            <option value="confidence">CONFIDENCE_MASKS</option>
+          </select>
+        </label>
+        <label>Mode
+          <select id="closeMode">
+            <option value="close">close after draw</option>
+            <option value="retain">retain for inspection</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>Mask size <input id="maskSize" type="range" min="96" max="512" step="32" value="256"></label>
+        <output id="maskSizeOut">256 px</output>
+      </div>
+      <div class="row">
+        <label>Budget <input id="budget" type="range" min="8" max="50" value="18"></label>
+        <output id="budgetOut">18 ms</output>
+      </div>
+      <div class="row">
+        <label>Paint cost <input id="paintCost" type="range" min="0" max="28" value="7"></label>
+        <output id="paintCostOut">7 ms</output>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div>
+        <h2>Lifecycle state</h2>
+        <div class="big" id="state">idle</div>
+        <p id="hint">フレームを進めると、生成されたマスクが描画後に解放されたかをログします。</p>
+      </div>
+      <div class="stat"><span>API</span><strong id="apiState">not loaded</strong></div>
+      <div class="stat"><span>Frames</span><strong id="frames">0</strong></div>
+      <div class="stat"><span>Retained masks</span><strong id="retained">0</strong></div>
+      <div class="stat"><span>Estimated retained bytes</span><strong id="bytes">0 KB</strong></div>
+      <div class="stat"><span>Last frame cost</span><strong id="cost">0 ms</strong></div>
+      <div class="meter" aria-label="frame budget"><span id="budgetBar"></span></div>
+      <div class="chips" id="chips"></div>
+      <div>
+        <h2>Event log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <h2>Reference implementation notes</h2>
+    <ul>
+      <li>公式サンプルは Image Segmenter を Worker に置き、mask bitmap を postMessage transfer してから結果マスクを close しています。</li>
+      <li>confidence mask を WebGL/Canvas に描画する場合、再利用する still image は canvas 化して再アップロードを減らす設計が有効です。</li>
+      <li>このサンプルは外部デモの埋め込みではなく、ローカルでマスク寿命を理解するための最小検証 UI です。</li>
+    </ul>
+  </section>
+</main>
+
+<script type="module">
+const els = {
+  canvas: document.getElementById("canvas"),
+  loadApi: document.getElementById("loadApi"),
+  start: document.getElementById("start"),
+  step: document.getElementById("step"),
+  flush: document.getElementById("flush"),
+  outputType: document.getElementById("outputType"),
+  closeMode: document.getElementById("closeMode"),
+  maskSize: document.getElementById("maskSize"),
+  budget: document.getElementById("budget"),
+  paintCost: document.getElementById("paintCost"),
+  maskSizeOut: document.getElementById("maskSizeOut"),
+  budgetOut: document.getElementById("budgetOut"),
+  paintCostOut: document.getElementById("paintCostOut"),
+  state: document.getElementById("state"),
+  hint: document.getElementById("hint"),
+  apiState: document.getElementById("apiState"),
+  frames: document.getElementById("frames"),
+  retained: document.getElementById("retained"),
+  bytes: document.getElementById("bytes"),
+  cost: document.getElementById("cost"),
+  budgetBar: document.getElementById("budgetBar"),
+  chips: document.getElementById("chips"),
+  log: document.getElementById("log")
+};
+
+const ctx = els.canvas.getContext("2d");
+let running = false;
+let frame = 0;
+let retainedMasks = [];
+let logRows = [];
+
+function byteLabel(bytes) {
+  return bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(2)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+function addLog(text) {
+  logRows.unshift(`${new Date().toLocaleTimeString()} ${text}`);
+  logRows = logRows.slice(0, 10);
+  els.log.textContent = logRows.join("\n");
+}
+
+function busyWait(ms) {
+  const end = performance.now() + ms;
+  while (performance.now() < end) {}
+}
+
+function makeSyntheticMask(size, kind, tick) {
+  const data = new Uint8Array(size * size);
+  const cx = size * (0.48 + Math.sin(tick / 18) * 0.08);
+  const cy = size * (0.52 + Math.cos(tick / 24) * 0.06);
+  const rx = size * 0.22;
+  const ry = size * 0.32;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+      const value = kind === "category"
+        ? (d < 1 ? 2 : d < 1.45 ? 1 : 0)
+        : Math.max(0, Math.min(255, Math.round((1.35 - d) * 210)));
+      data[y * size + x] = value;
+    }
+  }
+  return {
+    size,
+    kind,
+    data,
+    closed: false,
+    bytes: data.byteLength,
+    close() {
+      this.closed = true;
+      this.data = null;
+      this.bytes = 0;
+    }
+  };
+}
+
+function drawScene(mask) {
+  const width = els.canvas.width;
+  const height = els.canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#080a09";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#263033";
+  for (let i = 0; i < 9; i += 1) {
+    ctx.fillRect(70 + i * 88, 80 + Math.sin((frame + i) / 9) * 20, 44, 320);
+  }
+  const img = ctx.createImageData(mask.size, mask.size);
+  for (let i = 0; i < mask.size * mask.size; i += 1) {
+    const v = mask.data[i];
+    const p = i * 4;
+    if (mask.kind === "category") {
+      const palette = v === 2 ? [143, 205, 232, 178] : v === 1 ? [232, 196, 108, 120] : [0, 0, 0, 0];
+      img.data[p] = palette[0];
+      img.data[p + 1] = palette[1];
+      img.data[p + 2] = palette[2];
+      img.data[p + 3] = palette[3];
+    } else {
+      img.data[p] = 223;
+      img.data[p + 1] = 127;
+      img.data[p + 2] = 116;
+      img.data[p + 3] = Math.round(v * 0.72);
+    }
+  }
+  const off = new OffscreenCanvas(mask.size, mask.size);
+  off.getContext("2d").putImageData(img, 0, 0);
+  ctx.drawImage(off, 190, 34, 500, 500);
+  ctx.strokeStyle = "rgba(245, 248, 242, .72)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(190, 34, 500, 500);
+  ctx.fillStyle = "#f5f8f2";
+  ctx.font = "22px ui-monospace, monospace";
+  ctx.fillText(`${mask.kind.toUpperCase()} ${mask.size}x${mask.size}`, 24, 40);
+  ctx.fillText(`frame ${frame}`, 24, 72);
+}
+
+function updateControls(lastCost = 0) {
+  const retainedBytes = retainedMasks.reduce((sum, mask) => sum + mask.bytes, 0);
+  const budget = Number(els.budget.value);
+  els.maskSizeOut.value = `${els.maskSize.value} px`;
+  els.budgetOut.value = `${budget} ms`;
+  els.paintCostOut.value = `${els.paintCost.value} ms`;
+  els.frames.textContent = String(frame);
+  els.retained.textContent = String(retainedMasks.length);
+  els.bytes.textContent = byteLabel(retainedBytes);
+  els.cost.textContent = `${lastCost.toFixed(1)} ms`;
+  els.budgetBar.style.width = `${Math.min(100, lastCost / budget * 100)}%`;
+  els.state.textContent = retainedMasks.length > 8 ? "retention risk" : lastCost > budget ? "budget hot" : "clean";
+  els.state.className = retainedMasks.length > 8 || lastCost > budget ? "big hot" : "big good";
+  els.hint.textContent = retainedMasks.length
+    ? "retain mode は比較には便利ですが、長時間ループでは明示的な解放境界が必要です。"
+    : "draw 後に close する流れなら、保持マスク数はゼロに戻ります。";
+  els.chips.innerHTML = [
+    els.outputType.value,
+    els.closeMode.value,
+    `${els.maskSize.value}px`,
+    `${budget}ms budget`
+  ].map((chip) => `<span class="badge">${chip}</span>`).join("");
+}
+
+function runFrame() {
+  const start = performance.now();
+  frame += 1;
+  const mask = makeSyntheticMask(Number(els.maskSize.value), els.outputType.value, frame);
+  drawScene(mask);
+  busyWait(Number(els.paintCost.value));
+  if (els.closeMode.value === "retain") {
+    retainedMasks.push(mask);
+    addLog(`retained ${mask.kind} mask (${byteLabel(mask.bytes)})`);
+  } else {
+    mask.close();
+    addLog(`closed ${mask.kind} mask after draw`);
+  }
+  updateControls(performance.now() - start);
+}
+
+function loop() {
+  if (!running) return;
+  runFrame();
+  window.setTimeout(loop, 180);
+}
+
+async function loadApi() {
+  els.loadApi.disabled = true;
+  els.apiState.textContent = "loading";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+    await mod.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm");
+    els.apiState.textContent = `ready: ${Boolean(mod.ImageSegmenter) ? "ImageSegmenter" : "vision fileset"}`;
+    addLog("MediaPipe Tasks Vision API preflight succeeded.");
+  } catch (error) {
+    els.apiState.textContent = "failed";
+    els.loadApi.disabled = false;
+    addLog(`API preflight failed: ${error.message}`);
+  }
+}
+
+els.loadApi.addEventListener("click", loadApi);
+els.step.addEventListener("click", runFrame);
+els.start.addEventListener("click", () => {
+  running = !running;
+  els.start.textContent = running ? "Stop loop" : "Start loop";
+  if (running) loop();
+});
+els.flush.addEventListener("click", () => {
+  retainedMasks.forEach((mask) => mask.close());
+  retainedMasks = [];
+  addLog("flushed retained masks");
+  updateControls();
+});
+["input", "change"].forEach((eventName) => {
+  [els.outputType, els.closeMode, els.maskSize, els.budget, els.paintCost].forEach((el) => el.addEventListener(eventName, () => updateControls()));
+});
+
+updateControls();
+runFrame();
+</script>
+</body>
+</html>
