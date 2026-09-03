@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Similarity Threshold Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      color: #f7f7f1;
+      background: #10110d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(213, 197, 98, .18), transparent 38%),
+        linear-gradient(320deg, rgba(89, 169, 173, .22), transparent 42%),
+        #10110d;
+    }
+    main { width: min(1080px, 100%); margin: 0 auto; padding: 22px; display: grid; gap: 14px; }
+    header, section { border: 1px solid rgba(237, 235, 218, .18); background: rgba(14, 16, 12, .84); padding: 16px; }
+    header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: clamp(1.5rem, 3vw, 2.6rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { font-size: 1rem; color: #d5c562; letter-spacing: 0; }
+    p, label, output { color: #cbcabe; line-height: 1.65; }
+    button, input, select { font: inherit; color: #f7f7f1; background: #1c211d; border: 1px solid rgba(237, 235, 218, .24); padding: 9px 10px; }
+    button { cursor: pointer; }
+    button.primary { background: #46572e; border-color: #d5c562; }
+    .toolbar, .row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; }
+    .routes { display: grid; gap: 10px; }
+    .route { border: 1px solid rgba(237, 235, 218, .15); background: rgba(255, 255, 255, .035); padding: 11px; }
+    .route strong { display: block; font-size: 1.05rem; }
+    .route span { color: #cbcabe; font-size: .9rem; }
+    .route.active { border-color: #d5c562; background: rgba(213, 197, 98, .12); }
+    canvas { width: 100%; min-height: 420px; display: block; background: #070806; border: 1px solid rgba(237, 235, 218, .14); }
+    .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px; border-top: 1px solid rgba(237, 235, 218, .12); padding-top: 10px; margin-top: 10px; }
+    .big { font-size: 1.95rem; color: #fff; }
+    .log { white-space: pre-wrap; color: #dadbd0; font: .84rem ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 110px; }
+    @media (max-width: 820px) {
+      main { padding: 12px; }
+      header, .layout { grid-template-columns: 1fr; }
+      canvas { min-height: 320px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Similarity Threshold Router</h1>
+      <p>Image Embedder の cosine similarity を、検索・確認・別クラスタへ分ける UI ルールに変換する派生試作です。しきい値を動かすとルート判定と余白が更新されます。</p>
+    </div>
+    <div class="toolbar">
+      <button id="random" class="primary">Random query</button>
+      <button id="animate">Animate</button>
+      <button id="reset">Reset</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <h2>Routing thresholds</h2>
+      <label>Match <input id="match" type="range" min="0.80" max="0.99" step="0.01" value="0.93"></label>
+      <div class="stat"><span>match threshold</span><strong id="matchOut">0.93</strong></div>
+      <label>Review <input id="review" type="range" min="0.60" max="0.92" step="0.01" value="0.82"></label>
+      <div class="stat"><span>review threshold</span><strong id="reviewOut">0.82</strong></div>
+      <label>Candidate spread <input id="spread" type="range" min="0.04" max="0.32" step="0.01" value="0.16"></label>
+      <div class="stat"><span>top margin</span><strong id="margin">--</strong></div>
+      <div class="routes" id="routes"></div>
+    </section>
+
+    <section>
+      <h2>Similarity field</h2>
+      <canvas id="canvas" width="720" height="480"></canvas>
+      <p class="big" id="decision">--</p>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const els = {
+  canvas: document.getElementById("canvas"),
+  random: document.getElementById("random"),
+  animate: document.getElementById("animate"),
+  reset: document.getElementById("reset"),
+  match: document.getElementById("match"),
+  review: document.getElementById("review"),
+  spread: document.getElementById("spread"),
+  matchOut: document.getElementById("matchOut"),
+  reviewOut: document.getElementById("reviewOut"),
+  margin: document.getElementById("margin"),
+  routes: document.getElementById("routes"),
+  decision: document.getElementById("decision"),
+  log: document.getElementById("log")
+};
+const ctx = els.canvas.getContext("2d");
+const anchors = [
+  { name: "same object", color: "#d5c562", base: .95 },
+  { name: "near duplicate", color: "#59a9ad", base: .89 },
+  { name: "style cousin", color: "#d98f69", base: .78 },
+  { name: "new cluster", color: "#8c9ab4", base: .63 }
+];
+let seed = 3;
+let phase = 0;
+let running = false;
+
+function rand(i) {
+  const n = Math.sin(seed * 39.73 + i * 91.17 + phase) * 10000;
+  return n - Math.floor(n);
+}
+
+function scores() {
+  const spread = Number(els.spread.value);
+  return anchors.map((anchor, i) => ({
+    ...anchor,
+    score: Math.max(.45, Math.min(.995, anchor.base + (rand(i) - .5) * spread + Math.sin(phase + i) * .025))
+  })).sort((a, b) => b.score - a.score);
+}
+
+function routeFor(score) {
+  const match = Number(els.match.value);
+  const review = Number(els.review.value);
+  if (score >= match) return { label: "auto match", body: "同一候補として即時採用", color: "#d5c562" };
+  if (score >= review) return { label: "human review", body: "確認キューへ送る", color: "#59a9ad" };
+  return { label: "new cluster", body: "別グループとして保存", color: "#d98f69" };
+}
+
+function draw(list) {
+  ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+  ctx.fillStyle = "#070806";
+  ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
+  ctx.strokeStyle = "rgba(247,247,241,.16)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i += 1) {
+    const x = 70 + i * 78;
+    ctx.beginPath();
+    ctx.moveTo(x, 32);
+    ctx.lineTo(x, 430);
+    ctx.stroke();
+  }
+  list.forEach((item, i) => {
+    const x = 70 + item.score * 590;
+    const y = 88 + i * 84;
+    ctx.fillStyle = item.color;
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f7f7f1";
+    ctx.font = "16px Inter, system-ui";
+    ctx.fillText(item.name, 48, y + 6);
+    ctx.fillText(item.score.toFixed(3), x + 34, y + 6);
+  });
+  const matchX = 70 + Number(els.match.value) * 590;
+  const reviewX = 70 + Number(els.review.value) * 590;
+  ctx.strokeStyle = "#d5c562";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(matchX, 28);
+  ctx.lineTo(matchX, 440);
+  ctx.stroke();
+  ctx.strokeStyle = "#59a9ad";
+  ctx.beginPath();
+  ctx.moveTo(reviewX, 28);
+  ctx.lineTo(reviewX, 440);
+  ctx.stroke();
+}
+
+function render() {
+  const list = scores();
+  const top = list[0];
+  const second = list[1];
+  const route = routeFor(top.score);
+  draw(list);
+  els.matchOut.textContent = Number(els.match.value).toFixed(2);
+  els.reviewOut.textContent = Number(els.review.value).toFixed(2);
+  els.margin.textContent = (top.score - second.score).toFixed(3);
+  els.routes.innerHTML = [
+    { key: "auto match", text: "高信頼の同一候補" },
+    { key: "human review", text: "似ているが確認が必要" },
+    { key: "new cluster", text: "新規グループへ分岐" }
+  ].map((item) => `<div class="route ${item.key === route.label ? "active" : ""}"><strong>${item.key}</strong><span>${item.text}</span></div>`).join("");
+  els.decision.textContent = `${route.label}: ${top.name}`;
+  els.decision.style.color = route.color;
+  els.log.textContent = [
+    `topScore: ${top.score.toFixed(4)}`,
+    `secondScore: ${second.score.toFixed(4)}`,
+    `margin: ${(top.score - second.score).toFixed(4)}`,
+    `rule: >= match -> auto, >= review -> review, else new cluster`,
+    "Next: feed real ImageEmbedder.cosineSimilarity results into this router."
+  ].join("\n");
+}
+
+function tick() {
+  if (!running) return;
+  phase += .055;
+  render();
+  requestAnimationFrame(tick);
+}
+
+els.random.addEventListener("click", () => { seed += 11; phase = 0; render(); });
+els.animate.addEventListener("click", () => {
+  running = !running;
+  els.animate.textContent = running ? "Stop" : "Animate";
+  if (running) tick();
+});
+els.reset.addEventListener("click", () => {
+  els.match.value = .93;
+  els.review.value = .82;
+  els.spread.value = .16;
+  seed = 3;
+  phase = 0;
+  render();
+});
+[els.match, els.review, els.spread].forEach((el) => el.addEventListener("input", render));
+render();
+</script>
+</body>
+</html>

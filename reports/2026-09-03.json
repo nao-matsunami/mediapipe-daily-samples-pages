@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-03",
+  "category": "MediaPipe Tasks / Image Embedder / Web ML",
+  "headline": "Image Embedder の類似度ルーティングを先に触る最小スカウト",
+  "headlineEn": "A minimal scout for Image Embedder similarity routing",
+  "summary": "Google AI Edge の Image Embedder Web guide、JavaScript API reference、Tasks Vision README、公式 mediapipe-samples-web の Image Embedder 実装を確認し、画像埋め込みの cosine similarity をモデルロード前から設計できる自作サンプルを追加しました。派生試作として、類似度スコアを auto match / human review / new cluster に分けるしきい値ルーターも実装しました。",
+  "summaryEn": "Based on the Google AI Edge Image Embedder Web guide, JavaScript API reference, Tasks Vision README, and the official mediapipe-samples-web Image Embedder implementation, this adds an original sample for designing cosine-similarity behavior before loading a real model. A derivative prototype adds a threshold router that maps similarity scores into auto match, human review, or new cluster behavior.",
+  "keyTopics": [
+    "Image Embedder は画像を数値表現に変換し、2つの画像の similarity 比較などに使う Web ML の土台になる。",
+    "JavaScript API reference では `ImageEmbedder.cosineSimilarity()` が用意され、埋め込み同士の比較を Task 側の型に沿って実装できる。",
+    "Web guide は `embed()` / `embedForVideo()` が同期実行で UI thread を塞ぎ得ると明記しており、動画や連続比較では Worker 化が重要になる。",
+    "公式 mediapipe-samples-web の Image Embedder は MobileNet V3 Small を既定モデルにし、画像を `ImageBitmap` にして Worker へ送る構成になっている。",
+    "npm 確認では 2026-09-03 JST 時点で `@mediapipe/tasks-vision` は 1.0.1、`@mediapipe/tasks-genai` は 0.10.29 だった。"
+  ],
+  "keyTopicsEn": [
+    "Image Embedder turns image data into numeric representations and is a useful Web ML foundation for comparing two images by similarity.",
+    "The JavaScript API reference provides `ImageEmbedder.cosineSimilarity()`, so embedding comparison can stay aligned with Task result types.",
+    "The Web guide states that `embed()` / `embedForVideo()` run synchronously and can block the UI thread, making workers important for video or repeated comparisons.",
+    "The official mediapipe-samples-web Image Embedder uses MobileNet V3 Small by default and sends images as `ImageBitmap` objects to a worker.",
+    "An npm check on 2026-09-03 JST showed `@mediapipe/tasks-vision` at 1.0.1 and `@mediapipe/tasks-genai` at 0.10.29."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Embedder Similarity Scout",
+      "url": "../outputs/2026-09-03_image_embedder_similarity_scout.html"
+    },
+    {
+      "label": "Today's derivative sample: Similarity Threshold Router",
+      "url": "../outputs/2026-09-03_similarity_threshold_router.html"
+    },
+    {
+      "label": "Image embedding guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder/web_js"
+    },
+    {
+      "label": "ImageEmbedder JavaScript API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imageembedder"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official Image Embedder sample source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/image-embedder.ts"
+    },
+    {
+      "label": "MediaPipe Solutions guide",
+      "url": "https://mediapipe.dev/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-03-image-embedder-similarity-scout.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Image Embedder です。Image Segmenter や Detector のように目で結果を確認しやすい Task と違い、Image Embedder は画像をベクトルに変換してから similarity を読むため、UI 側で「近い」「確認が必要」「別物」をどう扱うかが体験を決めます。公式サンプルが worker に画像を渡して比較している点も、単発デモではなく継続比較の設計として面白いところです。",
+      "bodyEn": "Today's notable task is Image Embedder. Unlike Segmenter or Detector outputs, embeddings are not directly visual; the app has to turn vector similarity into product decisions such as close, needs review, or different. The official sample's worker-based image comparison is also interesting because it points toward repeated comparison rather than a one-off demo."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Image Embedder Similarity Scout` は、2枚の合成画像を描き、明るさ・色・輪郭から16次元の疑似埋め込みを作って cosine similarity を表示します。これは本物の `ImageEmbedder.embed()` を入れる前に、スコア表示、差分バー、判定文、API preflight を確認するための足場です。派生の `Similarity Threshold Router` は、同じ発展案のうちスコアを実アプリの分岐へ変換する部分だけを切り出し、auto match / human review / new cluster の境界を触れるようにしました。",
+      "bodyEn": "The main sample, `Image Embedder Similarity Scout`, draws two synthetic images, creates a 16-dimensional pseudo embedding from brightness, color, and edge features, and displays cosine similarity. It is a scaffold for checking score display, delta bars, verdict copy, and API preflight before wiring in real `ImageEmbedder.embed()`. The derivative `Similarity Threshold Router` isolates one next-step idea: converting similarity scores into app behavior across auto match, human review, and new cluster routes."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、画像ペア、疑似特徴ベクトル、cosine similarity、上位候補との差分、判定ルート、しきい値、API preflight 結果、ユーザーが調整した variation / color drift / noise です。これを実 Image Embedder、Image Classifier のラベル、Object Detector の bbox、Image Segmenter の mask、localStorage の履歴、IndexedDB の小型ギャラリー、Web Worker の latency 計測と組み合わせると、手元画像の重複検出、似た構図検索、候補レビューUI、セグメント済み領域だけの類似検索に発展できます。",
+      "bodyEn": "The samples can accumulate image pairs, pseudo feature vectors, cosine similarity, top-candidate margin, route decisions, thresholds, API preflight results, and user-tuned variation / color drift / noise values. Combined with real Image Embedder outputs, Image Classifier labels, Object Detector boxes, Image Segmenter masks, localStorage history, an IndexedDB mini gallery, and Web Worker latency metrics, they can grow into duplicate detection, composition search, candidate review UI, and mask-scoped similarity search."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLでは `@mediapipe/tasks-vision@1.0.1/+esm` を dynamic import する preflight だけを置き、実推論なしでも動く疑似特徴量で UI を先に固めました。本番に進める場合は `FilesetResolver.forVisionTasks()` と MobileNet V3 Small の model URL を Worker 内で初期化し、`createImageBitmap()` で受け取った画像に `embed()` を実行し、`ImageEmbedder.cosineSimilarity()` で比較します。`embedForVideo()` を使う連続処理では、同期推論が UI thread を塞がないよう Worker とフレーム間引きを前提にします。",
+      "bodyEn": "The static HTML only uses a dynamic import preflight for `@mediapipe/tasks-vision@1.0.1/+esm`; the UI is designed with pseudo features so it works without live inference. For production, initialize `FilesetResolver.forVisionTasks()` and the MobileNet V3 Small model URL inside a worker, run `embed()` on `createImageBitmap()` inputs, and compare with `ImageEmbedder.cosineSimilarity()`. For repeated `embedForVideo()` processing, assume workers and frame skipping so synchronous inference does not block the UI thread."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Image Embedder Web guide の configuration options、`l2Normalize` と `quantize` の説明、MobileNet V3 Small モデル URL、公式 worker 実装の差分、Tasks Vision release、MediaPipe Solutions の available tasks 表、Google AI Edge の LiteRT / GenAI WebGPU 条件を継続確認します。特に embedding の量子化と similarity のしきい値は、実モデルを入れた時に UI 判定がずれる可能性があります。",
+      "bodyEn": "Next, keep watching the Image Embedder Web guide's configuration options, the `l2Normalize` and `quantize` notes, the MobileNet V3 Small model URL, official worker changes, Tasks Vision releases, the MediaPipe Solutions task table, and Google AI Edge LiteRT / GenAI WebGPU requirements. Quantized embeddings and similarity thresholds may change route behavior once a real model is connected."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Image Embedder Similarity Scout` を開き、`API preflight` を押して Tasks Vision の import が通るか確認します。次に `Variation` と `Color drift` を上げ、スコアがどの程度下がるかを見ます。`Nudge B` は見た目の小さな変化が類似度にどう効くかを確認するボタンです。派生サンプルでは `Match` と `Review` のしきい値を動かし、同じ top score でもプロダクト上の分岐が変わることを確認します。",
+      "bodyEn": "Open `Image Embedder Similarity Scout` and press `API preflight` to confirm that Tasks Vision imports. Then raise `Variation` and `Color drift` to see how far the score drops. `Nudge B` tests how a small visible change affects similarity. In the derivative sample, move the `Match` and `Review` thresholds to see how the same top score can trigger different product routes."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Embedder Web guide、JavaScript API reference、Tasks Vision README、公式サンプルアプリ、公式 Image Embedder source、MediaPipe Solutions guide、npm package version を確認。設計: 外部デモ一覧ではなく、画像ペア、埋め込みプレビュー、類似度、分岐しきい値を自作サンプル化。実装: 本命HTMLに API preflight、合成画像生成、16次元疑似ベクトル、cosine similarity、差分バー、判定文を追加。派生HTMLに top candidate、match/review thresholds、margin、route visualization、animation を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Embedder Web guide, JavaScript API reference, Tasks Vision README, official sample app, official Image Embedder source, MediaPipe Solutions guide, and npm package versions. Design: instead of listing external demos, build original samples around image pairs, embedding previews, similarity, and routing thresholds. Implementation: added API preflight, synthetic image generation, 16-dimensional pseudo vectors, cosine similarity, delta bars, and verdict copy to the main HTML. Added top-candidate routing, match/review thresholds, margins, route visualization, and animation to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Image Segmenter の mask lifecycle、Hand/Gesture のフレーム予算、WASM path と version pin を見てきました。今日の2本は、見える結果ではなく、見えにくい埋め込みベクトルを UI とプロダクト判断に翻訳する練習です。Web ML の蓄積サンプルとしては、推論そのものだけでなく、スコアをどう見せ、どこで人間確認に戻すかを小さく試せることが重要です。",
+      "bodyEn": "Recent entries covered Image Segmenter mask lifecycle, Hand/Gesture frame budgets, and WASM path / version pins. Today's two samples practice translating less-visible embedding vectors into UI and product decisions. For a Web ML sample archive, it is useful to prototype not only inference calls, but also how scores are shown and when the app should ask a human to review."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Embedder Similarity Scout` です。実際に動く部分は、MediaPipe Tasks Vision API preflight、2枚の合成画像生成、16次元疑似埋め込み、cosine similarity、差分ベクトル、類似度判定です。次に足すなら Worker 内の実 `ImageEmbedder` 初期化、MobileNet V3 Small のモデルロード、実画像アップロード、`ImageEmbedder.cosineSimilarity()` への置換、IndexedDB の近傍検索ログを追加します。派生試作は `Similarity Threshold Router` で、次に足すなら本命サンプルの similarity を入力にして、候補レビューキューと閾値プリセットを保存します。",
+      "bodyEn": "The selected main prototype is `Image Embedder Similarity Scout`. The working pieces are MediaPipe Tasks Vision API preflight, two synthetic images, a 16-dimensional pseudo embedding, cosine similarity, delta vectors, and similarity verdicts. Next additions should include real `ImageEmbedder` initialization in a worker, MobileNet V3 Small model loading, image upload, replacement with `ImageEmbedder.cosineSimilarity()`, and an IndexedDB nearest-neighbor log. The derivative prototype is `Similarity Threshold Router`; next, feed it the main sample's similarity result and save candidate review queues plus threshold presets.",
+      "links": [
+        {
+          "label": "Open Image Embedder Similarity Scout",
+          "url": "../outputs/2026-09-03_image_embedder_similarity_scout.html"
+        },
+        {
+          "label": "Open Similarity Threshold Router",
+          "url": "../outputs/2026-09-03_similarity_threshold_router.html"
+        }
+      ]
+    }
+  ]
+}

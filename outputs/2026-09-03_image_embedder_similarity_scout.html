@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Embedder Similarity Scout</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      color: #f6fbf8;
+      background: #0a1010;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(67, 174, 132, .22), transparent 36%),
+        linear-gradient(315deg, rgba(229, 160, 84, .18), transparent 38%),
+        #0a1010;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px; display: grid; gap: 14px; }
+    header, section { border: 1px solid rgba(212, 239, 226, .18); background: rgba(8, 16, 16, .84); padding: 16px; }
+    header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: clamp(1.55rem, 3.4vw, 2.8rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { font-size: 1rem; letter-spacing: 0; color: #7be0b7; }
+    p, label, output, li { color: #becdc6; line-height: 1.65; }
+    button, input, select {
+      font: inherit;
+      color: #f6fbf8;
+      background: #14201f;
+      border: 1px solid rgba(212, 239, 226, .24);
+      padding: 9px 10px;
+    }
+    button { cursor: pointer; }
+    button.primary { background: #29513f; border-color: #7be0b7; }
+    .toolbar, .row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; }
+    .pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    canvas { width: 100%; aspect-ratio: 1.16; display: block; background: #050808; border: 1px solid rgba(212, 239, 226, .14); }
+    .controls { display: grid; gap: 10px; margin-top: 12px; }
+    .stat { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; border-top: 1px solid rgba(212, 239, 226, .12); padding-top: 10px; }
+    .big { font-size: 2.15rem; color: #fff; }
+    .meter { height: 14px; background: #182221; overflow: hidden; }
+    .meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #e5a054, #7be0b7); }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chips span { border: 1px solid rgba(123, 224, 183, .28); padding: 5px 8px; color: #dff7ec; background: rgba(123, 224, 183, .08); font-size: .82rem; }
+    .vector { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; }
+    .vector span { height: 36px; background: #23302e; transform-origin: bottom; }
+    .log { white-space: pre-wrap; min-height: 128px; color: #d5ddd7; font: .84rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .status { color: #7be0b7; }
+    @media (max-width: 820px) {
+      main { padding: 12px; }
+      header, .layout, .pairs { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Image Embedder Similarity Scout</h1>
+      <p>MediaPipe Image Embedder の「画像をベクトル化して cosine similarity で比べる」流れを、モデルロード前でも触れる合成画像ペアと特徴量で試す最小サンプルです。</p>
+    </div>
+    <div class="toolbar">
+      <button id="preflight" class="primary">API preflight</button>
+      <button id="shuffle">Shuffle pair</button>
+      <button id="nudge">Nudge B</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="pairs">
+        <div>
+          <h2>Image A</h2>
+          <canvas id="canvasA" width="420" height="360"></canvas>
+        </div>
+        <div>
+          <h2>Image B</h2>
+          <canvas id="canvasB" width="420" height="360"></canvas>
+        </div>
+      </div>
+      <div class="controls">
+        <label>Scene family
+          <select id="family">
+            <option value="desk">desk objects</option>
+            <option value="garden">garden shapes</option>
+            <option value="signal">signal panels</option>
+          </select>
+        </label>
+        <label>Variation <input id="variation" type="range" min="0" max="1" step="0.01" value="0.28"></label>
+        <label>Color drift <input id="drift" type="range" min="0" max="1" step="0.01" value="0.18"></label>
+        <label>Noise <input id="noise" type="range" min="0" max="1" step="0.01" value="0.12"></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Similarity report</h2>
+      <div class="big" id="score">0.000</div>
+      <div class="meter"><span id="bar"></span></div>
+      <p id="verdict">特徴量を計算中です。</p>
+      <div class="stat"><span>A brightness / hue / edges</span><strong id="statsA">--</strong></div>
+      <div class="stat"><span>B brightness / hue / edges</span><strong id="statsB">--</strong></div>
+      <h2>16-dim preview</h2>
+      <div class="vector" id="vector"></div>
+      <h2>Implementation notes</h2>
+      <div class="chips">
+        <span>cosine similarity</span>
+        <span>synthetic embedding</span>
+        <span>worker-ready pipeline</span>
+      </div>
+      <p class="status" id="apiStatus">preflight 未実行</p>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const els = {
+  canvasA: document.getElementById("canvasA"),
+  canvasB: document.getElementById("canvasB"),
+  family: document.getElementById("family"),
+  variation: document.getElementById("variation"),
+  drift: document.getElementById("drift"),
+  noise: document.getElementById("noise"),
+  score: document.getElementById("score"),
+  bar: document.getElementById("bar"),
+  verdict: document.getElementById("verdict"),
+  statsA: document.getElementById("statsA"),
+  statsB: document.getElementById("statsB"),
+  vector: document.getElementById("vector"),
+  apiStatus: document.getElementById("apiStatus"),
+  log: document.getElementById("log"),
+  preflight: document.getElementById("preflight"),
+  shuffle: document.getElementById("shuffle"),
+  nudge: document.getElementById("nudge")
+};
+const ctxA = els.canvasA.getContext("2d", { willReadFrequently: true });
+const ctxB = els.canvasB.getContext("2d", { willReadFrequently: true });
+let seed = 12;
+let nudgeCount = 0;
+
+function noiseAt(x, y, salt) {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + salt * 43.21) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function palette(family, drift) {
+  const maps = {
+    desk: [[34, 58, 52], [123, 224, 183], [229, 160, 84], [235, 238, 228]],
+    garden: [[31, 70, 45], [170, 214, 94], [80, 148, 126], [234, 202, 116]],
+    signal: [[29, 44, 66], [117, 181, 222], [228, 111, 91], [240, 238, 222]]
+  };
+  return maps[family].map(([r, g, b], i) => `rgb(${Math.round(r + drift * i * 18)}, ${Math.round(g - drift * i * 9)}, ${Math.round(b + drift * i * 12)})`);
+}
+
+function drawScene(ctx, variant) {
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  const family = els.family.value;
+  const variation = Number(els.variation.value);
+  const drift = Number(els.drift.value) * (variant ? 1 : 0.25);
+  const noiseAmount = Number(els.noise.value);
+  const colors = palette(family, drift);
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = colors[0];
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = colors[3];
+  ctx.fillRect(32, 240 + variant * variation * 20, 356, 58);
+  for (let i = 0; i < 5; i += 1) {
+    const x = 54 + i * 68 + Math.sin(seed + i) * 10 * variation + variant * nudgeCount * 2;
+    const y = 60 + noiseAt(i, seed, 2) * 92 + variant * variation * 28;
+    ctx.fillStyle = colors[(i % 2) + 1];
+    if ((i + (family === "signal" ? 1 : 0)) % 3 === 0) {
+      ctx.fillRect(x, y, 48 + variation * 28, 92 - variation * 36);
+    } else {
+      ctx.beginPath();
+      ctx.arc(x + 28, y + 28, 24 + variation * 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.strokeStyle = "rgba(246,251,248,.55)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 7; i += 1) {
+    const y = 42 + i * 36 + variant * Math.sin(i + seed) * variation * 12;
+    ctx.beginPath();
+    ctx.moveTo(22, y);
+    ctx.lineTo(w - 22, y + Math.cos(i + seed) * 16);
+    ctx.stroke();
+  }
+  if (noiseAmount > 0) {
+    const img = ctx.getImageData(0, 0, w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const d = (noiseAt(i, seed, variant + 5) - .5) * 48 * noiseAmount;
+      img.data[i] += d;
+      img.data[i + 1] += d;
+      img.data[i + 2] += d;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+}
+
+function features(ctx) {
+  const img = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const data = img.data;
+  const bins = new Float32Array(16);
+  let bright = 0;
+  let warm = 0;
+  let edge = 0;
+  for (let y = 1; y < img.height - 1; y += 3) {
+    for (let x = 1; x < img.width - 1; x += 3) {
+      const i = (y * img.width + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = (r * .2126 + g * .7152 + b * .0722) / 255;
+      const hueProxy = Math.max(0, Math.min(1, (r - b + 255) / 510));
+      const right = ((y * img.width + x + 1) * 4);
+      const down = (((y + 1) * img.width + x) * 4);
+      const e = (Math.abs(r - data[right]) + Math.abs(g - data[down + 1]) + Math.abs(b - data[right + 2])) / 765;
+      bins[Math.min(15, Math.floor(lum * 8))] += lum;
+      bins[8 + Math.min(7, Math.floor(hueProxy * 8))] += hueProxy;
+      bright += lum;
+      warm += hueProxy;
+      edge += e;
+    }
+  }
+  const samples = ((img.width - 2) / 3) * ((img.height - 2) / 3);
+  const norm = Math.hypot(...bins) || 1;
+  return {
+    vector: Array.from(bins, (v) => v / norm),
+    bright: bright / samples,
+    warm: warm / samples,
+    edge: edge / samples
+  };
+}
+
+function cosine(a, b) {
+  let dot = 0, ma = 0, mb = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    ma += a[i] * a[i];
+    mb += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(ma) * Math.sqrt(mb) || 1);
+}
+
+function renderVector(delta) {
+  els.vector.innerHTML = delta.map((v) => {
+    const h = Math.max(3, Math.round(Math.abs(v) * 260));
+    const color = v >= 0 ? "#7be0b7" : "#e5a054";
+    return `<span title="${v.toFixed(3)}" style="height:${h}px;background:${color}"></span>`;
+  }).join("");
+}
+
+function update() {
+  drawScene(ctxA, 0);
+  drawScene(ctxB, 1);
+  const a = features(ctxA);
+  const b = features(ctxB);
+  const score = cosine(a.vector, b.vector);
+  const pct = Math.max(0, Math.min(100, Math.round(score * 100)));
+  els.score.textContent = score.toFixed(3);
+  els.bar.style.width = `${pct}%`;
+  els.verdict.textContent = score > .96 ? "ほぼ同じ意味の画像として扱える候補です。" : score > .88 ? "近いが、色・輪郭差をルーティング条件に入れる余地があります。" : "別クラスタとして扱うのがよさそうです。";
+  els.statsA.textContent = `${a.bright.toFixed(2)} / ${a.warm.toFixed(2)} / ${a.edge.toFixed(2)}`;
+  els.statsB.textContent = `${b.bright.toFixed(2)} / ${b.warm.toFixed(2)} / ${b.edge.toFixed(2)}`;
+  renderVector(a.vector.map((v, i) => v - b.vector[i]));
+  els.log.textContent = [
+    `syntheticVectorDims: ${a.vector.length}`,
+    `cosineSimilarity(A, B): ${score.toFixed(4)}`,
+    "Next: replace synthetic features with ImageEmbedder.embed(image).embeddings[0]."
+  ].join("\n");
+}
+
+async function preflight() {
+  els.apiStatus.textContent = "MediaPipe Tasks Vision を読み込み中...";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+    const keys = ["FilesetResolver", "ImageEmbedder"].filter((key) => key in mod);
+    els.apiStatus.textContent = `preflight OK: ${keys.join(", ")}`;
+  } catch (error) {
+    els.apiStatus.textContent = `preflight failed: ${error.message}`;
+  }
+}
+
+els.preflight.addEventListener("click", preflight);
+els.shuffle.addEventListener("click", () => { seed += 7; nudgeCount = 0; update(); });
+els.nudge.addEventListener("click", () => { nudgeCount += 1; update(); });
+[els.family, els.variation, els.drift, els.noise].forEach((el) => el.addEventListener("input", update));
+update();
+</script>
+</body>
+</html>
