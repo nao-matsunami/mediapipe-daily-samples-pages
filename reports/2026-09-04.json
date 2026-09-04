@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-04",
+  "category": "MediaPipe Tasks / Hand Landmarker / Gesture Recognizer / Web ML",
+  "headline": "Hand Landmarker の worker 投入前にフレームゲートを触る",
+  "headlineEn": "A frame gate for Hand Landmarker before worker integration",
+  "summary": "Google AI Edge の Hand Landmarker Web guide、Gesture Recognizer Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web の worker 実装を確認し、Hand Landmarker の同期推論を worker に渡す前段のフレーム投入・スキップ・遅延を試す自作サンプルを追加しました。派生試作として、Gesture Recognizer の分類スコアを UI コマンドへ安定化する debounce lab も実装しました。",
+  "summaryEn": "Based on the Google AI Edge Hand Landmarker Web guide, Gesture Recognizer Web guide, MediaPipe Tasks Vision README, and the official mediapipe-samples-web worker implementation, this adds an original sample for testing frame submission, skipping, and latency before sending Hand Landmarker work to a worker. A derivative prototype adds a debounce lab that stabilizes Gesture Recognizer scores into UI commands.",
+  "keyTopics": [
+    "Hand Landmarker の Web guide は `detect()` / `detectForVideo()` が同期実行で UI thread を塞ぎ得るため、camera/video frames では web workers を使う設計を推奨している。",
+    "Hand Landmarker の Web 設定は `runningMode`、`numHands`、`minHandDetectionConfidence`、`minHandPresenceConfidence`、`minTrackingConfidence` が中心で、Video mode では presence/tracking confidence が detector 再実行の判断に関わる。",
+    "Gesture Recognizer も Web で `runningMode` と hand confidence 系の設定を持ち、canned gestures の score threshold / allowlist / denylist を使って UI イベントの誤発火を抑えられる。",
+    "公式 mediapipe-samples-web の Hand Landmarker worker は `ImageBitmap` と timestamp を受け、必要に応じて IMAGE / VIDEO mode を切り替え、処理後に bitmap を close する構成だった。",
+    "npm 確認では 2026-09-04 JST 時点で `@mediapipe/tasks-vision` は 1.0.1、`@mediapipe/tasks-genai` は 0.10.29 だった。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide states that `detect()` / `detectForVideo()` run synchronously and may block the UI thread, so workers are recommended for camera/video frames.",
+    "The core Hand Landmarker Web options are `runningMode`, `numHands`, `minHandDetectionConfidence`, `minHandPresenceConfidence`, and `minTrackingConfidence`; in Video mode, presence and tracking confidence affect whether the detector is triggered again.",
+    "Gesture Recognizer has similar Web running-mode and hand-confidence settings, and canned gesture score threshold / allowlist / denylist options can reduce accidental UI triggers.",
+    "The official mediapipe-samples-web Hand Landmarker worker receives an `ImageBitmap` and timestamp, switches IMAGE / VIDEO mode when needed, and closes the bitmap after processing.",
+    "An npm check on 2026-09-04 JST showed `@mediapipe/tasks-vision` at 1.0.1 and `@mediapipe/tasks-genai` at 0.10.29."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Hand Worker Frame Gate",
+      "url": "../outputs/2026-09-04_hand_worker_frame_gate.html"
+    },
+    {
+      "label": "Today's derivative sample: Gesture Event Debounce Lab",
+      "url": "../outputs/2026-09-04_gesture_event_debounce_lab.html"
+    },
+    {
+      "label": "Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Official Hand Landmarker worker source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/hand-landmarker.worker.ts"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks web samples",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-04-hand-worker-frame-gate.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Hand Landmarker を video/camera frames で使う時の worker 境界です。公式 guide は `detectForVideo()` の同期実行が UI thread を塞ぎ得ることを明記しており、公式サンプル側も worker に `ImageBitmap` と timestamp を渡す構成になっています。推論の前に「どのフレームを送るか」「busy 中に捨てるか」「結果遅延をどう見せるか」を UI として触れるようにするのが面白い点です。",
+      "bodyEn": "Today's notable example is the worker boundary for using Hand Landmarker on video or camera frames. The official guide says `detectForVideo()` can block the UI thread, and the official sample sends `ImageBitmap` plus timestamps into a worker. The useful part is making frame submission, busy skipping, and result latency visible before wiring real inference."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Hand Worker Frame Gate` は、疑似手フレームを描きながら、motion delta が低いフレームは捨て、worker busy 中は skip し、返ってきた result をタイムラインで青く表示します。派生の `Gesture Event Debounce Lab` は、その結果をさらに gesture category のスコア列とみなし、score threshold、連続一致数、cooldown から UI コマンドを発火します。外部デモの一覧ではなく、実装前に調整すべき状態遷移だけを自作の操作面にしました。",
+      "bodyEn": "The main sample, `Hand Worker Frame Gate`, draws synthetic hand frames, drops low-motion frames, skips while a worker is busy, and marks returned results in blue on a timeline. The derivative `Gesture Event Debounce Lab` treats that stream as gesture-category scores and fires UI commands from a score threshold, consecutive confirmations, and cooldown. Instead of listing external demos, both samples expose the state transitions that need tuning before production inference."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、フレーム番号、motion delta、send/skip/result イベント、疑似 inference latency、threshold、worker busy 率、gesture top score、streak、cooldown、発火した command です。これを実 Hand Landmarker の 21 点 landmarks、world landmarks、handedness、Gesture Recognizer の canned gesture、Object Detector の bbox、Image Segmenter の mask、Web Worker の transfer 計測、IndexedDB の履歴、Web Audio のフィードバック音と組み合わせると、カメラ操作UI、空中ショートカット、レビューキュー、推論負荷に応じた自動フレーム間引きに発展できます。",
+      "bodyEn": "The samples can collect frame number, motion delta, send/skip/result events, pseudo inference latency, thresholds, worker busy rate, gesture top score, streak, cooldown, and fired commands. Combined with real Hand Landmarker 21-point landmarks, world landmarks, handedness, Gesture Recognizer canned gestures, Object Detector boxes, Image Segmenter masks, Web Worker transfer metrics, IndexedDB history, and Web Audio feedback, they can grow into camera control UI, mid-air shortcuts, review queues, and inference-aware frame throttling."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的HTMLの段階では `@mediapipe/tasks-vision@1.0.1/+esm` の dynamic import preflight だけを置き、実推論なしで worker 投入ポリシーを確認できるようにしました。本番化する時は main thread で `createImageBitmap(video)` を作り、worker に bitmap と `performance.now()` 由来の timestamp を transfer し、worker 内で `FilesetResolver.forVisionTasks()` と `HandLandmarker.createFromOptions()` を初期化します。処理後は公式 worker と同じく bitmap を close し、結果は landmarks 全体ではなく command に必要な軽量イベントへ先に畳むと UI が作りやすくなります。",
+      "bodyEn": "At the static-HTML stage, the sample only performs a dynamic import preflight for `@mediapipe/tasks-vision@1.0.1/+esm`, so the frame-submission policy can be tuned without live inference. In production, create an `ImageBitmap` from the video on the main thread, transfer the bitmap and a `performance.now()`-based timestamp to a worker, and initialize `FilesetResolver.forVisionTasks()` plus `HandLandmarker.createFromOptions()` inside the worker. After processing, close the bitmap like the official worker and collapse full landmark results into lightweight command events for UI work."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Hand Landmarker Web guide の最終更新、Gesture Recognizer の classifier options、公式 worker 実装の mode switching、Tasks Vision release、WASM bundling issue、worker/module import issue、Google AI Edge の LiteRT / GenAI WebGPU 条件を継続確認します。特に worker への modelAssetBuffer 受け渡しと CDN/WASM のローカル固定は、公開サイトから実アプリへ移す時の詰まりやすい点です。",
+      "bodyEn": "Next, keep watching the Hand Landmarker Web guide updates, Gesture Recognizer classifier options, official worker mode switching, Tasks Vision releases, WASM bundling issues, worker/module import issues, and Google AI Edge LiteRT / GenAI WebGPU requirements. Passing `modelAssetBuffer` into a worker and pinning CDN/WASM assets locally are likely friction points when moving from a public sample to a production app."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Hand Worker Frame Gate` を開き、`Start stream` で timeline を動かし、`Worker inference` を上げて busy skip が増えることを確認します。次に `Send threshold` を上げると low-motion skip が増え、motion の少ないフレームを送らない挙動が見えます。派生サンプルでは `Noisy preset` を押し、score threshold と連続一致数を厳しくした時に command 発火が抑えられることを確認します。",
+      "bodyEn": "Open `Hand Worker Frame Gate`, press `Start stream`, and raise `Worker inference` to see busy skips increase. Then raise `Send threshold` to see low-motion frames dropped before submission. In the derivative sample, press `Noisy preset` to verify that stricter score thresholds and consecutive confirmations suppress command firing."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Hand Landmarker Web guide、Gesture Recognizer Web guide、Tasks Vision README、公式 mediapipe-samples-web の Hand Landmarker worker、npm package version を確認。設計: 外部デモ一覧ではなく、worker 投入前の frame gate と gesture command debounce を自作サンプル化。実装: 本命HTMLに API preflight、疑似手フレーム、sent/busy/skip/result timeline、latency 平均、burst test を追加。派生HTMLに top gesture score、threshold、連続一致、cooldown、command 発火 feed を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Hand Landmarker Web guide, Gesture Recognizer Web guide, Tasks Vision README, official mediapipe-samples-web Hand Landmarker worker, and npm package versions. Design: instead of listing external demos, build original samples for a worker frame gate and gesture command debounce. Implementation: added API preflight, synthetic hand frames, sent/busy/skip/result timeline, average latency, and burst testing to the main HTML. Added top gesture scores, thresholds, consecutive confirmations, cooldown, and a command-fire feed to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and representative sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Segmenter の mask lifecycle、Image Embedder の similarity routing、Hand/Gesture の frame budget を扱ってきました。今日の2本は、実推論モデルそのものよりも、Web ML を UI として破綻させないための交通整理に焦点を当てています。MediaPipe Tasks の Web 活用では、正しい Task 呼び出しと同じくらい、同期推論、worker、transfer、skip、debounce の設計が体験を左右します。",
+      "bodyEn": "Recent entries covered Segmenter mask lifecycle, Image Embedder similarity routing, and Hand/Gesture frame budgets. Today's two samples focus less on the model call itself and more on keeping Web ML usable as UI. For MediaPipe Tasks on the web, synchronous inference, workers, transfers, skips, and debouncing are as important to the user experience as the correct Task API call."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Hand Worker Frame Gate` です。実際に動く部分は、疑似手フレーム生成、motion threshold による送信判定、worker busy skip、疑似 latency、result timeline、Tasks Vision import preflight です。次に足すなら worker ファイルを分離し、実 `HandLandmarker.detectForVideo()`、`createImageBitmap()` transfer、`bitmap.close()`、手の bbox IoU に基づく skip を追加します。派生試作は `Gesture Event Debounce Lab` で、次に足すなら本命サンプルの result を入力にして、Gesture Recognizer の実 category score と command preset 保存をつなぎます。",
+      "bodyEn": "The selected main prototype is `Hand Worker Frame Gate`. The working pieces are synthetic hand-frame generation, motion-threshold submission, worker busy skipping, pseudo latency, result timeline, and Tasks Vision import preflight. Next additions should split out a real worker file and add real `HandLandmarker.detectForVideo()`, `createImageBitmap()` transfer, `bitmap.close()`, and hand-box IoU based skipping. The derivative prototype is `Gesture Event Debounce Lab`; next, feed it the main sample's results and connect real Gesture Recognizer category scores plus saved command presets.",
+      "links": [
+        {
+          "label": "Open Hand Worker Frame Gate",
+          "url": "../outputs/2026-09-04_hand_worker_frame_gate.html"
+        },
+        {
+          "label": "Open Gesture Event Debounce Lab",
+          "url": "../outputs/2026-09-04_gesture_event_debounce_lab.html"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Worker Frame Gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0a0d10;
+      color: #f5f7f2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(71, 176, 143, .20), transparent 38%),
+        linear-gradient(315deg, rgba(234, 94, 79, .12), transparent 44%),
+        #0a0d10;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      border-bottom: 1px solid rgba(245, 247, 242, .14);
+      padding-bottom: 18px;
+    }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.6rem); line-height: 1.04; letter-spacing: 0; }
+    p { color: #b9c6bd; line-height: 1.7; }
+    button, input { font: inherit; }
+    button {
+      min-height: 42px;
+      border: 1px solid rgba(245, 247, 242, .24);
+      background: #f5f7f2;
+      color: #111516;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: #f5f7f2; }
+    .toolbar, .panel, .meter, .log {
+      border: 1px solid rgba(245, 247, 242, .14);
+      background: rgba(13, 18, 20, .80);
+    }
+    .toolbar {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+    label { display: grid; gap: 8px; color: #dce5df; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #47b08f; }
+    .value { color: #ffc857; font-variant-numeric: tabular-nums; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; min-width: 0; }
+    canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #11161a; border: 1px solid rgba(245, 247, 242, .14); }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+    .meter { padding: 12px; min-height: 88px; }
+    .meter strong { display: block; font-size: clamp(1.4rem, 4vw, 2rem); color: #f5f7f2; font-variant-numeric: tabular-nums; }
+    .meter span { color: #98aaa2; font-size: .82rem; }
+    .timeline { display: grid; grid-template-columns: repeat(60, 1fr); gap: 3px; min-height: 52px; margin-top: 12px; }
+    .tick { min-height: 52px; border: 1px solid rgba(245, 247, 242, .08); background: #273036; }
+    .tick.sent { background: #47b08f; }
+    .tick.busy { background: #ffc857; }
+    .tick.skip { background: #ea5e4f; }
+    .tick.result { background: #6aa9ff; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .legend span { display: inline-flex; gap: 6px; align-items: center; color: #b9c6bd; font-size: .82rem; }
+    .swatch { width: 12px; height: 12px; border: 1px solid rgba(245, 247, 242, .24); }
+    .log { margin-top: 12px; padding: 10px; height: 180px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #d9eee6; font-size: .82rem; }
+    .status { display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end; color: #b9c6bd; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; background: #ea5e4f; }
+    .dot.on { background: #47b08f; }
+    @media (max-width: 860px) {
+      header, .grid, .toolbar { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Hand Worker Frame Gate</h1>
+        <p>Hand Landmarker の `detectForVideo()` を worker 側へ逃がす前に、フレーム投入、busy skip、結果遅延、API import preflight を自作の疑似フレームで確認する最小サンプル。</p>
+      </div>
+      <div class="status"><span id="apiDot" class="dot"></span><span id="apiText">API未確認</span></div>
+    </header>
+
+    <section class="toolbar">
+      <label>FPS target <input id="fps" type="range" min="8" max="60" value="30"><span class="value" id="fpsValue">30 fps</span></label>
+      <label>Worker inference <input id="infer" type="range" min="6" max="80" value="26"><span class="value" id="inferValue">26 ms</span></label>
+      <label>Motion change <input id="motion" type="range" min="0" max="100" value="46"><span class="value" id="motionValue">46%</span></label>
+      <label>Send threshold <input id="threshold" type="range" min="0" max="100" value="24"><span class="value" id="thresholdValue">24%</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="burst" class="secondary">3-frame burst</button>
+      <button id="preflight" class="secondary">API preflight</button>
+      <button id="reset" class="secondary">Reset counters</button>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <canvas id="stage" width="960" height="540" aria-label="synthetic hand frame preview"></canvas>
+        <div class="timeline" id="timeline"></div>
+        <div class="legend">
+          <span><i class="swatch" style="background:#47b08f"></i>sent</span>
+          <span><i class="swatch" style="background:#ffc857"></i>busy skip</span>
+          <span><i class="swatch" style="background:#ea5e4f"></i>low motion skip</span>
+          <span><i class="swatch" style="background:#6aa9ff"></i>result</span>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="stats">
+          <div class="meter"><span>frames</span><strong id="frames">0</strong></div>
+          <div class="meter"><span>sent</span><strong id="sent">0</strong></div>
+          <div class="meter"><span>skipped</span><strong id="skipped">0</strong></div>
+          <div class="meter"><span>avg latency</span><strong id="latency">0ms</strong></div>
+        </div>
+        <pre class="log" id="log"></pre>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const state = {
+      running: false,
+      frame: 0,
+      sent: 0,
+      skipped: 0,
+      busy: false,
+      lastSentPose: 0,
+      latencies: [],
+      events: []
+    };
+    const controls = {
+      fps: $("fps"),
+      infer: $("infer"),
+      motion: $("motion"),
+      threshold: $("threshold")
+    };
+
+    function value(id, suffix) {
+      $(`${id}Value`).textContent = `${controls[id].value}${suffix}`;
+    }
+    Object.entries({ fps: " fps", infer: " ms", motion: "%", threshold: "%" }).forEach(([id, suffix]) => {
+      value(id, suffix);
+      controls[id].addEventListener("input", () => value(id, suffix));
+    });
+
+    function pushEvent(type) {
+      state.events.push(type);
+      state.events = state.events.slice(-60);
+      $("timeline").innerHTML = state.events.map((event) => `<i class="tick ${event}"></i>`).join("");
+    }
+
+    function log(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${now} ${line}\n${$("log").textContent}`.slice(0, 3200);
+    }
+
+    function drawHand(pose) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#10171b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(245, 247, 242, .12)";
+      for (let x = 0; x < canvas.width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      const cx = canvas.width * (.5 + Math.sin(pose * .07) * .12);
+      const cy = canvas.height * (.58 + Math.cos(pose * .05) * .08);
+      const spread = 58 + Math.sin(pose * .11) * 22;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#47b08f";
+      ctx.lineWidth = 16;
+      ctx.beginPath();
+      ctx.moveTo(cx - 45, cy + 80);
+      ctx.quadraticCurveTo(cx - 20, cy + 25, cx, cy);
+      ctx.stroke();
+      const colors = ["#47b08f", "#ffc857", "#6aa9ff", "#ea5e4f", "#f5f7f2"];
+      for (let i = 0; i < 5; i += 1) {
+        const angle = -1.95 + i * .46 + Math.sin(pose * .04 + i) * .16;
+        const len = spread + i * 8;
+        ctx.strokeStyle = colors[i];
+        ctx.lineWidth = 13 - i;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#f5f7f2";
+      ctx.font = "22px ui-monospace, monospace";
+      ctx.fillText(`synthetic frame ${state.frame}`, 24, 42);
+    }
+
+    function updateStats() {
+      $("frames").textContent = state.frame;
+      $("sent").textContent = state.sent;
+      $("skipped").textContent = state.skipped;
+      const avg = state.latencies.length ? state.latencies.reduce((a, b) => a + b, 0) / state.latencies.length : 0;
+      $("latency").textContent = `${avg.toFixed(1)}ms`;
+    }
+
+    function syntheticMotion() {
+      const intensity = Number(controls.motion.value) / 100;
+      return Math.abs(Math.sin(state.frame * .21)) * intensity + Math.random() * .12;
+    }
+
+    function sendFrame(reason = "tick") {
+      state.frame += 1;
+      const pose = state.frame * (Number(controls.motion.value) / 14 + 1);
+      drawHand(pose);
+      const motionDelta = syntheticMotion();
+      const threshold = Number(controls.threshold.value) / 100;
+      if (state.busy) {
+        state.skipped += 1;
+        pushEvent("busy");
+        log(`skip busy frame=${state.frame} reason=${reason}`);
+        updateStats();
+        return;
+      }
+      if (motionDelta < threshold) {
+        state.skipped += 1;
+        pushEvent("skip");
+        log(`skip low-motion frame=${state.frame} delta=${motionDelta.toFixed(2)}`);
+        updateStats();
+        return;
+      }
+      state.busy = true;
+      state.sent += 1;
+      pushEvent("sent");
+      const started = performance.now();
+      const ms = Number(controls.infer.value) + Math.random() * 12;
+      log(`post ImageBitmap-like frame=${state.frame} delta=${motionDelta.toFixed(2)}`);
+      setTimeout(() => {
+        state.busy = false;
+        const latency = performance.now() - started;
+        state.latencies.push(latency);
+        state.latencies = state.latencies.slice(-20);
+        pushEvent("result");
+        log(`result landmarks=21 handedness=Right latency=${latency.toFixed(1)}ms`);
+        updateStats();
+      }, ms);
+      updateStats();
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      sendFrame();
+      timer = setTimeout(loop, 1000 / Number(controls.fps.value));
+    }
+
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      clearTimeout(timer);
+      log(state.running ? "stream started" : "stream stopped");
+      if (state.running) loop();
+    });
+    $("burst").addEventListener("click", () => {
+      sendFrame("burst");
+      setTimeout(() => sendFrame("burst"), 8);
+      setTimeout(() => sendFrame("burst"), 16);
+    });
+    $("reset").addEventListener("click", () => {
+      Object.assign(state, { frame: 0, sent: 0, skipped: 0, busy: false, latencies: [], events: [] });
+      pushEvent("");
+      $("timeline").innerHTML = "";
+      $("log").textContent = "";
+      drawHand(0);
+      updateStats();
+    });
+    $("preflight").addEventListener("click", async () => {
+      $("apiText").textContent = "import確認中";
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        const ok = Boolean(mod.FilesetResolver && mod.HandLandmarker);
+        $("apiDot").classList.toggle("on", ok);
+        $("apiText").textContent = ok ? "Tasks Vision 1.0.1 import OK" : "export不足";
+        log(ok ? "preflight ok: FilesetResolver / HandLandmarker" : "preflight missing exports");
+      } catch (error) {
+        $("apiText").textContent = "import失敗";
+        log(`preflight error: ${error.message}`);
+      }
+    });
+
+    drawHand(0);
+    updateStats();
+  </script>
+</body>
+</html>

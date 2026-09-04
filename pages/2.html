@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-23</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span></p>
+      <h2>Image Segmenter の callback mask をコピーして使うマット検査台</h2>
+      <p class="en">A matte inspection bench that copies Image Segmenter callback masks</p>
+      <p>Google AI Edge の Image Segmenter overview / Web guide、tasks-vision API、ImageSegmenter class / options、公式 MediaPipe Tasks demo repository を参考に、Image Segmenter の category mask を callback 内で `Uint8Array` にコピーし、その後の合成・検査 UI で使う自作サンプルを追加しました。さらに派生試作として、コピー済み mask を ROI 判定や次フレーム制御に使う発展案を合成 mask で即時検証できる小さな sandbox も追加しました。</p>
+      <div class="actions">
+        <a href="../days/2026-08-23.html">日付ページ</a>
+        <a href="../outputs/2026-08-23_image_segmenter_mask_copy_studio.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-08-23_mask_roi_threshold_sandbox.html"><span>MediaPipe</span>Mask ROI Threshold Sandbox</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-22</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span></p>
       <h2>モデル前の FilesetResolver 初期化時間を測るストップウォッチ</h2>
       <p class="en">A stopwatch for FilesetResolver initialization before model loading</p>
@@ -141,16 +151,6 @@
       <div class="actions">
         <a href="../days/2026-08-12.html">日付ページ</a>
         <a href="../outputs/2026-08-12_face_detector_privacy_gate.html">サンプル</a>
-      </div>
-      
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-08-11</span><span class="badge">MediaPipe</span></p>
-      <h2>Image Classifier で生成キャンバスの分類ラベルを観察する</h2>
-      <p class="en">Probe generated canvas labels with Image Classifier</p>
-      <p>MediaPipe Tasks Image Classifier の Web 実装を参考に、外部写真ではなくブラウザ内で生成した3枚の 224 x 224 キャンバスを分類する自作サンプルを追加しました。初期状態は色・輪郭・密度の fallback スコアで動き、MediaPipe の読み込みに成功すると EfficientNet-Lite0 Image Classifier の上位ラベルと閾値フィルタを確認できます。</p>
-      <div class="actions">
-        <a href="../days/2026-08-11.html">日付ページ</a>
-        <a href="../outputs/2026-08-11_image_classifier_canvas_probe.html">サンプル</a>
       </div>
       
     </article></div>

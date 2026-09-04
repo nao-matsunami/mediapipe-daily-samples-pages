@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Event Debounce Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0d1014; color: #fbfaf4; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(106, 169, 255, .17), transparent 34%),
+        linear-gradient(320deg, rgba(255, 200, 87, .14), transparent 42%),
+        #0d1014;
+    }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(251, 250, 244, .15); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.3rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #c5c1b6; line-height: 1.7; }
+    button, input { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(251, 250, 244, .25); background: #fbfaf4; color: #101418; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fbfaf4; }
+    .toolbar, .board, .lane, .feed { border: 1px solid rgba(251, 250, 244, .14); background: rgba(15, 20, 25, .82); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #ebe6d8; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #6aa9ff; }
+    .value { color: #ffc857; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; margin-top: 14px; }
+    .board { padding: 14px; min-width: 0; }
+    .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .lane { padding: 12px; min-height: 180px; position: relative; overflow: hidden; }
+    .lane h2 { margin: 0; font-size: 1rem; letter-spacing: 0; }
+    .score { font-size: clamp(2rem, 5vw, 3.2rem); margin: 18px 0 6px; font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: #26313a; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; background: #6aa9ff; transition: width .18s ease; }
+    .lane.active { outline: 2px solid #ffc857; }
+    .lane.fire::after { content: ""; position: absolute; inset: auto 12px 12px 12px; height: 5px; background: #47b08f; }
+    .command { margin-top: 14px; padding: 16px; border: 1px solid rgba(251, 250, 244, .14); background: #151b20; }
+    .command strong { display: block; font-size: clamp(1.5rem, 4vw, 2.4rem); }
+    .feed { padding: 12px; height: 440px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #dbe8ff; font-size: .82rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(251, 250, 244, .18); color: #c5c1b6; padding: 5px 8px; font-size: .8rem; }
+    @media (max-width: 860px) {
+      .toolbar, .layout, .lanes { grid-template-columns: 1fr; }
+      .feed { height: 260px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Gesture Event Debounce Lab</h1>
+      <p>Gesture Recognizer の分類結果を想定し、top gesture、score threshold、連続一致数、cooldown から UI コマンドを発火する小さな派生試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Score threshold <input id="threshold" type="range" min="30" max="95" value="68"><span id="thresholdValue" class="value">68%</span></label>
+      <label>Frames to confirm <input id="confirm" type="range" min="1" max="8" value="4"><span id="confirmValue" class="value">4</span></label>
+      <label>Noise <input id="noise" type="range" min="0" max="60" value="26"><span id="noiseValue" class="value">26%</span></label>
+      <label>Cooldown <input id="cooldown" type="range" min="100" max="1400" step="100" value="600"><span id="cooldownValue" class="value">600ms</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step one frame</button>
+      <button id="reset" class="secondary">Reset</button>
+      <button id="preset" class="secondary">Noisy preset</button>
+    </section>
+
+    <div class="layout">
+      <section class="board">
+        <div class="lanes" id="lanes"></div>
+        <div class="command">
+          <span>current command</span>
+          <strong id="command">waiting</strong>
+          <div class="chips">
+            <span class="chip" id="stable">stable: none</span>
+            <span class="chip" id="streak">streak: 0</span>
+            <span class="chip" id="cool">cooldown: ready</span>
+          </div>
+        </div>
+      </section>
+      <pre id="feed" class="feed"></pre>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const gestures = [
+      { name: "Open_Palm", command: "pause overlay", color: "#6aa9ff" },
+      { name: "Pointing_Up", command: "pin marker", color: "#ffc857" },
+      { name: "Thumb_Up", command: "accept item", color: "#47b08f" },
+      { name: "Victory", command: "next panel", color: "#ea5e4f" }
+    ];
+    const state = { running: false, frame: 0, streakName: "none", streak: 0, lastFire: 0, scores: new Map() };
+    const controls = {
+      threshold: $("threshold"),
+      confirm: $("confirm"),
+      noise: $("noise"),
+      cooldown: $("cooldown")
+    };
+
+    function syncLabels() {
+      $("thresholdValue").textContent = `${controls.threshold.value}%`;
+      $("confirmValue").textContent = controls.confirm.value;
+      $("noiseValue").textContent = `${controls.noise.value}%`;
+      $("cooldownValue").textContent = `${controls.cooldown.value}ms`;
+    }
+    Object.values(controls).forEach((el) => el.addEventListener("input", syncLabels));
+
+    function renderLanes(topName = "") {
+      $("lanes").innerHTML = gestures.map((gesture) => {
+        const score = state.scores.get(gesture.name) || 0;
+        const active = gesture.name === topName ? " active" : "";
+        const fire = gesture.name === state.streakName && state.streak >= Number(controls.confirm.value) ? " fire" : "";
+        return `<article class="lane${active}${fire}"><h2>${gesture.name}</h2><div class="score">${Math.round(score * 100)}</div><div class="bar"><i style="width:${score * 100}%;background:${gesture.color}"></i></div><p>${gesture.command}</p></article>`;
+      }).join("");
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 3600);
+    }
+
+    function sampleScores() {
+      const baseIndex = Math.floor(state.frame / 42) % gestures.length;
+      const noise = Number(controls.noise.value) / 100;
+      let top = gestures[baseIndex];
+      gestures.forEach((gesture, index) => {
+        const phase = Math.sin(state.frame * .18 + index * 1.7) * .18;
+        const base = index === baseIndex ? .72 : .18;
+        const jitter = (Math.random() - .5) * noise;
+        state.scores.set(gesture.name, Math.max(0.02, Math.min(.98, base + phase + jitter)));
+      });
+      for (const gesture of gestures) {
+        if ((state.scores.get(gesture.name) || 0) > (state.scores.get(top.name) || 0)) top = gesture;
+      }
+      return top;
+    }
+
+    function step() {
+      state.frame += 1;
+      const top = sampleScores();
+      const topScore = state.scores.get(top.name) || 0;
+      const threshold = Number(controls.threshold.value) / 100;
+      if (topScore >= threshold) {
+        if (state.streakName === top.name) state.streak += 1;
+        else {
+          state.streakName = top.name;
+          state.streak = 1;
+        }
+      } else {
+        state.streakName = "none";
+        state.streak = 0;
+      }
+      const now = performance.now();
+      const ready = now - state.lastFire >= Number(controls.cooldown.value);
+      if (state.streak >= Number(controls.confirm.value) && ready) {
+        state.lastFire = now;
+        $("command").textContent = top.command;
+        feed(`fire ${top.name} score=${topScore.toFixed(2)} command="${top.command}"`);
+      } else {
+        feed(`frame=${state.frame} top=${top.name} score=${topScore.toFixed(2)} streak=${state.streak}`);
+      }
+      $("stable").textContent = `stable: ${state.streakName}`;
+      $("streak").textContent = `streak: ${state.streak}`;
+      $("cool").textContent = `cooldown: ${ready ? "ready" : "holding"}`;
+      renderLanes(top.name);
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 90);
+    }
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      clearTimeout(timer);
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", step);
+    $("reset").addEventListener("click", () => {
+      Object.assign(state, { running: false, frame: 0, streakName: "none", streak: 0, lastFire: 0, scores: new Map() });
+      $("toggle").textContent = "Start stream";
+      $("command").textContent = "waiting";
+      $("feed").textContent = "";
+      syncLabels();
+      renderLanes();
+    });
+    $("preset").addEventListener("click", () => {
+      controls.threshold.value = 76;
+      controls.confirm.value = 6;
+      controls.noise.value = 48;
+      controls.cooldown.value = 900;
+      syncLabels();
+      feed("preset applied: noisy stream with stricter confirmation");
+    });
+
+    syncLabels();
+    renderLanes();
+  </script>
+</body>
+</html>
