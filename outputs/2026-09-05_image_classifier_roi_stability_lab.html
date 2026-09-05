@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Classifier ROI Stability Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b0f12;
+      color: #f7f3e8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(64, 176, 142, .16), transparent 36%),
+        linear-gradient(320deg, rgba(236, 186, 78, .13), transparent 44%),
+        #0b0f12;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(247, 243, 232, .15); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.2rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #c9c1b0; line-height: 1.65; }
+    button, input { font: inherit; }
+    button {
+      min-height: 42px;
+      border: 1px solid rgba(247, 243, 232, .24);
+      background: #f7f3e8;
+      color: #11161a;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: #f7f3e8; }
+    .toolbar, .panel, .meter, .timeline { border: 1px solid rgba(247, 243, 232, .14); background: rgba(13, 19, 23, .84); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #ede6d7; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #40b08e; }
+    .value { color: #ecba4e; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; min-width: 0; }
+    canvas { width: 100%; aspect-ratio: 16 / 10; display: block; background: #10171c; border: 1px solid rgba(247, 243, 232, .12); cursor: crosshair; }
+    .meters { display: grid; gap: 10px; }
+    .meter { padding: 12px; }
+    .meter h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    .score { display: grid; grid-template-columns: 94px 1fr 54px; align-items: center; gap: 8px; margin: 7px 0; font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: #263139; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; background: #40b08e; transition: width .18s ease; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .stat { border: 1px solid rgba(247, 243, 232, .12); padding: 10px; background: #151c21; }
+    .stat span { display: block; color: #9fb4ac; font-size: .78rem; }
+    .stat strong { display: block; margin-top: 4px; font-size: 1.25rem; }
+    .timeline { min-height: 92px; display: flex; align-items: end; gap: 3px; padding: 8px; margin-top: 10px; overflow: hidden; }
+    .tick { width: 8px; min-width: 8px; background: #56616a; }
+    .tick.accept { background: #40b08e; }
+    .tick.reject { background: #b85b4b; }
+    .tick.hold { background: #ecba4e; }
+    .feed { height: 220px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #d8efe5; white-space: pre-wrap; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Image Classifier ROI Stability Lab</h1>
+      <p>Image Classifier の ROI、scoreThreshold、maxResults、連続一致を、実モデル接続前に触れる自作の最小シミュレーター。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Score threshold <input id="threshold" type="range" min="20" max="95" value="64"><span id="thresholdValue" class="value">64%</span></label>
+      <label>ROI size <input id="roiSize" type="range" min="18" max="70" value="36"><span id="roiValue" class="value">36%</span></label>
+      <label>Max results <input id="maxResults" type="range" min="1" max="5" value="3"><span id="maxValue" class="value">3</span></label>
+      <label>Confirm frames <input id="confirm" type="range" min="1" max="8" value="4"><span id="confirmValue" class="value">4</span></label>
+      <label>Scene drift <input id="drift" type="range" min="0" max="80" value="32"><span id="driftValue" class="value">32%</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Classify one frame</button>
+      <button id="burst" class="secondary">Burst 24 frames</button>
+      <button id="reset" class="secondary">Reset</button>
+      <button id="preflight" class="secondary">Tasks import check</button>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <canvas id="scene" width="960" height="600"></canvas>
+        <div class="stats">
+          <div class="stat"><span>stable label</span><strong id="stable">none</strong></div>
+          <div class="stat"><span>streak</span><strong id="streak">0</strong></div>
+          <div class="stat"><span>accepted</span><strong id="accepted">0</strong></div>
+          <div class="stat"><span>rejected</span><strong id="rejected">0</strong></div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+      <aside class="meters">
+        <section class="meter">
+          <h2>Top classifications</h2>
+          <div id="scores"></div>
+        </section>
+        <section class="meter">
+          <h2>Runtime notes</h2>
+          <p>ドラッグまたはクリックで ROI 中心を移動。黄色の枠に入るものが変わると、top category と streak が変化します。</p>
+          <div id="feed" class="feed"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("scene");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      threshold: $("threshold"),
+      roiSize: $("roiSize"),
+      maxResults: $("maxResults"),
+      confirm: $("confirm"),
+      drift: $("drift")
+    };
+    const labels = [
+      { name: "desk lamp", color: "#ecba4e", x: 210, y: 165, r: 64 },
+      { name: "potted plant", color: "#40b08e", x: 690, y: 175, r: 74 },
+      { name: "ceramic mug", color: "#5fa6ff", x: 300, y: 410, r: 60 },
+      { name: "notebook", color: "#d86250", x: 650, y: 425, r: 82 },
+      { name: "background", color: "#869099", x: 480, y: 300, r: 280 }
+    ];
+    const state = {
+      running: false,
+      frame: 0,
+      roi: { x: .5, y: .5 },
+      top: "none",
+      streak: 0,
+      stable: "none",
+      accepted: 0,
+      rejected: 0,
+      timeline: [],
+      scores: []
+    };
+
+    function syncLabels() {
+      $("thresholdValue").textContent = `${controls.threshold.value}%`;
+      $("roiValue").textContent = `${controls.roiSize.value}%`;
+      $("maxValue").textContent = controls.maxResults.value;
+      $("confirmValue").textContent = controls.confirm.value;
+      $("driftValue").textContent = `${controls.drift.value}%`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener("input", syncLabels));
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2600);
+    }
+
+    function roiRect() {
+      const side = canvas.width * Number(controls.roiSize.value) / 100;
+      return {
+        x: state.roi.x * canvas.width - side / 2,
+        y: state.roi.y * canvas.height - side / 2,
+        w: side,
+        h: side
+      };
+    }
+
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#10171c";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const drift = Number(controls.drift.value) / 100;
+      labels.forEach((item, index) => {
+        const wobbleX = Math.sin(state.frame * .035 + index) * 34 * drift;
+        const wobbleY = Math.cos(state.frame * .027 + index * 1.8) * 28 * drift;
+        ctx.fillStyle = item.color;
+        ctx.globalAlpha = item.name === "background" ? .18 : .92;
+        if (item.name === "notebook") {
+          ctx.fillRect(item.x - 92 + wobbleX, item.y - 48 + wobbleY, 184, 96);
+        } else {
+          ctx.beginPath();
+          ctx.arc(item.x + wobbleX, item.y + wobbleY, item.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#f7f3e8";
+        ctx.font = "18px system-ui";
+        ctx.fillText(item.name, item.x - 54 + wobbleX, item.y + item.r + 28 + wobbleY);
+      });
+      const rect = roiRect();
+      ctx.strokeStyle = "#ecba4e";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = "rgba(236, 186, 78, .08)";
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+
+    function classifySyntheticFrame() {
+      state.frame += 1;
+      const rect = roiRect();
+      const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+      const drift = Number(controls.drift.value) / 100;
+      const raw = labels.map((item, index) => {
+        const wobbleX = Math.sin(state.frame * .035 + index) * 34 * drift;
+        const wobbleY = Math.cos(state.frame * .027 + index * 1.8) * 28 * drift;
+        const dx = center.x - (item.x + wobbleX);
+        const dy = center.y - (item.y + wobbleY);
+        const distance = Math.hypot(dx, dy);
+        const radius = item.name === "background" ? 420 : item.r + rect.w * .45;
+        const confidence = Math.max(.02, Math.min(.98, 1 - distance / radius + (Math.random() - .5) * .12));
+        return { categoryName: item.name, displayName: item.name, score: confidence, color: item.color };
+      }).sort((a, b) => b.score - a.score);
+      const top = raw[0];
+      const threshold = Number(controls.threshold.value) / 100;
+      const visible = raw.filter((item) => item.score >= threshold).slice(0, Number(controls.maxResults.value));
+      const accepted = top.score >= threshold;
+      if (accepted) {
+        state.accepted += 1;
+        if (state.top === top.categoryName) state.streak += 1;
+        else {
+          state.top = top.categoryName;
+          state.streak = 1;
+        }
+      } else {
+        state.rejected += 1;
+        state.top = "none";
+        state.streak = 0;
+      }
+      if (state.streak >= Number(controls.confirm.value)) state.stable = state.top;
+      state.scores = visible.length ? visible : raw.slice(0, Number(controls.maxResults.value));
+      state.timeline.push(accepted ? (state.streak >= Number(controls.confirm.value) ? "accept" : "hold") : "reject");
+      state.timeline = state.timeline.slice(-70);
+      drawScene();
+      render();
+      feed(`frame=${state.frame} top=${top.categoryName} score=${top.score.toFixed(2)} visible=${visible.length}`);
+    }
+
+    function render() {
+      $("scores").innerHTML = state.scores.map((item) => `
+        <div class="score">
+          <span>${item.displayName}</span>
+          <span class="bar"><i style="width:${Math.round(item.score * 100)}%;background:${item.color}"></i></span>
+          <strong>${Math.round(item.score * 100)}%</strong>
+        </div>
+      `).join("");
+      $("stable").textContent = state.stable;
+      $("streak").textContent = state.streak;
+      $("accepted").textContent = state.accepted;
+      $("rejected").textContent = state.rejected;
+      $("timeline").innerHTML = state.timeline.map((type) => `<span class="tick ${type}" style="height:${type === "accept" ? 68 : type === "hold" ? 46 : 24}px"></span>`).join("");
+    }
+
+    function updateRoi(event) {
+      const rect = canvas.getBoundingClientRect();
+      state.roi.x = Math.max(.04, Math.min(.96, (event.clientX - rect.left) / rect.width));
+      state.roi.y = Math.max(.06, Math.min(.94, (event.clientY - rect.top) / rect.height));
+      drawScene();
+    }
+    canvas.addEventListener("pointerdown", (event) => {
+      updateRoi(event);
+      canvas.setPointerCapture(event.pointerId);
+      canvas.onpointermove = updateRoi;
+    });
+    canvas.addEventListener("pointerup", () => { canvas.onpointermove = null; });
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      classifySyntheticFrame();
+      timer = setTimeout(loop, 120);
+    }
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      clearTimeout(timer);
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", classifySyntheticFrame);
+    $("burst").addEventListener("click", () => {
+      for (let i = 0; i < 24; i += 1) classifySyntheticFrame();
+    });
+    $("reset").addEventListener("click", () => {
+      Object.assign(state, { running: false, frame: 0, top: "none", streak: 0, stable: "none", accepted: 0, rejected: 0, timeline: [], scores: [] });
+      $("toggle").textContent = "Start stream";
+      $("feed").textContent = "";
+      drawScene();
+      render();
+    });
+    $("preflight").addEventListener("click", async () => {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        feed(`import ok: ImageClassifier=${typeof mod.ImageClassifier} FilesetResolver=${typeof mod.FilesetResolver}`);
+      } catch (error) {
+        feed(`import failed: ${error.message}`);
+      }
+    });
+
+    syncLabels();
+    drawScene();
+    classifySyntheticFrame();
+  </script>
+</body>
+</html>

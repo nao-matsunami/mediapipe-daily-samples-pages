@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Classifier Filter Policy Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101112; color: #fffaf0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(130deg, rgba(79, 151, 201, .15), transparent 36%),
+        linear-gradient(315deg, rgba(232, 109, 86, .14), transparent 44%),
+        #101112;
+    }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(255, 250, 240, .15); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.1rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #cfc5b2; line-height: 1.65; }
+    button, input { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 250, 240, .24); background: #fffaf0; color: #111; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fffaf0; }
+    .toolbar, .panel, .row, .status { border: 1px solid rgba(255, 250, 240, .14); background: rgba(17, 20, 22, .84); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #eee4d4; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #4f97c9; }
+    .value { color: #e8c055; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; }
+    .checks { display: grid; gap: 8px; }
+    .check { display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255, 250, 240, .12); padding: 8px; background: #171b1e; }
+    .check input { width: 18px; height: 18px; accent-color: #4f97c9; }
+    .status { padding: 14px; margin-bottom: 14px; }
+    .status strong { display: block; font-size: clamp(1.4rem, 3vw, 2.2rem); color: #e8c055; }
+    .rows { display: grid; gap: 8px; }
+    .row { display: grid; grid-template-columns: 130px 1fr 72px 120px; gap: 10px; align-items: center; padding: 10px; }
+    .bar { height: 12px; background: #2a3034; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; background: #4f97c9; transition: width .16s ease; }
+    .chip { justify-self: start; border: 1px solid rgba(255, 250, 240, .2); padding: 4px 7px; color: #cfc5b2; font-size: .78rem; }
+    .chip.pass { color: #fffaf0; border-color: rgba(73, 176, 131, .6); background: rgba(73, 176, 131, .16); }
+    .chip.block { color: #fffaf0; border-color: rgba(232, 109, 86, .6); background: rgba(232, 109, 86, .16); }
+    .feed { height: 190px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #d7eaff; white-space: pre-wrap; }
+    @media (max-width: 860px) {
+      .toolbar, .layout, .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Classifier Filter Policy Lab</h1>
+      <p>Image Classifier の categoryAllowlist / categoryDenylist / scoreThreshold / maxResults を、小さな疑似結果で衝突確認する派生試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Score threshold <input id="threshold" type="range" min="0" max="95" value="48"><span id="thresholdValue" class="value">48%</span></label>
+      <label>Max results <input id="maxResults" type="range" min="1" max="6" value="4"><span id="maxValue" class="value">4</span></label>
+      <label>Score noise <input id="noise" type="range" min="0" max="55" value="18"><span id="noiseValue" class="value">18%</span></label>
+      <label>Policy mode
+        <select id="mode">
+          <option value="allow">allowlist</option>
+          <option value="deny">denylist</option>
+          <option value="conflict">both lists</option>
+        </select>
+      </label>
+      <button id="classify">Classify frame</button>
+      <button id="burst" class="secondary">Burst 12</button>
+      <button id="preset" class="secondary">Retail preset</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Category list</h2>
+        <p>チェックしたカテゴリを policy list に入れます。both lists は Tasks の実設定ではエラーになるため、ここでも明示的に止めます。</p>
+        <div id="checks" class="checks"></div>
+      </aside>
+      <section>
+        <div class="status">
+          <span>policy result</span>
+          <strong id="status">waiting</strong>
+          <p id="reason">分類を実行すると、しきい値、リスト、最大件数の順に表示を更新します。</p>
+        </div>
+        <div id="rows" class="rows"></div>
+        <div class="panel" style="margin-top:14px">
+          <h2>Decision log</h2>
+          <div id="feed" class="feed"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const categories = [
+      { name: "banana", base: .76 },
+      { name: "coffee mug", base: .68 },
+      { name: "laptop", base: .58 },
+      { name: "keyboard", base: .52 },
+      { name: "person", base: .45 },
+      { name: "book", base: .36 },
+      { name: "bottle", base: .30 }
+    ];
+    const state = { frame: 0, checked: new Set(["banana", "coffee mug", "laptop"]), results: [] };
+    const controls = { threshold: $("threshold"), maxResults: $("maxResults"), noise: $("noise"), mode: $("mode") };
+
+    function syncLabels() {
+      $("thresholdValue").textContent = `${controls.threshold.value}%`;
+      $("maxValue").textContent = controls.maxResults.value;
+      $("noiseValue").textContent = `${controls.noise.value}%`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener("input", () => { syncLabels(); render(); }));
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2200);
+    }
+
+    function renderChecks() {
+      $("checks").innerHTML = categories.map((category) => `
+        <label class="check"><input type="checkbox" value="${category.name}" ${state.checked.has(category.name) ? "checked" : ""}>${category.name}</label>
+      `).join("");
+      $("checks").querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) state.checked.add(input.value);
+          else state.checked.delete(input.value);
+          render();
+        });
+      });
+    }
+
+    function generateResults() {
+      state.frame += 1;
+      const noise = Number(controls.noise.value) / 100;
+      state.results = categories.map((category, index) => {
+        const wave = Math.sin(state.frame * .45 + index * .8) * .12;
+        const jitter = (Math.random() - .5) * noise;
+        return { categoryName: category.name, score: Math.max(.01, Math.min(.99, category.base + wave + jitter)) };
+      }).sort((a, b) => b.score - a.score);
+      render();
+    }
+
+    function applyPolicy() {
+      const mode = controls.mode.value;
+      const threshold = Number(controls.threshold.value) / 100;
+      const selected = [...state.checked];
+      if (mode === "conflict") {
+        return { error: true, reason: "categoryAllowlist と categoryDenylist は同時指定できません。", visible: [] };
+      }
+      const filtered = state.results.filter((item) => {
+        if (item.score < threshold) return false;
+        if (mode === "allow" && selected.length && !state.checked.has(item.categoryName)) return false;
+        if (mode === "deny" && state.checked.has(item.categoryName)) return false;
+        return true;
+      }).slice(0, Number(controls.maxResults.value));
+      return { error: false, reason: `${filtered.length} categories visible after ${mode}, threshold, maxResults.`, visible: filtered };
+    }
+
+    function render() {
+      const policy = applyPolicy();
+      $("status").textContent = policy.error ? "configuration error" : (policy.visible[0]?.categoryName || "no visible result");
+      $("reason").textContent = policy.reason;
+      $("rows").innerHTML = state.results.map((item) => {
+        const isVisible = policy.visible.some((entry) => entry.categoryName === item.categoryName);
+        const checked = state.checked.has(item.categoryName);
+        const chip = policy.error ? "block" : isVisible ? "pass" : "block";
+        const label = policy.error ? "config blocked" : isVisible ? "visible" : checked ? "filtered" : "hidden";
+        return `<article class="row">
+          <strong>${item.categoryName}</strong>
+          <span class="bar"><i style="width:${Math.round(item.score * 100)}%"></i></span>
+          <span>${Math.round(item.score * 100)}%</span>
+          <span class="chip ${chip}">${label}</span>
+        </article>`;
+      }).join("");
+      if (state.results.length) feed(`frame=${state.frame} mode=${controls.mode.value} top=${$("status").textContent}`);
+    }
+
+    $("classify").addEventListener("click", generateResults);
+    $("burst").addEventListener("click", () => { for (let i = 0; i < 12; i += 1) generateResults(); });
+    $("preset").addEventListener("click", () => {
+      state.checked = new Set(["banana", "coffee mug", "bottle"]);
+      controls.mode.value = "allow";
+      controls.threshold.value = 62;
+      controls.maxResults.value = 3;
+      controls.noise.value = 26;
+      syncLabels();
+      renderChecks();
+      generateResults();
+    });
+    $("reset").addEventListener("click", () => {
+      state.frame = 0;
+      state.results = [];
+      state.checked = new Set(["banana", "coffee mug", "laptop"]);
+      $("feed").textContent = "";
+      syncLabels();
+      renderChecks();
+      render();
+    });
+
+    syncLabels();
+    renderChecks();
+    generateResults();
+  </script>
+</body>
+</html>

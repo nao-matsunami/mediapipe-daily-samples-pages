@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-05",
+  "category": "MediaPipe Tasks / Image Classifier / Google AI Edge / Web ML",
+  "headline": "Image Classifier の ROI と分類フィルタを先に触る",
+  "headlineEn": "Tuning Image Classifier ROI and category filters first",
+  "summary": "Google AI Edge の Image Classifier Web guide、task overview、Web setup guide、MediaPipe Tasks Vision README、公式 image classification JS sample を確認し、実モデル接続前に ROI、scoreThreshold、maxResults、連続一致を調整する自作サンプルを追加しました。派生試作として、allowlist / denylist / threshold / maxResults の組み合わせを疑似分類結果で確認する小さな policy lab も実装しました。",
+  "summaryEn": "After checking the Google AI Edge Image Classifier Web guide, task overview, Web setup guide, MediaPipe Tasks Vision README, and the official image classification JS sample, this adds an original sample for tuning ROI, scoreThreshold, maxResults, and consecutive confirmations before connecting a real model. A derivative prototype adds a small policy lab for testing allowlist, denylist, threshold, and maxResults against synthetic classification results.",
+  "keyTopics": [
+    "Image Classifier は画像、decoded video frames、live video feed を入力にでき、出力は score、category name、display name などを持つ ranked category list になる。",
+    "Web の Image Classifier guide は `classify()` と `classifyForVideo()` が同期実行で UI thread を塞ぎ得るため、camera/video frames では web workers を使う設計を示している。",
+    "設定の中心は `runningMode`、`displayNamesLocale`、`maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` で、allowlist と denylist は同時指定できない。",
+    "Task overview は ROI classification、score threshold、top-k classification、label allowlist/denylist を Image Classifier の主要機能として整理している。",
+    "npm 確認では 2026-09-05 JST 時点で `@mediapipe/tasks-vision` は 1.0.1、`@mediapipe/tasks-genai` は 0.10.29 だった。"
+  ],
+  "keyTopicsEn": [
+    "Image Classifier accepts images, decoded video frames, and live video feeds, and returns a ranked category list with scores, category names, and display names when available.",
+    "The Web Image Classifier guide says `classify()` and `classifyForVideo()` run synchronously and can block the UI thread, so workers are recommended for camera/video frames.",
+    "The core options are `runningMode`, `displayNamesLocale`, `maxResults`, `scoreThreshold`, `categoryAllowlist`, and `categoryDenylist`; allowlist and denylist cannot be used together.",
+    "The task overview highlights ROI classification, score threshold, top-k classification, and label allowlist/denylist as Image Classifier features.",
+    "An npm check on 2026-09-05 JST showed `@mediapipe/tasks-vision` at 1.0.1 and `@mediapipe/tasks-genai` at 0.10.29."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Classifier ROI Stability Lab",
+      "url": "../outputs/2026-09-05_image_classifier_roi_stability_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Classifier Filter Policy Lab",
+      "url": "../outputs/2026-09-05_classifier_filter_policy_lab.html"
+    },
+    {
+      "label": "Image classification guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_classifier/web_js"
+    },
+    {
+      "label": "Image classification task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_classifier"
+    },
+    {
+      "label": "Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official image classification JS sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/image_classification/js"
+    },
+    {
+      "label": "Official MediaPipe web task demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-05-image-classifier-roi-stability.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Image Classifier の ROI とフィルタです。公式 task overview は ROI classification、score threshold、top-k、allowlist/denylist を主要機能として挙げており、Web guide は `classify()` / `classifyForVideo()` の同期実行が UI thread を塞ぎ得る点も示しています。単に画像にラベルを付けるだけでなく、どこを見て、どのスコアを採用し、何フレーム連続したら UI 状態を変えるかを先に触れるようにすると、実モデル接続後の調整がかなり楽になります。",
+      "bodyEn": "Today's notable example is Image Classifier ROI and filtering. The official task overview highlights ROI classification, score threshold, top-k, and allowlist/denylist, while the Web guide notes that `classify()` / `classifyForVideo()` can block the UI thread. The interesting part is not just labeling an image, but making the watched region, accepted score, and consecutive-frame rule tunable before real model integration."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Image Classifier ROI Stability Lab` は、机上の物体を模した canvas scene に黄色の ROI を置き、ドラッグで見ている領域を変えると top classification が変化します。threshold、ROI size、maxResults、confirm frames を動かすと、結果が「表示される」「保留される」「安定カテゴリとして採用される」流れが timeline で見えます。派生の `Classifier Filter Policy Lab` は、同じ分類結果をアプリのポリシーに通す前段として、allowlist、denylist、scoreThreshold、maxResults の結果を即時に確認します。",
+      "bodyEn": "The main sample, `Image Classifier ROI Stability Lab`, places a yellow ROI over a synthetic desktop canvas scene; dragging the ROI changes the top classification. Moving threshold, ROI size, maxResults, and confirm frames shows when a result is visible, held, or accepted as stable. The derivative `Classifier Filter Policy Lab` checks allowlist, denylist, scoreThreshold, and maxResults as an app policy stage before real classification output is wired in."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、ROI 中心、ROI サイズ、top category、score、visible result count、threshold、maxResults、streak、stable label、accept/reject timeline、policy mode、allow/deny 対象です。これを実 Image Classifier の `ImageClassifierResult`、Object Detector の bbox、Image Segmenter の mask、Image Embedder の類似度、Hand Landmarker の指差し座標、Web Worker の latency 計測、IndexedDB の分類履歴と組み合わせると、指で指した物だけを分類する UI、棚卸しレビュー、カメラ内の関心領域だけを低頻度分類する省負荷設計、誤カテゴリを隠す公開ダッシュボードに発展できます。",
+      "bodyEn": "The samples can collect ROI center, ROI size, top category, score, visible result count, threshold, maxResults, streak, stable label, accept/reject timeline, policy mode, and allow/deny targets. Combined with real `ImageClassifierResult`, Object Detector boxes, Image Segmenter masks, Image Embedder similarity, Hand Landmarker pointing coordinates, Web Worker latency metrics, and IndexedDB history, they can become point-to-classify UI, inventory review, low-cost region-only camera classification, or dashboards that hide unwanted categories."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "静的 HTML では疑似分類で挙動を固定しつつ、`@mediapipe/tasks-vision@1.0.1/+esm` の dynamic import preflight を本命サンプルに置きました。本番化する時は `FilesetResolver.forVisionTasks()`、`ImageClassifier.createFromOptions()`、EfficientNet-Lite0 などの modelAssetPath、`scoreThreshold`、`maxResults` を実設定に移し、video 入力では `classifyForVideo(video, performance.now())` を worker 側へ逃がします。ROI を実 Task に渡す場合は `ImageProcessingOptions` の座標系、canvas 表示座標、video の実ピクセル座標を混同しないように、変換関数を1か所に閉じ込めるのが安全です。",
+      "bodyEn": "The static HTML keeps behavior deterministic with synthetic classifications, while the main sample includes a dynamic import preflight for `@mediapipe/tasks-vision@1.0.1/+esm`. For production, move the settings into `FilesetResolver.forVisionTasks()`, `ImageClassifier.createFromOptions()`, an EfficientNet-Lite0 modelAssetPath, `scoreThreshold`, and `maxResults`; for video input, move `classifyForVideo(video, performance.now())` into a worker. If ROI is passed to a real Task, keep `ImageProcessingOptions`, canvas display coordinates, and video pixel coordinates separated behind one conversion function."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Image Classifier Web guide の更新、EfficientNet-Lite0 / Lite2 のモデル URL、custom classifier と TFLite metadata、Tasks Vision npm release、Web worker での WASM 読み込み、ROI 指定 API の説明、Google AI Edge の LiteRT / LiteRT-LM 側の WebGPU 条件を継続して見ます。特に custom model に display names locale と metadata が入っているかは、公開 UI のラベル品質に直結します。",
+      "bodyEn": "Next, keep watching the Image Classifier Web guide, EfficientNet-Lite0 / Lite2 model URLs, custom classifier and TFLite metadata notes, Tasks Vision npm releases, WASM loading in workers, ROI API documentation, and Google AI Edge LiteRT / LiteRT-LM WebGPU requirements. Custom model metadata and display names locale are especially important for public UI label quality."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Image Classifier ROI Stability Lab` を開き、canvas 上の黄色い ROI を lamp、plant、mug、notebook の上へドラッグします。`Score threshold` を上げると reject が増え、`Confirm frames` を増やすと stable label になるまで時間がかかります。派生サンプルでは `both lists` を選ぶと設定エラーになり、allowlist/denylist の同時指定を実装前に検出できます。",
+      "bodyEn": "Open `Image Classifier ROI Stability Lab` and drag the yellow ROI over the lamp, plant, mug, and notebook. Raising `Score threshold` increases rejects, while increasing `Confirm frames` delays stable-label acceptance. In the derivative sample, selecting `both lists` produces a configuration error so the allowlist/denylist conflict is caught before implementation."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Classifier Web guide、task overview、Web setup guide、Tasks Vision README、公式 JS sample、公式 Web demo、npm package version を確認。設計: 外部デモ一覧ではなく、実接続前に必要な ROI、threshold、top-k、連続一致、allow/deny policy を自作 UI 化。実装: 本命 HTML に synthetic scene、draggable ROI、classification score bars、accept/reject timeline、Tasks import check を追加。派生 HTML に category list、allowlist/denylist mode、conflict detector、threshold/maxResults の即時反映を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Classifier Web guide, task overview, Web setup guide, Tasks Vision README, official JS sample, official web demo, and npm package versions. Design: instead of listing external demos, build original UI for ROI, threshold, top-k, consecutive confirmations, and allow/deny policy before real model integration. Implementation: added a synthetic scene, draggable ROI, classification score bars, accept/reject timeline, and Tasks import check to the main HTML. Added category lists, allowlist/denylist mode, conflict detection, and threshold/maxResults updates to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and representative sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は mask lifecycle、similarity routing、worker frame gate を扱ってきました。今日の2本は、分類そのものよりも「どの入力領域とどのカテゴリを UI に出すか」という運用の手前を扱います。MediaPipe Tasks の Web サンプルは、モデルを呼ぶ最小コードだけではなく、同期処理、worker、ROI、metadata、category policy をどうアプリの判断に変換するかまで小さく試すと再利用しやすくなります。",
+      "bodyEn": "Recent entries covered mask lifecycle, similarity routing, and worker frame gates. Today's two samples focus less on classification itself and more on the operational stage of choosing the input region and visible categories. MediaPipe Tasks web samples become more reusable when they test synchronous execution, workers, ROI, metadata, and category policy as app decisions, not only minimal model calls."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Classifier ROI Stability Lab` です。実際に動く部分は、疑似 scene、ドラッグ可能な ROI、scoreThreshold、maxResults、連続一致、stable label、accept/reject timeline、Tasks Vision import preflight です。次に足すなら実 `ImageClassifier.classify()` / `classifyForVideo()`、`ImageProcessingOptions` の ROI、worker 分離、EfficientNet-Lite0 の modelAssetPath 固定、結果履歴の IndexedDB 保存を追加します。派生試作は `Classifier Filter Policy Lab` で、次に足すなら実 `ImageClassifierResult` を読み込み、allowlist/denylist のプリセット保存と UI 表示名の locale 切り替えをつなぎます。",
+      "bodyEn": "The selected main prototype is `Image Classifier ROI Stability Lab`. The working pieces are a synthetic scene, draggable ROI, scoreThreshold, maxResults, consecutive confirmation, stable label, accept/reject timeline, and Tasks Vision import preflight. Next additions should connect real `ImageClassifier.classify()` / `classifyForVideo()`, `ImageProcessingOptions` ROI, worker separation, a pinned EfficientNet-Lite0 modelAssetPath, and IndexedDB history. The derivative prototype is `Classifier Filter Policy Lab`; next, feed it real `ImageClassifierResult` data, saved allowlist/denylist presets, and display-name locale switching.",
+      "links": [
+        {
+          "label": "Open Image Classifier ROI Stability Lab",
+          "url": "../outputs/2026-09-05_image_classifier_roi_stability_lab.html"
+        },
+        {
+          "label": "Open Classifier Filter Policy Lab",
+          "url": "../outputs/2026-09-05_classifier_filter_policy_lab.html"
+        }
+      ]
+    }
+  ]
+}
