@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pose Mask Budget Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #07100e;
+      color: #f4fbf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(48, 176, 132, .17), transparent 35%),
+        linear-gradient(315deg, rgba(229, 181, 86, .15), transparent 45%),
+        #07100e;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { padding-bottom: 18px; border-bottom: 1px solid rgba(244, 251, 247, .16); }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.1rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #c1d1c9; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 42px;
+      border: 1px solid rgba(244, 251, 247, .24);
+      background: #f4fbf7;
+      color: #0d1412;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: #f4fbf7; }
+    .toolbar, .panel, .meter, .timeline {
+      border: 1px solid rgba(244, 251, 247, .14);
+      background: rgba(9, 18, 16, .84);
+    }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #eef6f1; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #30b084; }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: #30b084; }
+    .check { grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+    .value { color: #e5b556; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; min-width: 0; }
+    canvas { width: 100%; aspect-ratio: 16 / 10; display: block; background: #0f1715; border: 1px solid rgba(244, 251, 247, .12); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .stat { border: 1px solid rgba(244, 251, 247, .12); padding: 10px; background: #121d1a; }
+    .stat span { display: block; color: #97b5aa; font-size: .78rem; }
+    .stat strong { display: block; margin-top: 4px; font-size: 1.22rem; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; gap: 10px; }
+    .meter { padding: 12px; }
+    .meter h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    .row { display: grid; grid-template-columns: 124px 1fr 50px; align-items: center; gap: 8px; margin: 9px 0; font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: #26332f; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; transition: width .18s ease; }
+    .ok i { background: #30b084; }
+    .warn i { background: #e5b556; }
+    .bad i { background: #c65b4b; }
+    .timeline { min-height: 92px; display: flex; align-items: end; gap: 3px; padding: 8px; margin-top: 10px; overflow: hidden; }
+    .tick { width: 8px; min-width: 8px; background: #5b6862; }
+    .tick.accept { background: #30b084; }
+    .tick.mask { background: #5fa6ff; }
+    .tick.drop { background: #c65b4b; }
+    .feed { height: 210px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #dff5ec; white-space: pre-wrap; }
+    @media (max-width: 930px) {
+      .toolbar, .layout, .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Pose Mask Budget Lab</h1>
+      <p>A small original simulator for Pose Landmarker outputSegmentationMasks, landmark confidence gates, and canvas overlay cost before wiring a real model.</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Detection confidence <input id="detect" type="range" min="20" max="95" value="52"><span id="detectValue" class="value">52%</span></label>
+      <label>Presence confidence <input id="presence" type="range" min="20" max="95" value="58"><span id="presenceValue" class="value">58%</span></label>
+      <label>Tracking confidence <input id="tracking" type="range" min="20" max="95" value="55"><span id="trackingValue" class="value">55%</span></label>
+      <label>Mask resolution <input id="maskRes" type="range" min="12" max="90" value="38"><span id="maskResValue" class="value">38%</span></label>
+      <label>Mask alpha <input id="maskAlpha" type="range" min="0" max="90" value="52"><span id="maskAlphaValue" class="value">52%</span></label>
+      <label class="check"><input id="maskToggle" type="checkbox" checked><span>outputSegmentationMasks</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Process one frame</button>
+      <button id="burst" class="secondary">Burst 30 frames</button>
+      <button id="reset" class="secondary">Reset</button>
+      <button id="preflight" class="secondary">Tasks import check</button>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <canvas id="stage" width="960" height="600"></canvas>
+        <div class="stats">
+          <div class="stat"><span>pose state</span><strong id="poseState">waiting</strong></div>
+          <div class="stat"><span>mask pixels</span><strong id="maskPixels">0</strong></div>
+          <div class="stat"><span>frame cost</span><strong id="cost">0.0ms</strong></div>
+          <div class="stat"><span>dropped</span><strong id="dropped">0</strong></div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+      <aside class="meters">
+        <section class="meter">
+          <h2>Frame gates</h2>
+          <div id="meters"></div>
+        </section>
+        <section class="meter">
+          <h2>Runtime notes</h2>
+          <p>Pose Landmarker returns normalized landmarks, world landmarks, and optional segmentation masks. This lab keeps the model synthetic and makes the acceptance and drawing budget visible.</p>
+          <div id="feed" class="feed"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      detect: $("detect"),
+      presence: $("presence"),
+      tracking: $("tracking"),
+      maskRes: $("maskRes"),
+      maskAlpha: $("maskAlpha"),
+      maskToggle: $("maskToggle")
+    };
+    const bones = [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [5, 6], [1, 7], [7, 8], [8, 9], [7, 10], [10, 11], [11, 12]];
+    let state = {
+      running: false,
+      frame: 0,
+      accepted: 0,
+      dropped: 0,
+      timeline: [],
+      last: { detection: 0, presence: 0, tracking: 0, cost: 0, pixels: 0, accepted: false, mask: false }
+    };
+
+    function syncLabels() {
+      $("detectValue").textContent = `${controls.detect.value}%`;
+      $("presenceValue").textContent = `${controls.presence.value}%`;
+      $("trackingValue").textContent = `${controls.tracking.value}%`;
+      $("maskResValue").textContent = `${controls.maskRes.value}%`;
+      $("maskAlphaValue").textContent = `${controls.maskAlpha.value}%`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener("input", syncLabels));
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2600);
+    }
+
+    function landmarks(frame) {
+      const cx = 480 + Math.sin(frame * 0.035) * 70;
+      const cy = 305 + Math.cos(frame * 0.029) * 18;
+      const sway = Math.sin(frame * 0.05);
+      return [
+        [cx, cy - 190], [cx, cy - 120],
+        [cx - 70, cy - 102], [cx - 122, cy - 8],
+        [cx + 70, cy - 102], [cx + 126, cy - 22], [cx + 156, cy + 32 + sway * 24],
+        [cx - 44, cy + 8], [cx - 54, cy + 132], [cx - 72, cy + 232],
+        [cx + 44, cy + 8], [cx + 64, cy + 132], [cx + 88, cy + 232]
+      ];
+    }
+
+    function syntheticResult() {
+      const wave = Math.sin(state.frame * 0.071);
+      const pulse = Math.cos(state.frame * 0.043);
+      const detection = 0.62 + wave * 0.24;
+      const presence = 0.68 + pulse * 0.21;
+      const tracking = 0.66 + Math.sin(state.frame * 0.053 + 1.5) * 0.23;
+      const accepted = detection >= Number(controls.detect.value) / 100 &&
+        presence >= Number(controls.presence.value) / 100 &&
+        tracking >= Number(controls.tracking.value) / 100;
+      const mask = accepted && controls.maskToggle.checked;
+      const res = Number(controls.maskRes.value) / 100;
+      const pixels = mask ? Math.round(canvas.width * canvas.height * res * res * 0.19) : 0;
+      const cost = 1.7 + pixels / 15500 + (mask ? 2.1 : 0) + (accepted ? 0.7 : 0);
+      return { detection, presence, tracking, accepted, mask, pixels, cost };
+    }
+
+    function drawPerson(points, result) {
+      if (result.mask) {
+        ctx.save();
+        ctx.globalAlpha = Number(controls.maskAlpha.value) / 100;
+        const grad = ctx.createRadialGradient(points[1][0], points[1][1], 42, points[7][0], points[7][1] + 65, 250);
+        grad.addColorStop(0, "#5fa6ff");
+        grad.addColorStop(1, "#30b084");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(points[1][0], points[1][1] + 130, 125, 270, Math.sin(state.frame * 0.02) * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.lineCap = "round";
+      bones.forEach(([a, b]) => {
+        ctx.strokeStyle = result.accepted ? "#f4fbf7" : "#65726d";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(points[a][0], points[a][1]);
+        ctx.lineTo(points[b][0], points[b][1]);
+        ctx.stroke();
+      });
+      points.forEach((point, index) => {
+        ctx.fillStyle = index < 2 ? "#e5b556" : result.accepted ? "#30b084" : "#75827d";
+        ctx.beginPath();
+        ctx.arc(point[0], point[1], index < 2 ? 10 : 8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function draw(result) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#0f1715";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(244, 251, 247, .08)";
+      for (let x = 0; x <= canvas.width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#18231f";
+      ctx.fillRect(0, 500, canvas.width, 100);
+      const points = landmarks(state.frame);
+      drawPerson(points, result);
+      ctx.fillStyle = "#c1d1c9";
+      ctx.font = "15px ui-monospace, monospace";
+      ctx.fillText(`normalized landmarks: 33 | world landmarks: synthetic | segmentation: ${result.mask ? "on" : "off"}`, 24, 34);
+    }
+
+    function renderMeters(result) {
+      const rows = [
+        ["detection", result.detection, Number(controls.detect.value) / 100],
+        ["presence", result.presence, Number(controls.presence.value) / 100],
+        ["tracking", result.tracking, Number(controls.tracking.value) / 100],
+        ["cost budget", Math.min(1, result.cost / 12), .75]
+      ];
+      $("meters").innerHTML = rows.map(([label, value, gate]) => {
+        const cls = value >= gate ? "ok" : value >= gate * .86 ? "warn" : "bad";
+        return `<div class="row ${cls}"><span>${label}</span><div class="bar"><i style="width:${Math.round(value * 100)}%"></i></div><span>${Math.round(value * 100)}%</span></div>`;
+      }).join("");
+      $("poseState").textContent = result.accepted ? (result.mask ? "mask+pose" : "pose") : "held";
+      $("maskPixels").textContent = result.pixels.toLocaleString("en-US");
+      $("cost").textContent = `${result.cost.toFixed(1)}ms`;
+      $("dropped").textContent = state.dropped;
+      $("timeline").innerHTML = state.timeline.map((item) => `<i class="tick ${item}" style="height:${item === "drop" ? 24 : item === "mask" ? 72 : 52}px"></i>`).join("");
+    }
+
+    function processFrame(log = true) {
+      state.frame += 1;
+      const result = syntheticResult();
+      state.last = result;
+      if (result.accepted) state.accepted += 1;
+      else state.dropped += 1;
+      state.timeline.push(result.accepted ? (result.mask ? "mask" : "accept") : "drop");
+      state.timeline = state.timeline.slice(-72);
+      draw(result);
+      renderMeters(result);
+      if (log && state.frame % 8 === 0) {
+        feed(`${result.accepted ? "accepted" : "held"} frame=${state.frame} maskPixels=${result.pixels} estimatedCanvasCost=${result.cost.toFixed(1)}ms`);
+      }
+    }
+
+    function loop() {
+      if (!state.running) return;
+      processFrame(false);
+      requestAnimationFrame(loop);
+    }
+
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      feed(state.running ? "stream started" : "stream stopped");
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", () => processFrame(true));
+    $("burst").addEventListener("click", () => {
+      for (let i = 0; i < 30; i += 1) processFrame(false);
+      feed("processed burst of 30 synthetic video frames");
+    });
+    $("reset").addEventListener("click", () => {
+      state = { running: false, frame: 0, accepted: 0, dropped: 0, timeline: [], last: state.last };
+      $("toggle").textContent = "Start stream";
+      feed("reset counters and timeline");
+      processFrame(false);
+    });
+    $("preflight").addEventListener("click", async () => {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        feed(`tasks-vision import ok: PoseLandmarker=${typeof mod.PoseLandmarker}, FilesetResolver=${typeof mod.FilesetResolver}`);
+      } catch (error) {
+        feed(`tasks-vision import failed: ${error.message}`);
+      }
+    });
+
+    syncLabels();
+    feed("ready: tune confidence gates and optional mask output");
+    processFrame(false);
+  </script>
+</body>
+</html>

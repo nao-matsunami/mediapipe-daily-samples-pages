@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pose Visibility Event Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b0d12;
+      color: #f7f7f2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(85, 163, 255, .16), transparent 38%),
+        linear-gradient(320deg, rgba(222, 190, 92, .16), transparent 44%),
+        #0b0d12;
+    }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { border-bottom: 1px solid rgba(247, 247, 242, .14); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #c9cac5; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button {
+      min-height: 42px;
+      border: 1px solid rgba(247, 247, 242, .24);
+      background: #f7f7f2;
+      color: #101217;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: #f7f7f2; }
+    .toolbar, .panel, .event, .log {
+      border: 1px solid rgba(247, 247, 242, .14);
+      background: rgba(14, 17, 24, .82);
+    }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #f0f0eb; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #55a3ff; }
+    .value { color: #debe5c; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; min-width: 0; }
+    canvas { width: 100%; aspect-ratio: 16 / 10; display: block; background: #11151d; border: 1px solid rgba(247, 247, 242, .12); }
+    .events { display: grid; gap: 10px; }
+    .event { padding: 12px; }
+    .event h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    .event strong { display: block; font-size: 1.55rem; margin-top: 3px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(247, 247, 242, .16); padding: 6px 8px; color: #c9cac5; }
+    .chip.on { border-color: rgba(85, 163, 255, .7); color: #f7f7f2; background: rgba(85, 163, 255, .16); }
+    .log { height: 228px; overflow: auto; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #dcecff; white-space: pre-wrap; }
+    @media (max-width: 900px) {
+      .toolbar, .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Pose Visibility Event Router</h1>
+      <p>A derivative prototype that turns synthetic Pose Landmarker landmark visibility and world-depth hints into small app events.</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Visibility gate <input id="visibility" type="range" min="20" max="95" value="62"><span id="visibilityValue" class="value">62%</span></label>
+      <label>Arm raise angle <input id="angle" type="range" min="20" max="100" value="58"><span id="angleValue" class="value">58deg</span></label>
+      <label>Depth lean gate <input id="depth" type="range" min="5" max="60" value="25"><span id="depthValue" class="value">0.25m</span></label>
+      <label>Confirm frames <input id="confirm" type="range" min="1" max="8" value="3"><span id="confirmValue" class="value">3</span></label>
+      <label>Motion tempo <input id="tempo" type="range" min="10" max="90" value="46"><span id="tempoValue" class="value">46%</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step</button>
+      <button id="burst" class="secondary">Burst 20</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <canvas id="stage" width="920" height="575"></canvas>
+      </section>
+      <aside class="events">
+        <section class="event">
+          <h2>Stable event</h2>
+          <strong id="stable">idle</strong>
+          <p id="reason">Waiting for confirmed landmark visibility.</p>
+          <div id="chips" class="chips"></div>
+        </section>
+        <section class="event">
+          <h2>Event log</h2>
+          <div id="log" class="log"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      visibility: $("visibility"),
+      angle: $("angle"),
+      depth: $("depth"),
+      confirm: $("confirm"),
+      tempo: $("tempo")
+    };
+    const bones = [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [1, 6], [6, 7], [7, 8], [6, 9], [9, 10], [10, 11]];
+    let state = { running: false, frame: 0, lastEvent: "idle", streak: 0, stable: "idle" };
+
+    function syncLabels() {
+      $("visibilityValue").textContent = `${controls.visibility.value}%`;
+      $("angleValue").textContent = `${controls.angle.value}deg`;
+      $("depthValue").textContent = `${(Number(controls.depth.value) / 100).toFixed(2)}m`;
+      $("confirmValue").textContent = controls.confirm.value;
+      $("tempoValue").textContent = `${controls.tempo.value}%`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener("input", syncLabels));
+
+    function log(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${now} ${line}\n${$("log").textContent}`.slice(0, 2200);
+    }
+
+    function pose() {
+      const t = state.frame * (0.018 + Number(controls.tempo.value) / 2400);
+      const cx = 460 + Math.sin(t * 0.8) * 34;
+      const cy = 300;
+      const armLift = Math.sin(t * 2.3);
+      const lean = Math.sin(t * 1.4);
+      const rightHandY = cy - 86 - armLift * 116;
+      const leftHandY = cy - 64 + armLift * 64;
+      return {
+        lean,
+        points: [
+          [cx, cy - 178, .95], [cx, cy - 112, .95],
+          [cx - 74, cy - 96, .82 + armLift * .12], [cx - 128, leftHandY, .7 + armLift * .18],
+          [cx + 74, cy - 96, .88], [cx + 140, rightHandY, .78 + armLift * .18],
+          [cx - 48, cy + 12, .9], [cx - 58, cy + 132, .86], [cx - 72, cy + 230, .82],
+          [cx + 48, cy + 12, .9], [cx + 60, cy + 132, .86], [cx + 82, cy + 230, .82]
+        ]
+      };
+    }
+
+    function angleDeg(a, b) {
+      const dx = b[0] - a[0];
+      const dy = a[1] - b[1];
+      return Math.atan2(dy, Math.abs(dx)) * 180 / Math.PI;
+    }
+
+    function classify(p) {
+      const vGate = Number(controls.visibility.value) / 100;
+      const rightVisible = p.points[4][2] >= vGate && p.points[5][2] >= vGate;
+      const leftVisible = p.points[2][2] >= vGate && p.points[3][2] >= vGate;
+      const rightAngle = angleDeg(p.points[4], p.points[5]);
+      const leftAngle = angleDeg(p.points[2], p.points[3]);
+      const leanMeters = Math.abs(p.lean) * .42;
+      let event = "idle";
+      const reasons = [];
+      if (rightVisible && rightAngle >= Number(controls.angle.value)) {
+        event = "right-arm-raise";
+        reasons.push(`right arm ${rightAngle.toFixed(0)}deg`);
+      }
+      if (leftVisible && leftAngle >= Number(controls.angle.value)) {
+        event = event === "idle" ? "left-arm-raise" : "both-arms";
+        reasons.push(`left arm ${leftAngle.toFixed(0)}deg`);
+      }
+      if (leanMeters >= Number(controls.depth.value) / 100) {
+        event = event === "idle" ? "lean-forward" : `${event}+lean`;
+        reasons.push(`world z lean ${leanMeters.toFixed(2)}m`);
+      }
+      if (!rightVisible && !leftVisible) {
+        event = "visibility-held";
+        reasons.push("arms below visibility gate");
+      }
+      return { event, reasons, rightVisible, leftVisible, rightAngle, leftAngle, leanMeters };
+    }
+
+    function draw(p, result) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#11151d";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(247, 247, 242, .08)";
+      for (let y = 70; y < canvas.height; y += 70) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#191f2a";
+      ctx.fillRect(0, 485, canvas.width, 90);
+      bones.forEach(([a, b]) => {
+        const visible = p.points[a][2] >= Number(controls.visibility.value) / 100 && p.points[b][2] >= Number(controls.visibility.value) / 100;
+        ctx.strokeStyle = visible ? "#f7f7f2" : "#59616f";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p.points[a][0], p.points[a][1]);
+        ctx.lineTo(p.points[b][0], p.points[b][1]);
+        ctx.stroke();
+      });
+      p.points.forEach((point) => {
+        ctx.fillStyle = point[2] >= Number(controls.visibility.value) / 100 ? "#55a3ff" : "#555e68";
+        ctx.beginPath();
+        ctx.arc(point[0], point[1], 8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "#debe5c";
+      ctx.font = "16px ui-monospace, monospace";
+      ctx.fillText(`event=${result.event} | streak=${state.streak} | stable=${state.stable}`, 24, 34);
+    }
+
+    function render(result) {
+      if (result.event === state.lastEvent) state.streak += 1;
+      else {
+        state.lastEvent = result.event;
+        state.streak = 1;
+      }
+      if (state.streak >= Number(controls.confirm.value) && state.stable !== result.event) {
+        state.stable = result.event;
+        log(`stable event -> ${state.stable}`);
+      }
+      $("stable").textContent = state.stable;
+      $("reason").textContent = result.reasons.join(", ") || "No rule is currently active.";
+      const chips = [
+        ["right visible", result.rightVisible],
+        ["left visible", result.leftVisible],
+        [`right ${result.rightAngle.toFixed(0)}deg`, result.rightAngle >= Number(controls.angle.value)],
+        [`left ${result.leftAngle.toFixed(0)}deg`, result.leftAngle >= Number(controls.angle.value)],
+        [`lean ${result.leanMeters.toFixed(2)}m`, result.leanMeters >= Number(controls.depth.value) / 100]
+      ];
+      $("chips").innerHTML = chips.map(([label, on]) => `<span class="chip ${on ? "on" : ""}">${label}</span>`).join("");
+    }
+
+    function frame(verbose = false) {
+      state.frame += 1;
+      const p = pose();
+      const result = classify(p);
+      render(result);
+      draw(p, result);
+      if (verbose) log(`frame=${state.frame} candidate=${result.event}`);
+    }
+
+    function loop() {
+      if (!state.running) return;
+      frame(false);
+      requestAnimationFrame(loop);
+    }
+
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      log(state.running ? "stream started" : "stream stopped");
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", () => frame(true));
+    $("burst").addEventListener("click", () => {
+      for (let i = 0; i < 20; i += 1) frame(false);
+      log("processed burst of 20 synthetic frames");
+    });
+    $("reset").addEventListener("click", () => {
+      state = { running: false, frame: 0, lastEvent: "idle", streak: 0, stable: "idle" };
+      $("toggle").textContent = "Start stream";
+      log("reset event state");
+      frame(false);
+    });
+
+    syncLabels();
+    log("ready: route pose visibility and depth into app events");
+    frame(false);
+  </script>
+</body>
+</html>

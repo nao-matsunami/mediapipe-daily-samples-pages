@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-06",
+  "category": "MediaPipe Tasks / Pose Landmarker / Google AI Edge / Web ML",
+  "headline": "Pose Landmarker のマスク出力を描画予算として触る",
+  "headlineEn": "Treating Pose Landmarker masks as a rendering-budget decision",
+  "summary": "Google AI Edge の Pose Landmarker Web guide、MediaPipe Tasks JS API reference、Tasks Vision README、GitHub 上の PoseLandmarkerOptions と segmentation graph、公式 mediapipe-samples-web を確認し、実モデル接続前に confidence gate、outputSegmentationMasks、マスク解像度、canvas overlay cost を調整する自作サンプルを追加しました。派生試作として、ランドマーク visibility と world-depth 風の値からアプリ用イベントを作る小さな router も実装しました。",
+  "summaryEn": "After checking the Google AI Edge Pose Landmarker Web guide, MediaPipe Tasks JS API reference, Tasks Vision README, PoseLandmarkerOptions and segmentation graph on GitHub, and the official mediapipe-samples-web project, this adds an original sample for tuning confidence gates, outputSegmentationMasks, mask resolution, and canvas overlay cost before a real model is connected. A derivative prototype adds a small router that turns landmark visibility and world-depth-like values into app events.",
+  "keyTopics": [
+    "Pose Landmarker Web guide は `runningMode`、`numPoses`、`minPoseDetectionConfidence`、`minPosePresenceConfidence`、`minTrackingConfidence`、`outputSegmentationMasks` を主要設定として示している。",
+    "Pose Landmarker の出力は normalized landmarks、world landmarks、任意の segmentation masks で、ランドマークは33点、world landmarks は腰中心を原点にしたメートル単位の3D座標として説明されている。",
+    "GitHub の `pose_landmarker_options.d.ts` でも `outputSegmentationMasks` は boolean かつ default false とされ、マスクは明示的に要求する出力として扱う必要がある。",
+    "MediaPipe graph 側の segmentation 処理は enable flag で gate され、landmarks、world landmarks、segmentation mask は別出力として扱われるため、UI でも採用条件と描画コストを分けて設計しやすい。",
+    "npm 確認では 2026-09-06 JST 時点で `@mediapipe/tasks-vision` は latest `1.0.1`、nightly `1.0.1-rc.20260905`、`@mediapipe/tasks-genai` は latest `0.10.29` だった。"
+  ],
+  "keyTopicsEn": [
+    "The Pose Landmarker Web guide lists `runningMode`, `numPoses`, `minPoseDetectionConfidence`, `minPosePresenceConfidence`, `minTrackingConfidence`, and `outputSegmentationMasks` as core options.",
+    "Pose Landmarker output includes normalized landmarks, world landmarks, and optional segmentation masks; the guide describes 33 landmarks and world landmarks as 3D coordinates in meters around the hip midpoint.",
+    "The GitHub `pose_landmarker_options.d.ts` confirms `outputSegmentationMasks` is a boolean with a default of false, so mask output should be treated as an explicit request.",
+    "The MediaPipe graph gates segmentation behind an enable flag and emits landmarks, world landmarks, and segmentation masks separately, which maps well to separate UI acceptance and rendering-cost decisions.",
+    "An npm check on 2026-09-06 JST showed `@mediapipe/tasks-vision` latest `1.0.1`, nightly `1.0.1-rc.20260905`, and `@mediapipe/tasks-genai` latest `0.10.29`."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Pose Mask Budget Lab",
+      "url": "../outputs/2026-09-06_pose_mask_budget_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Pose Visibility Event Router",
+      "url": "../outputs/2026-09-06_pose_visibility_event_router.html"
+    },
+    {
+      "label": "Pose landmark detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker/web_js"
+    },
+    {
+      "label": "MediaPipe JS API reference",
+      "url": "https://developers.google.com/edge/api/mediapipe/js"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "PoseLandmarkerOptions Web type definition",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/pose_landmarker/pose_landmarker_options.d.ts"
+    },
+    {
+      "label": "Pose landmarks and segmentation graph",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/modules/pose_landmark/tensors_to_pose_landmarks_and_segmentation.pbtxt"
+    },
+    {
+      "label": "Official MediaPipe web task demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official mediapipe-samples-web Pose Landmarker source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/pose-landmarker.ts"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-06-pose-mask-budget-lab.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Pose Landmarker の optional segmentation mask です。公式 Web guide は normalized landmarks、world landmarks、segmentation masks を分けて説明し、`outputSegmentationMasks` は default false の明示オプションです。面白いのは、姿勢推定の結果をただ線で描くだけでなく、人物マスクを出すか、どの confidence を満たした時だけ採用するか、canvas overlay を何ピクセル相当まで許すかを UI の設計問題として扱える点です。",
+      "bodyEn": "Today's notable point is the Pose Landmarker optional segmentation mask. The official Web guide separates normalized landmarks, world landmarks, and segmentation masks, while `outputSegmentationMasks` is an explicit option that defaults to false. The interesting part is treating pose output not only as skeleton drawing, but as a UI decision: when to request a person mask, which confidence gates must pass, and how much canvas overlay work is acceptable."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Pose Mask Budget Lab` は、合成した人物 skeleton と人物マスクを表示し、detection / presence / tracking の gate、mask resolution、mask alpha、`outputSegmentationMasks` の on/off を動かせます。timeline は accepted、mask drawn、dropped を分けて表示します。派生の `Pose Visibility Event Router` は、visibility gate、腕上げ角度、depth lean、confirm frames を使い、Pose のランドマーク結果を `right-arm-raise` や `lean-forward` のようなアプリイベントへ変換します。",
+      "bodyEn": "The main sample, `Pose Mask Budget Lab`, displays a synthetic person skeleton and person mask while exposing detection, presence, tracking gates, mask resolution, mask alpha, and the `outputSegmentationMasks` toggle. Its timeline separates accepted frames, mask-drawn frames, and dropped frames. The derivative `Pose Visibility Event Router` uses a visibility gate, arm-raise angle, depth lean, and confirmation frames to convert pose landmarks into app events such as `right-arm-raise` or `lean-forward`."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、confidence gate、accepted/dropped frame、mask pixel estimate、overlay cost estimate、mask alpha、33点ランドマーク風の座標、visibility、world-depth 風の値、stable event、confirm streak です。これを実 Pose Landmarker の `PoseLandmarkerResult`、Image Segmenter のマスク合成、Gesture Recognizer の手の合図、Web Audio のフィードバック音、WebXR の身体方向 UI、IndexedDB の練習ログ、Worker の latency telemetry と組み合わせると、運動フォーム確認、立ち位置ガイド、カメラ前プレゼン操作、マスク付き身体エフェクト、省負荷な姿勢イベント検出へ発展できます。",
+      "bodyEn": "The samples can accumulate confidence gates, accepted/dropped frames, mask pixel estimates, overlay cost estimates, mask alpha, synthetic 33-point-like landmark positions, visibility, world-depth-like values, stable events, and confirmation streaks. Combined with real `PoseLandmarkerResult`, Image Segmenter mask composition, Gesture Recognizer hand signs, Web Audio feedback, WebXR body-direction UI, IndexedDB practice logs, and worker latency telemetry, these can grow into exercise-form review, standing-position guidance, camera-based presentation controls, masked body effects, or low-cost pose-event detection."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "本命 HTML は `@mediapipe/tasks-vision@1.0.1/+esm` の dynamic import preflight を持ち、実装時の CDN / module 読み込み確認に使えます。本番化では `FilesetResolver.forVisionTasks()`、`PoseLandmarker.createFromOptions()`、`pose_landmarker_lite/full/heavy.task`、`runningMode: \"VIDEO\"`、`outputSegmentationMasks` を接続し、video loop では `detectForVideo(video, timestamp)` の結果と描画を分離します。マスクは出せば便利ですが、ImageData / canvas / texture 変換のコストが出るため、低解像度の preview と高解像度の capture を分ける設計が現実的です。",
+      "bodyEn": "The main HTML includes a dynamic import preflight for `@mediapipe/tasks-vision@1.0.1/+esm`, which helps verify CDN/module loading before real integration. For production, connect `FilesetResolver.forVisionTasks()`, `PoseLandmarker.createFromOptions()`, `pose_landmarker_lite/full/heavy.task`, `runningMode: \"VIDEO\"`, and `outputSegmentationMasks`; in a video loop, separate `detectForVideo(video, timestamp)` results from drawing. Masks are useful, but ImageData/canvas/texture conversion has cost, so separating low-resolution preview from high-resolution capture is practical."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Pose Landmarker Web guide の更新、Tasks Vision npm nightly、`mediapipe-samples-web` の worker 実装、pose model の lite/full/heavy URL、segmentation mask の JS 側 lifecycle、WebGPU / WebGL delegate の挙動、LiteRT 側の Web 展開を継続して見ます。特に mask を複数人や高解像度 canvas で扱う時のメモリ解放と描画経路は要注意です。",
+      "bodyEn": "Next, watch the Pose Landmarker Web guide, Tasks Vision npm nightlies, worker implementation in `mediapipe-samples-web`, lite/full/heavy pose model URLs, JavaScript-side segmentation mask lifecycle, WebGPU/WebGL delegate behavior, and LiteRT's Web path. Memory release and draw paths are especially important when masks are used with multiple people or high-resolution canvases."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Pose Mask Budget Lab` を開き、`outputSegmentationMasks` を on/off しながら `Mask resolution` を上げます。mask pixels と estimated canvas cost が増え、confidence gate が足りない時は dropped として timeline に残ります。派生サンプルでは `Visibility gate` と `Confirm frames` を上げ、腕上げイベントが stable event になるまでの遅延を見ます。",
+      "bodyEn": "Open `Pose Mask Budget Lab`, toggle `outputSegmentationMasks`, and raise `Mask resolution`. The mask-pixel and estimated-canvas-cost values increase, while frames that miss the confidence gates are left as dropped ticks in the timeline. In the derivative sample, raise `Visibility gate` and `Confirm frames` to see how long an arm-raise candidate takes to become a stable event."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Pose Landmarker Web guide、JS API reference、Tasks Vision README、PoseLandmarkerOptions の型定義、pose segmentation graph、公式 Web demo/source、npm package version を確認。設計: 外部デモ一覧ではなく、マスク出力と姿勢イベント化の運用判断を自作 UI 化。実装: 本命 HTML に synthetic skeleton、optional mask、confidence gates、mask pixel/cost estimate、accepted/drop timeline、Tasks import check を追加。派生 HTML に landmark visibility、arm angle、world-depth 風 lean、confirm frames、stable event log を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Pose Landmarker Web guide, JS API reference, Tasks Vision README, PoseLandmarkerOptions type definition, pose segmentation graph, official web demo/source, and npm package versions. Design: instead of listing external demos, turn mask output and pose-event operation decisions into original UI. Implementation: added a synthetic skeleton, optional mask, confidence gates, mask-pixel/cost estimates, accepted/drop timeline, and Tasks import check to the main HTML. Added landmark visibility, arm angle, world-depth-like lean, confirmation frames, and a stable event log to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and representative sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は mask lifecycle、similarity routing、worker frame gate、Image Classifier の ROI と policy を扱ってきました。今日の2本は Pose Landmarker を、描画負荷とアプリイベント化の観点で整理します。MediaPipe Tasks の Web サンプルは、モデル呼び出しだけでなく、どの出力を有効化するか、どの frame を UI へ通すか、どの連続条件で状態を変えるかまで小さく試すと、後で実カメラに接続しやすくなります。",
+      "bodyEn": "Recent entries covered mask lifecycle, similarity routing, worker frame gates, and Image Classifier ROI/policy. Today's two samples organize Pose Landmarker around rendering cost and app-event conversion. MediaPipe Tasks web samples become easier to connect to a real camera when they test not only model calls, but also which outputs are enabled, which frames reach the UI, and which consecutive conditions change app state."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Pose Mask Budget Lab` です。実際に動く部分は、合成 skeleton、任意の人物マスク、detection / presence / tracking gate、mask resolution、mask alpha、mask pixel estimate、estimated canvas cost、accepted/drop timeline、Tasks Vision import preflight です。次に足すなら実 `PoseLandmarker.detectForVideo()`、`outputSegmentationMasks` の実 mask 描画、lite/full/heavy モデル切替、worker 分離、mask ImageData の明示 release 監視を追加します。派生試作は `Pose Visibility Event Router` で、実際に動く部分は visibility gate、腕上げ角度、world-depth 風 lean、confirm frames、stable event log です。次に足すなら実 `PoseLandmarkerResult.landmarks` / `worldLandmarks` を読み込み、運動フォームの rep counter と Web Audio feedback をつなぎます。",
+      "bodyEn": "The selected main prototype is `Pose Mask Budget Lab`. The working pieces are a synthetic skeleton, optional person mask, detection/presence/tracking gates, mask resolution, mask alpha, mask-pixel estimate, estimated canvas cost, accepted/drop timeline, and Tasks Vision import preflight. Next additions should connect real `PoseLandmarker.detectForVideo()`, draw real masks from `outputSegmentationMasks`, switch lite/full/heavy models, split work into a worker, and monitor explicit mask ImageData release. The derivative prototype is `Pose Visibility Event Router`; the working pieces are visibility gate, arm-raise angle, world-depth-like lean, confirmation frames, and a stable event log. Next, feed in real `PoseLandmarkerResult.landmarks` / `worldLandmarks`, then add an exercise rep counter and Web Audio feedback.",
+      "links": [
+        {
+          "label": "Open Pose Mask Budget Lab",
+          "url": "../outputs/2026-09-06_pose_mask_budget_lab.html"
+        },
+        {
+          "label": "Open Pose Visibility Event Router",
+          "url": "../outputs/2026-09-06_pose_visibility_event_router.html"
+        }
+      ]
+    }
+  ]
+}
