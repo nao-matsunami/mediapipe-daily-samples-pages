@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-07",
+  "category": "MediaPipe Tasks / Holistic Landmarker / Google AI Edge / Web ML",
+  "headline": "Holistic Landmarker の多出力を UI 予算で仕分ける",
+  "headlineEn": "Budgeting Holistic Landmarker multi-output streams for UI use",
+  "summary": "Google AI Edge の Holistic Landmarker Web guide、MediaPipe JS API reference、GitHub 上の HolisticLandmarker 実装、Tasks Vision README、公式 mediapipe-samples-web を確認し、face / pose / hand / blendshapes / pose segmentation masks を同じフレームに載せる時の採用条件と描画予算を触る自作サンプルを追加しました。派生試作として、blendshape 風の smile、手の open、身体中心の shift を短い UI コマンドへ変換する小さな router も実装しました。",
+  "summaryEn": "After checking the Google AI Edge Holistic Landmarker Web guide, MediaPipe JS API reference, the HolisticLandmarker implementation on GitHub, the Tasks Vision README, and the official mediapipe-samples-web demo, this adds an original sample for tuning acceptance gates and rendering budget when face, pose, hand, blendshape, and pose segmentation mask outputs share a frame. A derivative prototype routes smile-like blendshape, hand openness, and body-center shift cues into small UI commands.",
+  "keyTopics": [
+    "Holistic Landmarker Web guide は face、hand、pose landmarker の構成要素を組み合わせ、normalized image coordinates と 3D world coordinates を出すタスクとして説明している。",
+    "Web guide の設定には `runningMode`、face / pose の detection・suppression・presence confidence、`minHandLandmarksConfidence`、`outputFaceBlendshapes`、`outputPoseSegmentationMasks` が並ぶ。",
+    "GitHub の `holistic_landmarker.ts` では pose landmarks、pose world landmarks、pose segmentation masks、face landmarks、face blendshapes、left/right hand landmarks、left/right world landmarks が別 stream として扱われている。",
+    "同実装の callback 説明では、返された mask の lifetime は callback 中だけ保証され、非同期処理に使うなら callback が戻る前に copy が必要だと示されている。",
+    "npm 確認では 2026-09-07 JST 時点で `@mediapipe/tasks-vision` は latest `1.0.1`、nightly `1.0.1-rc.20260906`、`@mediapipe/tasks-genai` は latest `0.10.29`、nightly `1.0.1-rc.20260906` だった。"
+  ],
+  "keyTopicsEn": [
+    "The Holistic Landmarker Web guide describes the task as combining face, hand, and pose landmarker components and outputting normalized image coordinates and 3D world coordinates.",
+    "The Web guide options include `runningMode`, face/pose detection, suppression, and presence confidence settings, `minHandLandmarksConfidence`, `outputFaceBlendshapes`, and `outputPoseSegmentationMasks`.",
+    "GitHub `holistic_landmarker.ts` handles pose landmarks, pose world landmarks, pose segmentation masks, face landmarks, face blendshapes, left/right hand landmarks, and left/right world landmarks as separate streams.",
+    "The callback documentation in that implementation notes that returned masks are only lifetime-guaranteed during the callback and must be copied before the callback returns if asynchronous processing is needed.",
+    "An npm check on 2026-09-07 JST showed `@mediapipe/tasks-vision` latest `1.0.1`, nightly `1.0.1-rc.20260906`, and `@mediapipe/tasks-genai` latest `0.10.29`, nightly `1.0.1-rc.20260906`."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Holistic Output Budget Console",
+      "url": "../outputs/2026-09-07_holistic_output_budget_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Holistic Micro Command Router",
+      "url": "../outputs/2026-09-07_holistic_micro_command_router.html"
+    },
+    {
+      "label": "Holistic landmark detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/holistic_landmarker/web_js"
+    },
+    {
+      "label": "MediaPipe JS API: HolisticLandmarker",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.holisticlandmarker"
+    },
+    {
+      "label": "HolisticLandmarker Web implementation",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/holistic_landmarker/holistic_landmarker.ts"
+    },
+    {
+      "label": "MediaPipe Tasks Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe web task demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official mediapipe-samples-web source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-07-holistic-output-budget-console.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Holistic Landmarker です。公式 Web guide は face、hand、pose をまとめて扱うタスクとして説明し、`outputFaceBlendshapes` と `outputPoseSegmentationMasks` を任意出力として持っています。面白いのは、1つのモデル接続で UI に出したい情報が一気に増えるため、精度 gate だけでなく、どの stream を採用し、どの optional output を描画し、フレーム予算を超えた時に何を保留するかを先に設計できる点です。",
+      "bodyEn": "Today's notable topic is Holistic Landmarker. The official Web guide presents it as a task that combines face, hand, and pose, with `outputFaceBlendshapes` and `outputPoseSegmentationMasks` as optional outputs. The interesting part is that one model connection can produce many UI-relevant streams at once, so it is useful to design not only confidence gates, but also which streams are accepted, which optional outputs are drawn, and what is held back when the frame budget is exceeded."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Holistic Output Budget Console` は、合成した人物 skeleton、顔楕円、手指線、任意の pose mask を表示し、face / pose / hand の gate、frame budget、`outputFaceBlendshapes`、`outputPoseSegmentationMasks` を動かせます。timeline は face / pose / hand / mask / drop の状態を色で分けます。派生の `Holistic Micro Command Router` は、smile、左右の hand-open、身体中心の左右 shift を `accept`、`back`、`next-panel`、`previous-panel`、`attention` のような短い UI コマンドに変換します。",
+      "bodyEn": "The main sample, `Holistic Output Budget Console`, displays a synthetic skeleton, face oval, hand rays, and optional pose mask while exposing face/pose/hand gates, frame budget, `outputFaceBlendshapes`, and `outputPoseSegmentationMasks`. The timeline separates face, pose, hand, mask, and dropped states by color. The derivative `Holistic Micro Command Router` converts smile, left/right hand-open, and body-center shift cues into compact UI commands such as `accept`, `back`, `next-panel`, `previous-panel`, and `attention`."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、face / pose / hand confidence、optional output の on/off、mask pixel estimate、estimated frame cost、dropped frame、synthetic blendshape、hand openness、body center shift、stable command、confirm streak です。実 `HolisticLandmarkerResult`、Image Segmenter の背景処理、Gesture Recognizer の手形状、Web Audio の確認音、WebXR の身体方向 UI、IndexedDB の練習ログ、Worker の latency telemetry と組み合わせると、手ぶりと表情のプレゼン操作、身体中心でページを送る UI、姿勢と顔表情を同時に見る練習ツール、mask 付き配信エフェクトへ発展できます。",
+      "bodyEn": "The samples can accumulate face/pose/hand confidence, optional-output toggles, mask-pixel estimates, estimated frame cost, dropped frames, synthetic blendshape cues, hand openness, body-center shift, stable commands, and confirmation streaks. Combined with real `HolisticLandmarkerResult`, Image Segmenter background handling, Gesture Recognizer hand shapes, Web Audio confirmation sounds, WebXR body-direction UI, IndexedDB practice logs, and worker latency telemetry, these can grow into presentation controls that use gestures and expressions, body-center page navigation, practice tools that inspect posture and facial expression together, or masked streaming effects."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "本命 HTML は `@mediapipe/tasks-vision@1.0.1/+esm` の dynamic import preflight を持ち、`HolisticLandmarker` と `FilesetResolver` の export 確認に使えます。本番化では `FilesetResolver.forVisionTasks()`、`HolisticLandmarker.createFromOptions()`、`runningMode: \"VIDEO\"`、`detectForVideo(video, timestamp)` を接続します。GitHub 実装は callback で返る mask lifetime に注意を促しているため、非同期処理や Worker へ渡す場合は callback 内で copy する方針を明示する必要があります。",
+      "bodyEn": "The main HTML includes a dynamic import preflight for `@mediapipe/tasks-vision@1.0.1/+esm`, useful for checking `HolisticLandmarker` and `FilesetResolver` exports. For production, connect `FilesetResolver.forVisionTasks()`, `HolisticLandmarker.createFromOptions()`, `runningMode: \"VIDEO\"`, and `detectForVideo(video, timestamp)`. The GitHub implementation warns about callback-scoped mask lifetime, so asynchronous processing or worker handoff should explicitly copy masks inside the callback."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Holistic Landmarker Web guide の model URL と設定名の更新、Tasks Vision npm nightly、`mediapipe-samples-web` の Holistic 実装、mask lifetime の API 表現、face blendshape categories の安定性、WebGPU / WebGL delegate の実効差、LiteRT / Google AI Edge 側の Web 配布導線を見ます。特に holistic は出力が多いため、描画順序、optional output の copy、UI 更新頻度を分ける設計を継続して確認します。",
+      "bodyEn": "Next, watch updates to Holistic Landmarker model URLs and option names, Tasks Vision npm nightlies, the `mediapipe-samples-web` Holistic implementation, API wording around mask lifetime, face blendshape category stability, practical WebGPU/WebGL delegate differences, and LiteRT/Google AI Edge Web distribution paths. Because holistic output is broad, continue checking designs that separate draw order, optional-output copying, and UI update frequency."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Holistic Output Budget Console` を開き、`outputPoseSegmentationMasks` と `outputFaceBlendshapes` を on にしたまま `Frame budget` を下げます。estimated cost が budget を超えると drop として記録され、face / pose / hand の gate を下げるとどの stream が UI に通るかが変わります。派生サンプルでは `Confirm frames` を上げ、smile と hand open、body shift が stable command になるまでの遅延を見ます。",
+      "bodyEn": "Open `Holistic Output Budget Console`, keep `outputPoseSegmentationMasks` and `outputFaceBlendshapes` on, and lower `Frame budget`. When estimated cost exceeds the budget, the frame is recorded as dropped; lowering face/pose/hand gates changes which streams reach the UI. In the derivative sample, raise `Confirm frames` and observe the delay before smile, hand-open, and body-shift cues become stable commands."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Holistic Landmarker Web guide、JS API reference、GitHub の `holistic_landmarker.ts`、Tasks Vision README、公式 Web demo、npm package version を確認。設計: 外部デモ一覧ではなく、Holistic の多出力を UI 予算・採用 stream・optional output の判断として自作 UI 化。実装: 本命 HTML に synthetic face / pose / hand、confidence gates、frame budget、optional blendshape / pose mask、estimated cost、drop timeline、Tasks import check を追加。派生 HTML に smile、hand-open、body center shift、confirm frames、stable command log を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Holistic Landmarker Web guide, JS API reference, GitHub `holistic_landmarker.ts`, Tasks Vision README, official web demo, and npm package versions. Design: instead of listing external demos, turn Holistic multi-output behavior into an original UI for budgeting, stream acceptance, and optional-output decisions. Implementation: added synthetic face/pose/hand, confidence gates, frame budget, optional blendshape/pose mask, estimated cost, drop timeline, and Tasks import check to the main HTML. Added smile, hand-open, body-center shift, confirmation frames, and stable command log to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the top, day, and representative sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Image Classifier の ROI、Pose の segmentation mask、visibility event routing を扱いました。今日の2本はそれらを Holistic Landmarker へ広げ、face / pose / hand を同じフレームで扱う時の採用と保留を整理します。MediaPipe Tasks の Web 実装では、推論 API そのものだけでなく、出力の lifetime、optional output のコスト、UI state へ通す連続条件を先に小さく試すと、実カメラ接続時の手戻りを減らせます。",
+      "bodyEn": "Recent entries covered Image Classifier ROI, Pose segmentation masks, and visibility event routing. Today's two samples extend those ideas to Holistic Landmarker and organize acceptance versus holdback when face, pose, and hand streams share a frame. With MediaPipe Tasks on the Web, small pretests around output lifetime, optional-output cost, and consecutive conditions for UI state reduce rework when connecting a real camera."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Holistic Output Budget Console` です。実際に動く部分は、合成 face / pose / hand 表示、face / pose / hand confidence gate、frame budget、`outputFaceBlendshapes` と `outputPoseSegmentationMasks` の toggle、mask pixel estimate、estimated frame cost、drop timeline、Tasks Vision import preflight です。次に足すなら実 `HolisticLandmarker.detectForVideo()`、face blendshape category の実値表示、pose segmentation mask の callback 内 copy、Worker 分離、UI stream ごとの draw frequency を追加します。派生試作は `Holistic Micro Command Router` で、実際に動く部分は smile、hand-open、body center shift、confirm frames、stable command log です。次に足すなら実 `faceBlendshapes`、`leftHandLandmarks` / `rightHandLandmarks`、`poseWorldLandmarks` を読み込み、プレゼン操作や練習フォーム採点につなぎます。",
+      "bodyEn": "The selected main prototype is `Holistic Output Budget Console`. The working pieces are synthetic face/pose/hand display, face/pose/hand confidence gates, frame budget, `outputFaceBlendshapes` and `outputPoseSegmentationMasks` toggles, mask-pixel estimate, estimated frame cost, drop timeline, and Tasks Vision import preflight. Next additions should connect real `HolisticLandmarker.detectForVideo()`, show real face blendshape categories, copy pose segmentation masks inside callbacks, split work into a worker, and add draw-frequency control per UI stream. The derivative prototype is `Holistic Micro Command Router`; the working pieces are smile, hand-open, body-center shift, confirmation frames, and stable command log. Next, feed in real `faceBlendshapes`, `leftHandLandmarks` / `rightHandLandmarks`, and `poseWorldLandmarks`, then connect presentation controls or practice-form scoring.",
+      "links": [
+        {
+          "label": "Open Holistic Output Budget Console",
+          "url": "../outputs/2026-09-07_holistic_output_budget_console.html"
+        },
+        {
+          "label": "Open Holistic Micro Command Router",
+          "url": "../outputs/2026-09-07_holistic_micro_command_router.html"
+        }
+      ]
+    }
+  ]
+}

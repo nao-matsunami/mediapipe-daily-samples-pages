@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holistic Micro Command Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #101116;
+      color: #f8f7f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(145deg, rgba(84, 156, 255, .15), transparent 38%),
+        linear-gradient(318deg, rgba(232, 194, 83, .14), transparent 44%),
+        #101116;
+    }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { border-bottom: 1px solid rgba(248, 247, 240, .14); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #cbc9c0; line-height: 1.62; }
+    button, input { font: inherit; }
+    button {
+      min-height: 42px;
+      border: 1px solid rgba(248, 247, 240, .24);
+      background: #f8f7f0;
+      color: #121319;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: #f8f7f0; }
+    .toolbar, .panel, .event, .log {
+      border: 1px solid rgba(248, 247, 240, .14);
+      background: rgba(16, 18, 24, .84);
+    }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #f1f0e9; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #549cff; }
+    .value { color: #e8c253; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; min-width: 0; }
+    canvas { width: 100%; aspect-ratio: 16 / 10; display: block; background: #151821; border: 1px solid rgba(248, 247, 240, .12); }
+    .events { display: grid; gap: 10px; }
+    .event { padding: 12px; }
+    .event h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    .event strong { display: block; font-size: 1.45rem; margin-top: 3px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(248, 247, 240, .16); padding: 6px 8px; color: #cbc9c0; }
+    .chip.on { border-color: rgba(84, 156, 255, .72); color: #f8f7f0; background: rgba(84, 156, 255, .16); }
+    .log { height: 228px; overflow: auto; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #dfeaff; white-space: pre-wrap; }
+    @media (max-width: 900px) {
+      .toolbar, .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Holistic Micro Command Router</h1>
+      <p>A derivative prototype that maps synthetic face blendshapes, hand openness, and pose center shift into tiny UI commands.</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Smile gate <input id="smile" type="range" min="20" max="95" value="64"><span id="smileValue" class="value">64%</span></label>
+      <label>Hand open gate <input id="open" type="range" min="20" max="95" value="58"><span id="openValue" class="value">58%</span></label>
+      <label>Center shift <input id="shift" type="range" min="3" max="35" value="16"><span id="shiftValue" class="value">16%</span></label>
+      <label>Confirm frames <input id="confirm" type="range" min="1" max="8" value="3"><span id="confirmValue" class="value">3</span></label>
+      <label>Motion tempo <input id="tempo" type="range" min="10" max="90" value="44"><span id="tempoValue" class="value">44%</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step</button>
+      <button id="burst" class="secondary">Burst 20</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <canvas id="stage" width="920" height="575"></canvas>
+      </section>
+      <aside class="events">
+        <section class="event">
+          <h2>Stable command</h2>
+          <strong id="stable">idle</strong>
+          <p id="reason">Waiting for repeated holistic cues.</p>
+          <div id="chips" class="chips"></div>
+        </section>
+        <section class="event">
+          <h2>Command log</h2>
+          <div id="log" class="log"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      smile: $("smile"),
+      open: $("open"),
+      shift: $("shift"),
+      confirm: $("confirm"),
+      tempo: $("tempo")
+    };
+    let state = { running: false, frame: 0, lastCandidate: "idle", streak: 0, stable: "idle" };
+
+    function syncLabels() {
+      $("smileValue").textContent = `${controls.smile.value}%`;
+      $("openValue").textContent = `${controls.open.value}%`;
+      $("shiftValue").textContent = `${controls.shift.value}%`;
+      $("confirmValue").textContent = controls.confirm.value;
+      $("tempoValue").textContent = `${controls.tempo.value}%`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener("input", syncLabels));
+
+    function log(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${now} ${line}\n${$("log").textContent}`.slice(0, 2300);
+    }
+
+    function cues() {
+      const t = state.frame * (0.018 + Number(controls.tempo.value) / 2500);
+      return {
+        centerX: 0.5 + Math.sin(t * 1.2) * 0.22,
+        smile: 0.56 + Math.sin(t * 2.1 + 0.4) * 0.32,
+        rightOpen: 0.54 + Math.sin(t * 2.6 + 1.7) * 0.34,
+        leftOpen: 0.52 + Math.cos(t * 2.2) * 0.32,
+        brow: 0.5 + Math.sin(t * 1.7 + 2.4) * 0.25
+      };
+    }
+
+    function classify(c) {
+      const smile = c.smile >= Number(controls.smile.value) / 100;
+      const rightOpen = c.rightOpen >= Number(controls.open.value) / 100;
+      const leftOpen = c.leftOpen >= Number(controls.open.value) / 100;
+      const dx = (c.centerX - 0.5) * 100;
+      const shifted = Math.abs(dx) >= Number(controls.shift.value);
+      let candidate = "idle";
+      const reasons = [];
+      if (smile && rightOpen) {
+        candidate = "accept";
+        reasons.push("smile + right hand");
+      } else if (!smile && leftOpen) {
+        candidate = "back";
+        reasons.push("left hand without smile");
+      }
+      if (shifted) {
+        candidate = dx > 0 ? "next-panel" : "previous-panel";
+        reasons.push(`body center ${dx.toFixed(0)}%`);
+      }
+      if (c.brow > 0.67 && rightOpen && leftOpen) {
+        candidate = "attention";
+        reasons.push("brow + both hands");
+      }
+      if (!reasons.length) reasons.push("below gates");
+      return { candidate, reasons, smile, rightOpen, leftOpen, shifted, dx };
+    }
+
+    function draw(c, r) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#151821";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(248, 247, 240, .08)";
+      for (let x = 0; x <= canvas.width; x += 92) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      const cx = c.centerX * canvas.width;
+      const cy = 288;
+      ctx.strokeStyle = r.shifted ? "#e8c253" : "#f8f7f0";
+      ctx.lineWidth = 8;
+      ctx.lineCap = "round";
+      [[cx, cy - 160, cx, cy - 88], [cx, cy - 88, cx - 78, cy - 42], [cx, cy - 88, cx + 78, cy - 42], [cx, cy - 12, cx - 58, cy + 120], [cx, cy - 12, cx + 58, cy + 120], [cx, cy - 88, cx, cy - 12]].forEach(([x1, y1, x2, y2]) => {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      });
+      ctx.strokeStyle = "#f8f7f0";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 178, 44, 54, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = r.smile ? "#e8c253" : "#68707b";
+      ctx.fillRect(cx - 24, cy - 172, 48, 7 + c.smile * 13);
+      [[cx - 130, cy - 70, r.leftOpen], [cx + 130, cy - 70, r.rightOpen]].forEach(([x, y, open]) => {
+        ctx.strokeStyle = open ? "#549cff" : "#68707b";
+        ctx.lineWidth = 3;
+        for (let i = -2; i <= 2; i += 1) {
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + i * 10, y - 26 - (open ? 16 : 0) + Math.abs(i) * 4);
+          ctx.stroke();
+        }
+      });
+      ctx.fillStyle = "#e8c253";
+      ctx.font = "16px ui-monospace, monospace";
+      ctx.fillText(`candidate=${r.candidate} streak=${state.streak} stable=${state.stable}`, 24, 34);
+    }
+
+    function updateChips(r) {
+      const chips = [
+        ["smile", r.smile],
+        ["right-open", r.rightOpen],
+        ["left-open", r.leftOpen],
+        ["center-shift", r.shifted]
+      ];
+      $("chips").innerHTML = chips.map(([label, on]) => `<span class="chip ${on ? "on" : ""}">${label}</span>`).join("");
+    }
+
+    function processFrame() {
+      state.frame += 1;
+      const c = cues();
+      const r = classify(c);
+      if (r.candidate === state.lastCandidate) state.streak += 1;
+      else {
+        state.lastCandidate = r.candidate;
+        state.streak = 1;
+      }
+      if (state.streak >= Number(controls.confirm.value) && state.stable !== r.candidate) {
+        state.stable = r.candidate;
+        log(`stable=${state.stable} reason=${r.reasons.join(", ")}`);
+      }
+      draw(c, r);
+      updateChips(r);
+      $("stable").textContent = state.stable;
+      $("reason").textContent = `${r.reasons.join(" / ")}. Candidate ${r.candidate}, streak ${state.streak}.`;
+    }
+
+    function loop() {
+      if (!state.running) return;
+      processFrame();
+      requestAnimationFrame(loop);
+    }
+
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", processFrame);
+    $("burst").addEventListener("click", () => { for (let i = 0; i < 20; i += 1) processFrame(); });
+    $("reset").addEventListener("click", () => {
+      state = { running: false, frame: 0, lastCandidate: "idle", streak: 0, stable: "idle" };
+      $("toggle").textContent = "Start stream";
+      $("log").textContent = "";
+      processFrame();
+    });
+
+    syncLabels();
+    processFrame();
+  </script>
+</body>
+</html>

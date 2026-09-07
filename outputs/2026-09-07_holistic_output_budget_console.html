@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holistic Output Budget Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0c1012;
+      color: #f5f7f2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(64, 190, 156, .15), transparent 36%),
+        linear-gradient(315deg, rgba(238, 176, 83, .13), transparent 46%),
+        #0c1012;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { padding-bottom: 18px; border-bottom: 1px solid rgba(245, 247, 242, .15); }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.1rem); line-height: 1.05; letter-spacing: 0; }
+    p { color: #c7cec9; line-height: 1.62; }
+    button, input { font: inherit; }
+    button {
+      min-height: 42px;
+      border: 1px solid rgba(245, 247, 242, .24);
+      background: #f5f7f2;
+      color: #101416;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: transparent; color: #f5f7f2; }
+    .toolbar, .panel, .metric, .lane, .log {
+      border: 1px solid rgba(245, 247, 242, .14);
+      background: rgba(13, 18, 20, .84);
+    }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(6, minmax(132px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 8px; color: #eef2ed; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #40be9c; }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: #40be9c; }
+    .check { grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+    .value { color: #eeb053; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; min-width: 0; }
+    canvas { width: 100%; aspect-ratio: 16 / 10; display: block; background: #111719; border: 1px solid rgba(245, 247, 242, .12); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .metric { padding: 10px; background: #141b1e; }
+    .metric span { display: block; color: #9fb0a9; font-size: .78rem; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.24rem; font-variant-numeric: tabular-nums; }
+    .side { display: grid; gap: 10px; }
+    .lane { padding: 12px; }
+    .lane h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    .row { display: grid; grid-template-columns: 102px 1fr 48px; align-items: center; gap: 8px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: #293134; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; transition: width .16s ease; }
+    .ok i { background: #40be9c; }
+    .warn i { background: #eeb053; }
+    .bad i { background: #c96355; }
+    .timeline { min-height: 78px; display: flex; align-items: end; gap: 3px; margin-top: 10px; overflow: hidden; }
+    .tick { width: 7px; min-width: 7px; background: #586266; }
+    .face { background: #eeb053; }
+    .pose { background: #40be9c; }
+    .hand { background: #64a8ff; }
+    .mask { outline: 2px solid #b979ff; }
+    .drop { background: #c96355; }
+    .log { height: 206px; overflow: auto; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; white-space: pre-wrap; color: #ddf5ed; }
+    @media (max-width: 940px) {
+      .toolbar, .layout, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Holistic Output Budget Console</h1>
+      <p>An original simulator for deciding which Holistic Landmarker outputs should reach the UI: face landmarks, pose landmarks, hand landmarks, face blendshapes, and pose segmentation masks.</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Face gate <input id="faceGate" type="range" min="20" max="95" value="54"><span id="faceGateValue" class="value">54%</span></label>
+      <label>Pose gate <input id="poseGate" type="range" min="20" max="95" value="58"><span id="poseGateValue" class="value">58%</span></label>
+      <label>Hand gate <input id="handGate" type="range" min="20" max="95" value="62"><span id="handGateValue" class="value">62%</span></label>
+      <label>Frame budget <input id="budget" type="range" min="6" max="28" value="15"><span id="budgetValue" class="value">15ms</span></label>
+      <label class="check"><input id="blendToggle" type="checkbox" checked><span>outputFaceBlendshapes</span></label>
+      <label class="check"><input id="maskToggle" type="checkbox" checked><span>outputPoseSegmentationMasks</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Process one frame</button>
+      <button id="burst" class="secondary">Burst 24 frames</button>
+      <button id="reset" class="secondary">Reset</button>
+      <button id="preflight" class="secondary">Tasks import check</button>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <canvas id="stage" width="960" height="600"></canvas>
+        <div class="metrics">
+          <div class="metric"><span>accepted streams</span><strong id="streams">none</strong></div>
+          <div class="metric"><span>estimated cost</span><strong id="cost">0.0ms</strong></div>
+          <div class="metric"><span>mask pixels</span><strong id="maskPixels">0</strong></div>
+          <div class="metric"><span>dropped frames</span><strong id="dropped">0</strong></div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+      <aside class="side">
+        <section class="lane">
+          <h2>Output confidence</h2>
+          <div id="meters"></div>
+        </section>
+        <section class="lane">
+          <h2>Runtime notes</h2>
+          <p>Holistic Landmarker combines pose, face, and hand outputs. This page keeps the model synthetic and makes confidence gates, optional outputs, and a frame-cost budget visible.</p>
+          <div id="log" class="log"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("stage");
+    const ctx = canvas.getContext("2d");
+    const controls = {
+      faceGate: $("faceGate"),
+      poseGate: $("poseGate"),
+      handGate: $("handGate"),
+      budget: $("budget"),
+      blendToggle: $("blendToggle"),
+      maskToggle: $("maskToggle")
+    };
+    const bones = [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [1, 6], [6, 7], [7, 8], [6, 9], [9, 10], [10, 11]];
+    let state = { running: false, frame: 0, dropped: 0, timeline: [], last: null };
+
+    function syncLabels() {
+      $("faceGateValue").textContent = `${controls.faceGate.value}%`;
+      $("poseGateValue").textContent = `${controls.poseGate.value}%`;
+      $("handGateValue").textContent = `${controls.handGate.value}%`;
+      $("budgetValue").textContent = `${controls.budget.value}ms`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener("input", syncLabels));
+
+    function writeLog(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${now} ${line}\n${$("log").textContent}`.slice(0, 2600);
+    }
+
+    function syntheticHolistic() {
+      const t = state.frame;
+      const face = 0.65 + Math.sin(t * 0.061) * 0.23;
+      const pose = 0.68 + Math.cos(t * 0.047) * 0.24;
+      const hand = 0.58 + Math.sin(t * 0.083 + 1.2) * 0.28;
+      const blend = controls.blendToggle.checked ? 0.8 + Math.sin(t * 0.09) * 0.14 : 0;
+      const mask = controls.maskToggle.checked ? 0.62 + Math.cos(t * 0.039) * 0.2 : 0;
+      const acceptFace = face >= Number(controls.faceGate.value) / 100;
+      const acceptPose = pose >= Number(controls.poseGate.value) / 100;
+      const acceptHand = hand >= Number(controls.handGate.value) / 100;
+      const streams = [
+        acceptFace ? "face" : null,
+        acceptPose ? "pose" : null,
+        acceptHand ? "hand" : null,
+        acceptFace && controls.blendToggle.checked ? "blend" : null,
+        acceptPose && controls.maskToggle.checked ? "mask" : null
+      ].filter(Boolean);
+      const maskPixels = acceptPose && controls.maskToggle.checked ? Math.round(960 * 600 * mask * 0.22) : 0;
+      const cost = 2.6 + (acceptFace ? 3.1 : 0.7) + (acceptPose ? 4.2 : 0.8) + (acceptHand ? 2.7 : 0.5) +
+        (acceptFace && controls.blendToggle.checked ? 1.5 : 0) + maskPixels / 22000;
+      const overBudget = cost > Number(controls.budget.value);
+      return { face, pose, hand, blend, mask, acceptFace, acceptPose, acceptHand, streams, maskPixels, cost, overBudget };
+    }
+
+    function posePoints() {
+      const sway = Math.sin(state.frame * 0.05);
+      const cx = 480 + sway * 50;
+      const cy = 312;
+      return [
+        [cx, cy - 180], [cx, cy - 112],
+        [cx - 78, cy - 92], [cx - 138, cy - 38 + sway * 35],
+        [cx + 78, cy - 92], [cx + 144, cy - 36 - sway * 46],
+        [cx - 50, cy + 10], [cx - 60, cy + 128], [cx - 82, cy + 230],
+        [cx + 50, cy + 10], [cx + 66, cy + 128], [cx + 88, cy + 230]
+      ];
+    }
+
+    function drawFace(cx, cy, result) {
+      ctx.strokeStyle = result.acceptFace ? "#eeb053" : "#5c625d";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 44, 56, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = result.acceptFace ? "#eeb053" : "#5c625d";
+      [[cx - 15, cy - 10], [cx + 15, cy - 10], [cx, cy + 18]].forEach(([x, y], i) => {
+        ctx.beginPath();
+        ctx.arc(x, y, i === 2 ? 5 : 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawHands(points, result) {
+      [[points[3][0], points[3][1]], [points[5][0], points[5][1]]].forEach(([x, y], side) => {
+        ctx.strokeStyle = result.acceptHand ? "#64a8ff" : "#56626b";
+        ctx.lineWidth = 3;
+        for (let i = -2; i <= 2; i += 1) {
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + i * 10 + (side ? 18 : -18), y - 34 + Math.abs(i) * 4);
+          ctx.stroke();
+        }
+      });
+    }
+
+    function draw(result) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#111719";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(245, 247, 242, .08)";
+      for (let x = 0; x <= canvas.width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      const points = posePoints();
+      if (result.acceptPose && controls.maskToggle.checked) {
+        ctx.save();
+        ctx.globalAlpha = 0.24;
+        ctx.fillStyle = "#b979ff";
+        ctx.beginPath();
+        ctx.ellipse(points[1][0], points[1][1] + 138, 132, 282, Math.sin(state.frame * 0.02) * 0.07, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      bones.forEach(([a, b]) => {
+        ctx.strokeStyle = result.acceptPose ? "#f5f7f2" : "#5c6568";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(points[a][0], points[a][1]);
+        ctx.lineTo(points[b][0], points[b][1]);
+        ctx.stroke();
+      });
+      points.forEach(([x, y]) => {
+        ctx.fillStyle = result.acceptPose ? "#40be9c" : "#687174";
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      drawFace(points[0][0], points[0][1], result);
+      drawHands(points, result);
+      ctx.fillStyle = result.overBudget ? "#c96355" : "#eeb053";
+      ctx.font = "16px ui-monospace, monospace";
+      ctx.fillText(`streams=${result.streams.join("+") || "none"} cost=${result.cost.toFixed(1)}ms budget=${controls.budget.value}ms`, 22, 32);
+    }
+
+    function updateMeters(result) {
+      const rows = [
+        ["face", result.face, Number(controls.faceGate.value) / 100, result.acceptFace],
+        ["pose", result.pose, Number(controls.poseGate.value) / 100, result.acceptPose],
+        ["hand", result.hand, Number(controls.handGate.value) / 100, result.acceptHand],
+        ["blend", result.blend, 0.5, controls.blendToggle.checked && result.acceptFace],
+        ["mask", result.mask, 0.5, controls.maskToggle.checked && result.acceptPose]
+      ];
+      $("meters").innerHTML = rows.map(([name, value, gate, ok]) => `
+        <div class="row">
+          <span>${name}</span>
+          <span class="bar ${ok ? "ok" : value >= gate * .85 ? "warn" : "bad"}"><i style="width:${Math.max(0, Math.min(100, value * 100))}%"></i></span>
+          <span>${Math.round(value * 100)}%</span>
+        </div>
+      `).join("");
+    }
+
+    function updateTimeline(result) {
+      let cls = result.overBudget ? "drop" : result.acceptPose ? "pose" : result.acceptFace ? "face" : result.acceptHand ? "hand" : "drop";
+      if (!result.overBudget && result.acceptPose && controls.maskToggle.checked) cls += " mask";
+      state.timeline.push(cls);
+      state.timeline = state.timeline.slice(-88);
+      $("timeline").innerHTML = state.timeline.map((tick, index) => `<span class="tick ${tick}" style="height:${20 + (index % 9) * 6}px"></span>`).join("");
+    }
+
+    function processFrame() {
+      state.frame += 1;
+      const result = syntheticHolistic();
+      if (result.overBudget) state.dropped += 1;
+      state.last = result;
+      draw(result);
+      updateMeters(result);
+      updateTimeline(result);
+      $("streams").textContent = result.streams.join("+") || "none";
+      $("cost").textContent = `${result.cost.toFixed(1)}ms`;
+      $("maskPixels").textContent = result.maskPixels.toLocaleString("en-US");
+      $("dropped").textContent = String(state.dropped);
+      if (state.frame % 12 === 0 || result.overBudget) {
+        writeLog(`${result.overBudget ? "hold" : "accept"} streams=${result.streams.join("+") || "none"} cost=${result.cost.toFixed(1)}ms`);
+      }
+    }
+
+    function loop() {
+      if (!state.running) return;
+      processFrame();
+      requestAnimationFrame(loop);
+    }
+
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", processFrame);
+    $("burst").addEventListener("click", () => { for (let i = 0; i < 24; i += 1) processFrame(); });
+    $("reset").addEventListener("click", () => {
+      state = { running: false, frame: 0, dropped: 0, timeline: [], last: null };
+      $("toggle").textContent = "Start stream";
+      $("log").textContent = "";
+      processFrame();
+    });
+    $("preflight").addEventListener("click", async () => {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        writeLog(`import ok: HolisticLandmarker=${Boolean(mod.HolisticLandmarker)} FilesetResolver=${Boolean(mod.FilesetResolver)}`);
+      } catch (error) {
+        writeLog(`import failed: ${error.message}`);
+      }
+    });
+
+    syncLabels();
+    processFrame();
+  </script>
+</body>
+</html>
