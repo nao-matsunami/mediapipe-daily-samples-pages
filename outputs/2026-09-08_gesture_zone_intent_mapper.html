@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Zone Intent Mapper</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101314; color: #fffaf2; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(67, 159, 129, .16), transparent 36%),
+        linear-gradient(315deg, rgba(217, 107, 89, .13), transparent 44%),
+        #101314;
+    }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(255, 250, 242, .15); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.15rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #cec6b7; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 250, 242, .24); background: #fffaf2; color: #101314; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fffaf2; }
+    .toolbar, .stage, .panel, .feed { border: 1px solid rgba(255, 250, 242, .14); background: rgba(16, 20, 21, .84); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 7px; color: #efe6d6; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #439f81; }
+    select { min-height: 40px; background: #171d1e; color: #fffaf2; border: 1px solid rgba(255, 250, 242, .24); padding: 7px; }
+    .value { color: #e2b148; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin-top: 14px; }
+    .stage { position: relative; min-height: 520px; overflow: hidden; }
+    .zone { position: absolute; border: 1px solid rgba(255, 250, 242, .14); display: grid; place-items: center; color: #cec6b7; text-align: center; padding: 10px; }
+    .zone.active { outline: 3px solid #e2b148; color: #fffaf2; background: rgba(226, 177, 72, .12); }
+    .zone.left { left: 0; top: 0; width: 33.333%; height: 100%; }
+    .zone.center { left: 33.333%; top: 0; width: 33.333%; height: 100%; }
+    .zone.right { right: 0; top: 0; width: 33.333%; height: 100%; }
+    .hand { position: absolute; width: 42px; height: 42px; border-radius: 50%; background: #439f81; border: 3px solid #fffaf2; transform: translate(-50%, -50%); box-shadow: 0 12px 24px rgba(0, 0, 0, .28); }
+    .hand::after { content: ""; position: absolute; inset: 9px; border: 2px solid #101314; border-radius: 50%; }
+    .path { position: absolute; left: 16px; right: 16px; bottom: 16px; height: 12px; background: #242c2d; overflow: hidden; }
+    .path i { display: block; height: 100%; width: 0%; background: #d96b59; transition: width .1s linear; }
+    .panel { padding: 14px; }
+    .intent { border: 1px solid rgba(255, 250, 242, .13); background: #171d1e; padding: 11px; margin-bottom: 8px; }
+    .intent strong { display: block; font-size: 1.1rem; color: #e2b148; }
+    .intent.active { outline: 2px solid #439f81; }
+    .feed { margin-top: 14px; padding: 12px; height: 185px; overflow: auto; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #dff4ff; font-size: .8rem; }
+    @media (max-width: 880px) {
+      .toolbar, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Gesture Zone Intent Mapper</h1>
+      <p>Gesture Recognizer の top gesture と手の画面位置を想定し、左・中央・右ゾーンごとに別の UI intent へ変換する派生試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Gesture
+        <select id="gesture">
+          <option>Open_Palm</option>
+          <option>Pointing_Up</option>
+          <option>Thumb_Up</option>
+          <option>Victory</option>
+        </select>
+      </label>
+      <label>Hand X <input id="handX" type="range" min="4" max="96" value="18"><span id="handValue" class="value">18%</span></label>
+      <label>Dwell frames <input id="dwell" type="range" min="1" max="12" value="5"><span id="dwellValue" class="value">5</span></label>
+      <label>Score <input id="score" type="range" min="30" max="99" value="82"><span id="scoreValue" class="value">82%</span></label>
+      <button id="auto">Start sweep</button>
+      <button id="step" class="secondary">Step</button>
+      <button id="preset" class="secondary">Presentation preset</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <section class="stage" id="stage">
+        <div class="zone left" data-zone="left">left<br>back / reject</div>
+        <div class="zone center" data-zone="center">center<br>confirm / pin</div>
+        <div class="zone right" data-zone="right">right<br>next / send</div>
+        <div class="hand" id="hand"></div>
+        <div class="path"><i id="progress"></i></div>
+      </section>
+      <aside class="panel">
+        <h2>Intent candidates</h2>
+        <div id="intents"></div>
+        <div class="feed" id="feed"></div>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const commands = {
+      Open_Palm: { left: "cancel overlay", center: "pause input", right: "open tools" },
+      Pointing_Up: { left: "previous marker", center: "pin marker", right: "next marker" },
+      Thumb_Up: { left: "approve previous", center: "accept selected", right: "send selected" },
+      Victory: { left: "previous slide", center: "focus slide", right: "next slide" }
+    };
+    const state = { running: false, frame: 0, zone: "left", lastZone: "left", stable: 0, fired: "" };
+    const controls = { gesture: $("gesture"), handX: $("handX"), dwell: $("dwell"), score: $("score") };
+
+    function zoneFromX(x) {
+      if (x < 33.333) return "left";
+      if (x > 66.666) return "right";
+      return "center";
+    }
+
+    function syncLabels() {
+      $("handValue").textContent = `${controls.handX.value}%`;
+      $("dwellValue").textContent = controls.dwell.value;
+      $("scoreValue").textContent = `${controls.score.value}%`;
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2200);
+    }
+
+    function updateIntent() {
+      const x = Number(controls.handX.value);
+      const score = Number(controls.score.value) / 100;
+      const zone = zoneFromX(x);
+      if (zone === state.lastZone) state.stable += 1;
+      else {
+        state.lastZone = zone;
+        state.stable = 1;
+      }
+      state.zone = zone;
+      const gesture = controls.gesture.value;
+      const command = commands[gesture][zone];
+      if (score >= .6 && state.stable >= Number(controls.dwell.value) && state.fired !== `${gesture}:${zone}`) {
+        state.fired = `${gesture}:${zone}`;
+        feed(`fire ${gesture} zone=${zone} command="${command}"`);
+      } else {
+        feed(`frame=${state.frame} ${gesture} zone=${zone} dwell=${state.stable} score=${score.toFixed(2)}`);
+      }
+      render();
+    }
+
+    function render() {
+      const x = Number(controls.handX.value);
+      $("hand").style.left = `${x}%`;
+      $("hand").style.top = `${42 + Math.sin(state.frame * .12) * 18}%`;
+      $("progress").style.width = `${Math.min(100, state.stable / Number(controls.dwell.value) * 100)}%`;
+      document.querySelectorAll(".zone").forEach((zone) => zone.classList.toggle("active", zone.dataset.zone === state.zone));
+      const gesture = controls.gesture.value;
+      $("intents").innerHTML = Object.entries(commands[gesture]).map(([zone, command]) => `
+        <div class="intent ${zone === state.zone ? "active" : ""}">
+          <span>${zone}</span>
+          <strong>${command}</strong>
+          <p>${zone === state.zone ? `dwell ${state.stable}/${controls.dwell.value}` : "waiting"}</p>
+        </div>
+      `).join("");
+    }
+
+    function step() {
+      state.frame += 1;
+      if (state.running) {
+        const x = 50 + Math.sin(state.frame * .07) * 45;
+        controls.handX.value = Math.round(x);
+      }
+      syncLabels();
+      updateIntent();
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 120);
+    }
+
+    Object.values(controls).forEach((control) => control.addEventListener("input", () => {
+      syncLabels();
+      updateIntent();
+    }));
+    $("auto").addEventListener("click", () => {
+      state.running = !state.running;
+      $("auto").textContent = state.running ? "Stop sweep" : "Start sweep";
+      clearTimeout(timer);
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", step);
+    $("preset").addEventListener("click", () => {
+      controls.gesture.value = "Victory";
+      controls.dwell.value = 7;
+      controls.score.value = 88;
+      controls.handX.value = 78;
+      state.stable = 0;
+      state.fired = "";
+      syncLabels();
+      updateIntent();
+      feed("preset applied: presentation navigation");
+    });
+    $("reset").addEventListener("click", () => {
+      Object.assign(state, { running: false, frame: 0, zone: "left", lastZone: "left", stable: 0, fired: "" });
+      controls.gesture.value = "Open_Palm";
+      controls.handX.value = 18;
+      controls.dwell.value = 5;
+      controls.score.value = 82;
+      $("auto").textContent = "Start sweep";
+      $("feed").textContent = "";
+      syncLabels();
+      updateIntent();
+    });
+
+    syncLabels();
+    updateIntent();
+  </script>
+</body>
+</html>

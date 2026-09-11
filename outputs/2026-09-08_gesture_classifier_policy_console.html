@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Classifier Policy Console</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111316; color: #fffaf2; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(130deg, rgba(87, 154, 203, .16), transparent 34%),
+        linear-gradient(315deg, rgba(226, 177, 72, .13), transparent 46%),
+        #111316;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(255, 250, 242, .16); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.2rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #cfc7b7; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 250, 242, .24); background: #fffaf2; color: #111316; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fffaf2; }
+    .toolbar, .panel, .result, .lane, .feed { border: 1px solid rgba(255, 250, 242, .14); background: rgba(18, 22, 26, .84); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 7px; color: #efe6d6; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #579acb; }
+    select { min-height: 40px; background: #171c20; color: #fffaf2; border: 1px solid rgba(255, 250, 242, .24); padding: 7px; }
+    .value { color: #e2b148; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; }
+    .checks { display: grid; gap: 8px; }
+    .check { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid rgba(255, 250, 242, .12); padding: 8px; background: #171c20; }
+    .check input { width: 18px; height: 18px; accent-color: #579acb; }
+    .result { padding: 14px; margin-bottom: 14px; }
+    .result strong { display: block; font-size: clamp(1.5rem, 3vw, 2.35rem); color: #e2b148; }
+    .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .lane { padding: 12px; min-height: 160px; position: relative; overflow: hidden; }
+    .lane.active { outline: 2px solid #e2b148; }
+    .lane.blocked { opacity: .55; }
+    .score { margin: 14px 0 8px; font-size: clamp(2rem, 5vw, 3rem); font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: #293138; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; background: #579acb; transition: width .18s ease; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(255, 250, 242, .2); color: #cfc7b7; padding: 5px 8px; font-size: .78rem; }
+    .chip.pass { color: #fffaf2; border-color: rgba(73, 176, 131, .65); background: rgba(73, 176, 131, .17); }
+    .chip.warn { color: #fffaf2; border-color: rgba(226, 177, 72, .7); background: rgba(226, 177, 72, .15); }
+    .feed { margin-top: 14px; padding: 12px; height: 180px; overflow: auto; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #d9ebff; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .lanes { grid-template-columns: 1fr; }
+      .feed { height: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Gesture Classifier Policy Console</h1>
+      <p>Gesture Recognizer の canned/custom classifier options、score threshold、allow/deny policy、連続一致数を、合成 top gesture で試す自作ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Score threshold <input id="threshold" type="range" min="25" max="95" value="66"><span id="thresholdValue" class="value">66%</span></label>
+      <label>Confirm frames <input id="confirm" type="range" min="1" max="8" value="4"><span id="confirmValue" class="value">4</span></label>
+      <label>Classifier policy
+        <select id="policy">
+          <option value="allow">allowlist</option>
+          <option value="deny">denylist</option>
+          <option value="off">no list</option>
+          <option value="conflict">invalid both lists</option>
+        </select>
+      </label>
+      <label>Noise <input id="noise" type="range" min="0" max="60" value="22"><span id="noiseValue" class="value">22%</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step frame</button>
+      <button id="preset" class="secondary">Kiosk preset</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Gesture list</h2>
+        <p>選択した gesture を allowlist または denylist として扱います。invalid は設計時に止めるべき設定衝突です。</p>
+        <div id="checks" class="checks"></div>
+        <div class="chips">
+          <span id="importStatus" class="chip warn">Tasks import: checking</span>
+          <span id="streak" class="chip">streak: 0</span>
+        </div>
+      </aside>
+      <section>
+        <div class="result">
+          <span>stable UI command</span>
+          <strong id="command">waiting</strong>
+          <p id="reason">ストリームを開始すると、分類候補、policy、しきい値、連続一致で UI コマンドを決定します。</p>
+        </div>
+        <div id="lanes" class="lanes"></div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const gestures = [
+      { name: "Open_Palm", command: "pause camera overlay", base: .78, color: "#579acb" },
+      { name: "Pointing_Up", command: "pin annotation", base: .66, color: "#e2b148" },
+      { name: "Thumb_Up", command: "accept selection", base: .72, color: "#49b083" },
+      { name: "Victory", command: "advance panel", base: .62, color: "#d96b59" },
+      { name: "ILoveYou", command: "open help", base: .50, color: "#a28bd4" },
+      { name: "Closed_Fist", command: "hold input", base: .44, color: "#8aa1aa" }
+    ];
+    const state = { running: false, frame: 0, chosen: new Set(["Open_Palm", "Pointing_Up", "Thumb_Up", "Victory"]), scores: [], stable: "none", streak: 0, lastAccepted: "none" };
+    const controls = { threshold: $("threshold"), confirm: $("confirm"), policy: $("policy"), noise: $("noise") };
+
+    async function checkImport() {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        const ok = Boolean(mod.GestureRecognizer && mod.FilesetResolver);
+        $("importStatus").textContent = ok ? "Tasks import: GestureRecognizer ready" : "Tasks import: missing export";
+        $("importStatus").className = ok ? "chip pass" : "chip warn";
+      } catch (error) {
+        $("importStatus").textContent = "Tasks import: blocked";
+        $("importStatus").className = "chip warn";
+      }
+    }
+
+    function syncLabels() {
+      $("thresholdValue").textContent = `${controls.threshold.value}%`;
+      $("confirmValue").textContent = controls.confirm.value;
+      $("noiseValue").textContent = `${controls.noise.value}%`;
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2600);
+    }
+
+    function renderChecks() {
+      $("checks").innerHTML = gestures.map((gesture) => `
+        <label class="check"><span>${gesture.name}</span><input type="checkbox" value="${gesture.name}" ${state.chosen.has(gesture.name) ? "checked" : ""}></label>
+      `).join("");
+      $("checks").querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) state.chosen.add(input.value);
+          else state.chosen.delete(input.value);
+          render();
+        });
+      });
+    }
+
+    function nextScores() {
+      state.frame += 1;
+      const lead = Math.floor(state.frame / 38) % gestures.length;
+      const noise = Number(controls.noise.value) / 100;
+      state.scores = gestures.map((gesture, index) => {
+        const wave = Math.sin(state.frame * .16 + index * 1.3) * .15;
+        const leader = index === lead ? .22 : 0;
+        const jitter = (Math.random() - .5) * noise;
+        return { ...gesture, score: Math.max(.02, Math.min(.99, gesture.base + leader + wave + jitter)) };
+      }).sort((a, b) => b.score - a.score);
+    }
+
+    function applyPolicy(item) {
+      if (controls.policy.value === "conflict") return { ok: false, reason: "allowlist と denylist の同時指定は invalid として停止。" };
+      if (item.score < Number(controls.threshold.value) / 100) return { ok: false, reason: `${item.name} は score threshold 未満。` };
+      if (controls.policy.value === "allow" && !state.chosen.has(item.name)) return { ok: false, reason: `${item.name} は allowlist 外。` };
+      if (controls.policy.value === "deny" && state.chosen.has(item.name)) return { ok: false, reason: `${item.name} は denylist 対象。` };
+      return { ok: true, reason: `${item.name} accepted by ${controls.policy.value} policy.` };
+    }
+
+    function step() {
+      nextScores();
+      const top = state.scores[0];
+      const policy = applyPolicy(top);
+      if (policy.ok) {
+        if (state.stable === top.name) state.streak += 1;
+        else {
+          state.stable = top.name;
+          state.streak = 1;
+        }
+      } else {
+        state.stable = "none";
+        state.streak = 0;
+      }
+      if (state.streak >= Number(controls.confirm.value) && state.lastAccepted !== state.stable) {
+        state.lastAccepted = state.stable;
+        $("command").textContent = top.command;
+        feed(`fire ${top.name} score=${top.score.toFixed(2)} command="${top.command}"`);
+      } else {
+        feed(`frame=${state.frame} top=${top.name} score=${top.score.toFixed(2)} ${policy.ok ? "accepted" : "blocked"}`);
+      }
+      $("reason").textContent = policy.reason;
+      $("streak").textContent = `streak: ${state.streak}`;
+      render();
+    }
+
+    function render() {
+      const topName = state.scores[0]?.name || "";
+      $("lanes").innerHTML = state.scores.map((item) => {
+        const policy = applyPolicy(item);
+        const active = item.name === topName ? " active" : "";
+        const blocked = policy.ok ? "" : " blocked";
+        return `<article class="lane${active}${blocked}">
+          <h2>${item.name}</h2>
+          <div class="score">${Math.round(item.score * 100)}</div>
+          <div class="bar"><i style="width:${Math.round(item.score * 100)}%;background:${item.color}"></i></div>
+          <p>${policy.ok ? item.command : policy.reason}</p>
+        </article>`;
+      }).join("");
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 110);
+    }
+
+    Object.values(controls).forEach((control) => control.addEventListener("input", () => { syncLabels(); render(); }));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      clearTimeout(timer);
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", step);
+    $("preset").addEventListener("click", () => {
+      controls.threshold.value = 74;
+      controls.confirm.value = 5;
+      controls.policy.value = "allow";
+      controls.noise.value = 34;
+      state.chosen = new Set(["Open_Palm", "Pointing_Up", "Thumb_Up"]);
+      syncLabels();
+      renderChecks();
+      feed("preset applied: kiosk-safe allowlist");
+    });
+    $("reset").addEventListener("click", () => {
+      Object.assign(state, { running: false, frame: 0, chosen: new Set(["Open_Palm", "Pointing_Up", "Thumb_Up", "Victory"]), scores: [], stable: "none", streak: 0, lastAccepted: "none" });
+      $("toggle").textContent = "Start stream";
+      $("command").textContent = "waiting";
+      $("reason").textContent = "ストリームを開始すると、分類候補、policy、しきい値、連続一致で UI コマンドを決定します。";
+      $("feed").textContent = "";
+      syncLabels();
+      renderChecks();
+      nextScores();
+      render();
+    });
+
+    syncLabels();
+    renderChecks();
+    nextScores();
+    render();
+    checkImport();
+  </script>
+</body>
+</html>

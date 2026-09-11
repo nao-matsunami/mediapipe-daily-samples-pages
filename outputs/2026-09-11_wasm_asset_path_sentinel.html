@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WASM Asset Path Sentinel</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101417; color: #fffaf0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(130deg, rgba(92, 167, 128, .16), transparent 34%), linear-gradient(310deg, rgba(210, 120, 77, .14), transparent 44%), #101417; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(255, 250, 240, .16); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #d4ccbf; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 250, 240, .24); background: #fffaf0; color: #101417; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fffaf0; }
+    input, select { min-height: 40px; border: 1px solid rgba(255, 250, 240, .24); background: #171d20; color: #fffaf0; padding: 7px; }
+    .toolbar, .panel, .probe, .feed { border: 1px solid rgba(255, 250, 240, .14); background: rgba(17, 23, 27, .86); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: minmax(220px, 1fr) 150px 120px 120px; gap: 12px; padding: 14px; }
+    label { display: grid; gap: 7px; color: #efe7da; font-size: .92rem; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; }
+    .list { display: grid; gap: 8px; }
+    .row { border: 1px solid rgba(255, 250, 240, .13); background: #171d20; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .badge { border: 1px solid rgba(255, 250, 240, .2); color: #d4ccbf; padding: 4px 7px; font-size: .78rem; font-variant-numeric: tabular-nums; }
+    .pass { color: #fffaf0; border-color: rgba(92, 167, 128, .7); background: rgba(92, 167, 128, .18); }
+    .warn { color: #fffaf0; border-color: rgba(238, 186, 95, .74); background: rgba(238, 186, 95, .16); }
+    .fail { color: #fffaf0; border-color: rgba(210, 120, 77, .74); background: rgba(210, 120, 77, .18); }
+    .probe { padding: 14px; min-height: 360px; }
+    .graph { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .tile { min-height: 130px; border: 1px solid rgba(255, 250, 240, .13); background: #171d20; padding: 12px; }
+    .tile strong { display: block; color: #eeba5f; font-size: clamp(1.4rem, 3vw, 2rem); font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; margin-top: 10px; background: #293239; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: #5ca780; width: 0%; transition: width .2s ease; }
+    .feed { margin-top: 14px; padding: 12px; height: 180px; overflow: auto; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #d9f3e8; }
+    @media (max-width: 880px) {
+      .toolbar, .layout, .graph { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>WASM Asset Path Sentinel</h1>
+      <p>FilesetResolver が期待する WASM / module / model asset の解決失敗を、公開前に短く洗い出すための派生ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Base path <input id="basePath" value="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm"></label>
+      <label>Task
+        <select id="task">
+          <option value="vision">vision</option>
+          <option value="audio">audio</option>
+          <option value="genai">genai</option>
+        </select>
+      </label>
+      <button id="probe">Probe</button>
+      <button id="simulate" class="secondary">Simulate fail</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Sentinel rules</h2>
+        <p>実アプリでは `FilesetResolver.forVisionTasks(basePath)` などに渡す path と、公開先に置いたファイル名の対応が重要です。ここでは軽量な HEAD/GET と合成判定で壊れ方を見ます。</p>
+        <div id="rules" class="list"></div>
+      </aside>
+      <section>
+        <div class="probe">
+          <h2>Asset probes</h2>
+          <div id="graph" class="graph"></div>
+          <p id="summary">Probe を押すと、候補URLを点検して fail-soft plan を作ります。</p>
+        </div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const assetSets = {
+      vision: ["vision_wasm_internal.wasm", "vision_wasm_internal.js", "vision_wasm_simd.wasm", "vision_wasm_module_internal.js"],
+      audio: ["audio_wasm_internal.wasm", "audio_wasm_internal.js", "audio_wasm_simd.wasm", "audio_wasm_module_internal.js"],
+      genai: ["genai_wasm_internal.wasm", "genai_wasm_internal.js", "genai_wasm_simd.wasm", "genai_wasm_module_internal.js"]
+    };
+    const rules = [
+      { name: "basePath stable", text: "CDN version or local directory is pinned." },
+      { name: "renamed assets", text: "WASM files are published without renaming." },
+      { name: "fallback copy", text: "CPU/no-SIMD path can still initialize." },
+      { name: "user message", text: "Failure is surfaced before camera/model request." }
+    ];
+    let results = [];
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2600);
+    }
+
+    function renderRules(status = "warn") {
+      $("rules").innerHTML = rules.map((rule, index) => `
+        <div class="row"><span>${rule.name}<br><small>${rule.text}</small></span><span class="badge ${index < results.filter((r) => r.ok).length ? "pass" : status}">${index < results.length ? "checked" : "todo"}</span></div>
+      `).join("");
+    }
+
+    function renderGraph() {
+      $("graph").innerHTML = results.map((item) => `
+        <article class="tile">
+          <h2>${item.file}</h2>
+          <strong>${item.status}</strong>
+          <div class="bar"><i style="width:${item.ok ? 100 : 34}%;background:${item.ok ? "#5ca780" : "#d2784d"}"></i></div>
+          <p>${item.ok ? "resolved" : item.reason}</p>
+        </article>
+      `).join("");
+    }
+
+    async function check(url) {
+      try {
+        let response = await fetch(url, { method: "HEAD", cache: "no-store" });
+        if (!response.ok && response.status === 405) response = await fetch(url, { method: "GET", cache: "no-store" });
+        return { ok: response.ok, status: response.status, reason: response.ok ? "ok" : "not found or blocked" };
+      } catch (error) {
+        return { ok: false, status: 0, reason: "network/CORS/offline" };
+      }
+    }
+
+    async function probe() {
+      const base = $("basePath").value.replace(/\/$/, "");
+      const files = assetSets[$("task").value];
+      results = [];
+      renderGraph();
+      $("summary").textContent = "probing...";
+      for (const file of files) {
+        const result = await check(`${base}/${file}`);
+        results.push({ file, ...result });
+        feed(`${result.ok ? "pass" : "warn"} ${file} status=${result.status}`);
+        renderGraph();
+        renderRules();
+      }
+      const passed = results.filter((item) => item.ok).length;
+      $("summary").textContent = passed === files.length
+        ? "全候補が解決しました。次は FilesetResolver と実モデル初期化を接続します。"
+        : `${files.length - passed} 件が未解決です。basePath の固定、ローカルコピー、CPU fallback 表示を先に用意します。`;
+      renderRules(passed ? "warn" : "fail");
+    }
+
+    $("probe").addEventListener("click", probe);
+    $("simulate").addEventListener("click", () => {
+      results = assetSets[$("task").value].map((file, index) => ({ file, ok: index === 0, status: index === 0 ? 200 : 404, reason: index === 0 ? "ok" : "simulated missing asset" }));
+      $("summary").textContent = "一部 asset 欠落を合成しました。公開前UIでは、カメラ許可前にこの状態を説明します。";
+      feed("simulated missing module/wasm assets");
+      renderGraph();
+      renderRules("fail");
+    });
+    $("task").addEventListener("change", () => { results = []; renderGraph(); renderRules(); });
+    renderRules();
+    renderGraph();
+  </script>
+</body>
+</html>

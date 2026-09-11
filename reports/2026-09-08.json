@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-08",
+  "category": "MediaPipe Tasks / Gesture Recognizer / Google AI Edge / Web ML",
+  "headline": "Gesture Recognizer の分類結果を UI ポリシーとして扱う",
+  "headlineEn": "Treating Gesture Recognizer output as a UI policy layer",
+  "summary": "Google AI for Developers の GestureRecognizerOptions API reference、MediaPipe GitHub、releases、公式 mediapipe-samples-web、npm package version を確認し、Gesture Recognizer の top gesture、score threshold、allow/deny list、連続一致数を UI コマンドへ変換する自作サンプルを追加しました。派生試作として、同じ gesture でも手の画面ゾーンで別 intent に分岐する小さな mapper も実装しました。",
+  "summaryEn": "After checking the Google AI for Developers GestureRecognizerOptions API reference, the MediaPipe GitHub repository, releases, the official mediapipe-samples-web demo, and npm package versions, this adds an original sample that routes Gesture Recognizer top gestures, score thresholds, allow/deny lists, and confirmation frames into UI commands. A derivative prototype maps the same gesture into different intents based on the hand's screen zone.",
+  "keyTopics": [
+    "GestureRecognizerOptions は image、video、live stream の running mode を持ち、用途に応じて単発画像、動画フレーム、カメラ入力を分けられる。",
+    "同 options は `min_hand_detection_confidence`、`min_hand_presence_confidence`、`min_tracking_confidence` を持ち、検出・存在・追跡の gate を別々に調整できる。",
+    "canned gesture classifier options では score threshold、allow list、deny list を扱え、公式 API reference には `Closed_Fist`、`Open_Palm`、`Pointing_Up`、`Thumb_Up`、`Victory`、`ILoveYou` などの canned gesture が示されている。",
+    "MediaPipe GitHub は Solutions / Tasks をオンデバイス ML の導線として整理し、Tasks の入力処理はデバイス上で行われる一方、利用・性能メトリクスの扱いには同意設計が必要だと説明している。",
+    "2026-09-08 JST 時点の npm 確認では `@mediapipe/tasks-vision` latest は `1.0.1`、nightly は `1.0.1-rc.20260907`、`@mediapipe/tasks-genai` latest は `0.10.29`、nightly は `1.0.1-rc.20260907` だった。"
+  ],
+  "keyTopicsEn": [
+    "GestureRecognizerOptions supports image, video, and live stream running modes, separating single-image, decoded-frame, and camera-input use cases.",
+    "The options include `min_hand_detection_confidence`, `min_hand_presence_confidence`, and `min_tracking_confidence`, allowing detection, presence, and tracking gates to be tuned separately.",
+    "Canned gesture classifier options include score threshold, allow lists, and deny lists; the official API reference lists canned gestures such as `Closed_Fist`, `Open_Palm`, `Pointing_Up`, `Thumb_Up`, `Victory`, and `ILoveYou`.",
+    "The MediaPipe GitHub repository frames Solutions and Tasks as an on-device ML path and notes that Tasks process inputs on device, while usage and performance metrics require consent planning.",
+    "An npm check on 2026-09-08 JST showed `@mediapipe/tasks-vision` latest `1.0.1`, nightly `1.0.1-rc.20260907`, and `@mediapipe/tasks-genai` latest `0.10.29`, nightly `1.0.1-rc.20260907`."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Classifier Policy Console",
+      "url": "../outputs/2026-09-08_gesture_classifier_policy_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Gesture Zone Intent Mapper",
+      "url": "../outputs/2026-09-08_gesture_zone_intent_mapper.html"
+    },
+    {
+      "label": "Google AI API: GestureRecognizerOptions",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/GestureRecognizerOptions"
+    },
+    {
+      "label": "MediaPipe GitHub repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official MediaPipe web task demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Official mediapipe-samples-web source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-08-gesture-classifier-policy-console.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Gesture Recognizer の classifier options です。公式 API reference では running mode、手の検出・存在・追跡 confidence、canned / custom gesture classifier options、score threshold、allow / deny list が同じ設定面に並びます。面白いのは、gesture 名をそのまま UI 操作に割り当てるのではなく、許可する gesture、止める gesture、何フレーム続いたら確定するかを小さな policy layer として独立させられる点です。",
+      "bodyEn": "Today's notable point is the Gesture Recognizer classifier options. The official API reference places running mode, hand detection/presence/tracking confidence, canned/custom gesture classifier options, score threshold, and allow/deny lists in the same configuration surface. The interesting part is that gesture names do not need to map directly to UI actions; allowed gestures, blocked gestures, and consecutive-frame confirmation can be isolated as a small policy layer."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Gesture Classifier Policy Console` は、合成 top gesture の score を流し、allowlist / denylist / no list / invalid both lists、score threshold、confirm frames を動かして stable UI command を決めます。派生の `Gesture Zone Intent Mapper` は、同じ `Open_Palm` や `Victory` でも手の X 座標が left / center / right のどこにあるかで back、pin、next のように intent を変える小さな UI 実験です。",
+      "bodyEn": "The main sample, `Gesture Classifier Policy Console`, streams synthetic top-gesture scores and lets you tune allowlist, denylist, no-list, invalid-both-list, score threshold, and confirmation frames before a stable UI command is selected. The derivative `Gesture Zone Intent Mapper` tests changing intent by hand X position, so the same `Open_Palm` or `Victory` gesture can become back, pin, or next depending on left, center, or right zones."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、top gesture、score、policy mode、allow / deny list、confirm streak、fired command、hand X zone、zone dwell、gesture と zone の組み合わせ intent です。実 Gesture Recognizer、Hand Landmarker の landmark x/y、Web Audio の確認音、Pointer Lock なしの kiosk UI、WebRTC 配信 overlay、IndexedDB の操作ログ、LLM の command explanation と組み合わせると、誤操作を減らしたプレゼン操作、展示端末の非接触 UI、ジェスチャー練習フィードバック、複数人操作の arbitration に発展できます。",
+      "bodyEn": "The samples can collect top gesture, score, policy mode, allow/deny list, confirmation streak, fired command, hand-X zone, zone dwell, and gesture-zone intent combinations. Combined with real Gesture Recognizer output, Hand Landmarker landmark x/y, Web Audio confirmation sounds, kiosk UI without Pointer Lock, WebRTC overlays, IndexedDB command logs, or LLM command explanations, this can grow into safer presentation controls, touchless exhibit terminals, gesture-practice feedback, or multi-user operation arbitration."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "本命 HTML は `@mediapipe/tasks-vision@1.0.1/+esm` を dynamic import し、`GestureRecognizer` と `FilesetResolver` の export を軽く確認します。本番接続では `FilesetResolver.forVisionTasks()`、`GestureRecognizer.createFromOptions()`、`runningMode: \"VIDEO\"` または `\"LIVE_STREAM\"`、`recognizeForVideo()` か callback を接続します。UI への反映は top category だけでなく、score threshold、classifier allowlist / denylist、連続一致、cooldown、手の zone を別レイヤーに分けると調整しやすくなります。",
+      "bodyEn": "The main HTML dynamically imports `@mediapipe/tasks-vision@1.0.1/+esm` and lightly checks the `GestureRecognizer` and `FilesetResolver` exports. A production connection would use `FilesetResolver.forVisionTasks()`, `GestureRecognizer.createFromOptions()`, `runningMode: \"VIDEO\"` or `\"LIVE_STREAM\"`, and either `recognizeForVideo()` or a callback. For UI updates, separate top category, score threshold, classifier allowlist/denylist, consecutive confirmation, cooldown, and hand zone into distinct layers."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Tasks Vision の `1.0.1` 系 npm と nightly、Gesture Recognizer の Web guide / JS API reference の設定名、公式 mediapipe-samples-web の gesture demo、canned gesture category の安定性、custom gesture classifier options の導線、multi-hand 時の winner 決定、オンデバイス処理と metrics consent の表示設計を見ます。特に kiosk やプレゼン操作では denylist より allowlist と confirm frames を優先した方が運用しやすいかを試します。",
+      "bodyEn": "Next, watch the Tasks Vision `1.0.1` npm line and nightlies, Gesture Recognizer Web guide and JS API option names, the official mediapipe-samples-web gesture demo, canned gesture category stability, custom gesture classifier paths, winner selection for multi-hand input, and UX around on-device processing plus metrics consent. For kiosks and presentation controls, test whether allowlists plus confirmation frames are easier to operate than denylists."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Gesture Classifier Policy Console` を開き、`Classifier policy` を allowlist、denylist、invalid both lists に切り替えてから `Start stream` を押します。invalid では設定衝突として候補が止まり、allowlist では選択 gesture だけが command になります。次に派生サンプルで `Victory` を選び、hand X を左から右へ動かすと、同じ gesture が previous slide、focus slide、next slide に分岐します。",
+      "bodyEn": "Open `Gesture Classifier Policy Console`, switch `Classifier policy` between allowlist, denylist, and invalid both lists, then press `Start stream`. Invalid mode blocks candidates as a configuration conflict, while allowlist mode only turns selected gestures into commands. Then open the derivative sample, choose `Victory`, and move hand X from left to right to see the same gesture route to previous slide, focus slide, or next slide."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: GestureRecognizerOptions API reference、MediaPipe GitHub、MediaPipe releases、公式 mediapipe-samples-web、npm registry を確認。設計: 外部デモ一覧ではなく、Gesture Recognizer の分類結果を UI policy として自作 HTML に落とし込む。実装: 本命 HTML に synthetic gesture stream、policy list、threshold、confirm frames、stable command、Tasks import preflight を追加。派生 HTML に gesture + left / center / right zone、dwell frames、intent mapping、sweep simulation を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the GestureRecognizerOptions API reference, MediaPipe GitHub repository, MediaPipe releases, official mediapipe-samples-web, and npm registry. Design: instead of listing external demos, turn Gesture Recognizer classification output into an original UI policy prototype. Implementation: added synthetic gesture stream, policy list, threshold, confirmation frames, stable command, and Tasks import preflight to the main HTML. Added gesture plus left/center/right zone, dwell frames, intent mapping, and sweep simulation to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Holistic の多出力、Pose の mask、Image Classifier の filter policy、Gesture の debounce を扱いました。今日の2本は Gesture Recognizer の結果をもう一段 UI 側に寄せ、分類 category、score、list policy、zone、dwell を別々に調整できるようにします。Web ML のサンプルでは、モデル接続そのものより先に、推論結果をどの条件で UI state に昇格させるかを小さく試す価値があります。",
+      "bodyEn": "Recent entries covered Holistic multi-output, Pose masks, Image Classifier filter policy, and Gesture debounce. Today's two samples move Gesture Recognizer results one step closer to UI behavior by making classification category, score, list policy, zone, and dwell independently tunable. In Web ML samples, it is valuable to prototype the conditions that promote inference results into UI state before wiring the actual model."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Gesture Classifier Policy Console` です。実際に動く部分は、合成 gesture stream、score threshold、confirm frames、allowlist / denylist / invalid conflict、stable UI command、Tasks Vision import preflight です。次に足すなら実 `GestureRecognizer.recognizeForVideo()`、multi-hand winner 選択、custom gesture classifier options、cooldown、操作ログ保存を追加します。派生試作は `Gesture Zone Intent Mapper` で、実際に動く部分は gesture 選択、手の X 位置、left / center / right zone、dwell frames、zone 別 command 発火です。次に足すなら Hand Landmarker の wrist / index fingertip 座標、Web Audio の確認音、プレゼン API 連携、ゾーン境界の hysteresis を足します。",
+      "bodyEn": "The selected main prototype is `Gesture Classifier Policy Console`. The working pieces are a synthetic gesture stream, score threshold, confirmation frames, allowlist/denylist/invalid conflict, stable UI command, and Tasks Vision import preflight. Next additions should connect real `GestureRecognizer.recognizeForVideo()`, multi-hand winner selection, custom gesture classifier options, cooldown, and saved operation logs. The derivative prototype is `Gesture Zone Intent Mapper`; the working pieces are gesture selection, hand X position, left/center/right zone, dwell frames, and zone-specific command firing. Next additions should add Hand Landmarker wrist/index-fingertip coordinates, Web Audio confirmation sounds, presentation API wiring, and zone-boundary hysteresis.",
+      "links": [
+        {
+          "label": "Open Gesture Classifier Policy Console",
+          "url": "../outputs/2026-09-08_gesture_classifier_policy_console.html"
+        },
+        {
+          "label": "Open Gesture Zone Intent Mapper",
+          "url": "../outputs/2026-09-08_gesture_zone_intent_mapper.html"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-11",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / WASM / Delegate routing",
+  "headline": "Tasks Web の delegate fallback と WASM asset 解決を先に見える化する",
+  "headlineEn": "Making Tasks Web delegate fallback and WASM asset resolution visible first",
+  "summary": "Google AI Edge の JavaScript API reference、MediaPipe GitHub、Tasks Web Vision README、公式 mediapipe-samples-web、公式デモページを確認し、MediaPipe Tasks Web で起きやすい delegate 選択、GPU fallback、running mode、WASM asset path の失敗をモデル接続前に点検する自作サンプルを2本追加しました。本命は合成フレームの latency router、派生は FilesetResolver 用 base path の sentinel です。",
+  "summaryEn": "After checking the Google AI Edge JavaScript API reference, the MediaPipe GitHub repository, the Tasks Web Vision README, the official mediapipe-samples-web repository, and the official demo page, this adds two original samples that inspect delegate choice, GPU fallback, running mode, and WASM asset path failures before wiring a model. The main sample is a synthetic-frame latency router; the derivative is a base-path sentinel for FilesetResolver.",
+  "keyTopics": [
+    "Tasks Vision の JavaScript API reference は `FilesetResolver`、`FaceDetector`、`GestureRecognizer`、`HandLandmarker`、`ImageSegmenter`、`ObjectDetector`、`PoseLandmarker` などの Web task class を整理している。",
+    "`FilesetResolver` は SIMD 対応を確認して必要な WASM fileset を解決する。WASM ファイルをリネームせずに公開する必要があるため、CDN pin や local copy の検証が重要になる。",
+    "MediaPipe Tasks Web Vision README は `FilesetResolver.forVisionTasks()` と model path から task を作る最小形を示しており、実装の最初の失敗点は import、WASM、model URL、delegate の4つに分けられる。",
+    "公式 web demo は delegate 設定、model selection、WASM module loading、GPU unavailable 時の CPU fallback 表示を持ち、公開UIでも失敗理由をユーザーに返す設計が必要だと分かる。",
+    "running mode は image、video、live stream 系に分かれ、video/live stream では timestamp と busy frame の扱いが latency 設計に直結する。"
+  ],
+  "keyTopicsEn": [
+    "The Tasks Vision JavaScript API reference organizes Web task classes such as `FilesetResolver`, `FaceDetector`, `GestureRecognizer`, `HandLandmarker`, `ImageSegmenter`, `ObjectDetector`, and `PoseLandmarker`.",
+    "`FilesetResolver` checks SIMD support and resolves the required WASM fileset. Because the WASM files need to be published without renaming, CDN pinning and local-copy verification matter.",
+    "The MediaPipe Tasks Web Vision README shows the minimal shape of `FilesetResolver.forVisionTasks()` plus task creation from a model path, making import, WASM, model URL, and delegate the first four likely failure points.",
+    "The official web demo includes delegate settings, model selection, WASM module loading, and CPU fallback messaging when GPU is unavailable, showing that published UIs should explain failure causes.",
+    "Running modes separate image, video, and live stream styles; timestamp handling and busy-frame policy in video/live stream modes directly affect latency design."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Delegate Fallback Latency Router",
+      "url": "../outputs/2026-09-11_delegate_fallback_latency_router.html"
+    },
+    {
+      "label": "Today's derivative sample: WASM Asset Path Sentinel",
+      "url": "../outputs/2026-09-11_wasm_asset_path_sentinel.html"
+    },
+    {
+      "label": "Google AI Edge API: tasks-vision package",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision"
+    },
+    {
+      "label": "Google AI Edge API: FilesetResolver",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-audio.filesetresolver"
+    },
+    {
+      "label": "MediaPipe GitHub repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "MediaPipe Tasks Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official mediapipe-samples-web source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe web task demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-11-delegate-fallback-latency-router.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、公式デモにも見える delegate と asset loading の失敗状態です。MediaPipe Tasks の実コードではモデル精度より前に、ESM import、WASM fileset、model asset、delegate のどこで止まったかを切り分ける必要があります。面白いのは、これは ML そのものではなく Web アプリの起動設計の問題で、先に小さな router と sentinel を作るだけでユーザー体験がかなり安定する点です。",
+      "bodyEn": "Today's notable point is the delegate and asset-loading failure state visible in the official demo. In real MediaPipe Tasks code, before model accuracy matters, the app needs to distinguish whether ESM import, WASM fileset, model asset, or delegate selection failed. The interesting part is that this is mostly a Web app startup-design problem, and a small router plus sentinel can make the user experience much steadier."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Delegate Fallback Latency Router` は、preferred delegate、running mode、frame budget、GPU availability、GPU init tax、main-thread spike を動かし、CPU / GPU / AUTO の採用理由をタイムラインで表示します。派生の `WASM Asset Path Sentinel` は、FilesetResolver に渡す base path から vision/audio/genai の候補 asset を軽く probe し、404、CORS、offline、renamed asset をカメラ許可前に説明する小さな UI です。",
+      "bodyEn": "The main sample, `Delegate Fallback Latency Router`, lets you adjust preferred delegate, running mode, frame budget, GPU availability, GPU initialization tax, and main-thread spikes, then shows why CPU, GPU, or AUTO was selected on a timeline. The derivative `WASM Asset Path Sentinel` lightly probes candidate vision/audio/genai assets from a FilesetResolver base path and explains 404, CORS, offline, or renamed-asset states before asking for camera permission."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、preferred delegate、実際に採用した delegate、running mode、frame budget、推定処理時間、budget 超過、asset URL、HTTP status、fallback 理由です。実 Face / Hand / Pose / Object / Audio tasks、PerformanceObserver、WebGL/WebGPU capability、Service Worker cache、IndexedDB 起動ログ、ユーザー向け consent 表示と組み合わせると、環境ごとに最初から軽い設定へ誘導するオンデバイス ML 起動パネルにできます。",
+      "bodyEn": "The samples can accumulate preferred delegate, selected delegate, running mode, frame budget, estimated processing time, budget misses, asset URL, HTTP status, and fallback reason. Combined with real Face, Hand, Pose, Object, or Audio tasks, PerformanceObserver, WebGL/WebGPU capability checks, Service Worker cache, IndexedDB startup logs, and user-facing consent messaging, this can become an on-device ML startup panel that routes each environment to a lighter setting from the beginning."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "本命 HTML は `@mediapipe/tasks-vision@1.0.1/+esm` を dynamic import し、`FilesetResolver`、`FaceDetector`、`HandLandmarker` の export と WebGL availability を確認します。実装へ進める時は、`FilesetResolver.forVisionTasks(basePath)`、task の `createFromOptions`、`baseOptions.delegate`、`runningMode: \"VIDEO\"` または `\"LIVE_STREAM\"`、timestamp、busy frame policy を分けてログ化します。派生 HTML は HEAD/GET で asset 候補を点検し、公開先で WASM 名が変わっていないかを先に可視化します。",
+      "bodyEn": "The main HTML dynamically imports `@mediapipe/tasks-vision@1.0.1/+esm` and checks `FilesetResolver`, `FaceDetector`, `HandLandmarker`, and WebGL availability. When wiring a real task, log `FilesetResolver.forVisionTasks(basePath)`, task `createFromOptions`, `baseOptions.delegate`, `runningMode: \"VIDEO\"` or `\"LIVE_STREAM\"`, timestamps, and busy-frame policy separately. The derivative HTML probes candidate assets with HEAD/GET so a published app can see whether WASM names changed before initialization."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、`@mediapipe/tasks-vision` の npm latest/nightly、`@mediapipe/tasks-genai` と LiteRT WebGPU の導線、公式 demo の WASM 配置、MediaPipe GitHub の Tasks Web README、delegate に関する GitHub issue、WebGPU/WebGL が無効なブラウザでの fallback 表示を見ます。特に公開サイトでは、モデルダウンロード前に import / WASM / GPU / camera permission の状態を分けて見せる UI を続けて試します。",
+      "bodyEn": "Next, watch the `@mediapipe/tasks-vision` npm latest/nightly line, `@mediapipe/tasks-genai` and LiteRT WebGPU paths, the official demo's WASM layout, the MediaPipe GitHub Tasks Web README, delegate-related GitHub issues, and fallback messaging in browsers where WebGPU/WebGL is unavailable. For the public archive, continue testing UI that separates import, WASM, GPU, and camera-permission state before model download."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Delegate Fallback Latency Router` を開き、GPU available を no にして `Start route` を押すと CPU fallback の理由が流れます。次に GPU available を yes、GPU init tax を高めにして、初期化直後だけ budget を超えやすい状態を見ます。派生サンプルでは `Simulate fail` を押し、asset 欠落時にどの説明をユーザーへ返すかを確認します。",
+      "bodyEn": "Open `Delegate Fallback Latency Router`, set GPU available to no, and press `Start route` to watch the CPU fallback reason stream. Then set GPU available to yes, raise GPU init tax, and see how the startup period exceeds the frame budget. In the derivative sample, press `Simulate fail` to check what message should be shown when assets are missing."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI Edge JavaScript API reference、FilesetResolver reference、MediaPipe GitHub、Tasks Web Vision README、公式 mediapipe-samples-web と公式デモを確認。設計: 外部デモ一覧ではなく、自作 HTML で delegate fallback と WASM asset 解決を先に見える化する。実装: 本命 HTML に合成フレーム、CPU/GPU/AUTO router、budget timeline、Tasks import/WebGL preflight を追加。派生 HTML に base path、task種別、HEAD/GET probe、fail simulation、sentinel rule を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Google AI Edge JavaScript API reference, FilesetResolver reference, MediaPipe GitHub repository, Tasks Web Vision README, official mediapipe-samples-web, and the official demo. Design: instead of listing external demos, make delegate fallback and WASM asset resolution visible through original local HTML. Implementation: added synthetic frames, CPU/GPU/AUTO routing, budget timeline, Tasks import, and WebGL preflight to the main HTML. Added base path, task type, HEAD/GET probes, fail simulation, and sentinel rules to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Gesture policy、Holistic output budget、Pose mask、Image Classifier filter policy を扱いました。今日は推論結果の解釈から一段手前に戻り、Tasks Web の起動時に何を確認すべきかを小さく切りました。Web ML の日次サンプルとしては、モデルの見た目だけでなく、ユーザーの端末差、WASM 配置、delegate fallback、busy frame を UI にする流れが見えてきています。",
+      "bodyEn": "Recent entries covered Gesture policy, Holistic output budgets, Pose masks, and Image Classifier filter policy. Today steps one layer earlier than interpreting inference results and slices out what should be checked during Tasks Web startup. As a Web ML daily sample track, the archive is now covering not just model visuals but also device differences, WASM layout, delegate fallback, and busy frames as UI."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Delegate Fallback Latency Router` です。実際に動く部分は、preferred delegate、running mode、frame budget、GPU availability、GPU init tax、synthetic spike、CPU/GPU/AUTO decision、budget timeline、Tasks Vision import/WebGL preflight です。次に足すなら実 `FilesetResolver.forVisionTasks()`、`createFromOptions()`、実カメラ推論、PerformanceObserver、delegate 切替ログを追加します。派生試作は `WASM Asset Path Sentinel` で、実際に動く部分は base path 入力、vision/audio/genai asset 候補、HEAD/GET probe、欠落 simulation、fallback rule 表示です。次に足すなら Service Worker pre-cache、ローカル asset manifest、model URL probe、CDN version drift alert を足します。",
+      "bodyEn": "The selected main prototype is `Delegate Fallback Latency Router`. The working pieces are preferred delegate, running mode, frame budget, GPU availability, GPU initialization tax, synthetic spikes, CPU/GPU/AUTO decision, budget timeline, and Tasks Vision import/WebGL preflight. Next additions should connect real `FilesetResolver.forVisionTasks()`, `createFromOptions()`, camera inference, PerformanceObserver, and delegate-switch logs. The derivative prototype is `WASM Asset Path Sentinel`; the working pieces are base-path input, vision/audio/genai asset candidates, HEAD/GET probes, missing-asset simulation, and fallback-rule display. Next additions should add Service Worker pre-cache, a local asset manifest, model URL probes, and CDN version drift alerts.",
+      "links": [
+        {
+          "label": "Open Delegate Fallback Latency Router",
+          "url": "../outputs/2026-09-11_delegate_fallback_latency_router.html"
+        },
+        {
+          "label": "Open WASM Asset Path Sentinel",
+          "url": "../outputs/2026-09-11_wasm_asset_path_sentinel.html"
+        }
+      ]
+    }
+  ]
+}

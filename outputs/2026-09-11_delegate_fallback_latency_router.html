@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delegate Fallback Latency Router</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111417; color: #fffaf1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(68, 145, 168, .18), transparent 35%), linear-gradient(315deg, rgba(212, 92, 75, .13), transparent 45%), #111417; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(255, 250, 241, .16); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.2rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #d6cfc3; line-height: 1.65; }
+    button, select, input { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 250, 241, .24); background: #fffaf1; color: #111417; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fffaf1; }
+    select { min-height: 40px; border: 1px solid rgba(255, 250, 241, .24); color: #fffaf1; background: #171d21; padding: 7px; }
+    input[type="range"] { width: 100%; accent-color: #4491a8; }
+    .toolbar, .panel, .timeline, .stage, .feed { border: 1px solid rgba(255, 250, 241, .14); background: rgba(18, 23, 27, .86); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; padding: 14px; }
+    label { display: grid; gap: 7px; color: #efe8dc; font-size: .92rem; }
+    .value { color: #f0bd65; font-variant-numeric: tabular-nums; }
+    .layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel { padding: 14px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(255, 250, 241, .2); color: #d6cfc3; padding: 5px 8px; font-size: .78rem; }
+    .chip.pass { color: #fffaf1; border-color: rgba(86, 181, 136, .66); background: rgba(86, 181, 136, .16); }
+    .chip.warn { color: #fffaf1; border-color: rgba(240, 189, 101, .72); background: rgba(240, 189, 101, .15); }
+    .stage { min-height: 360px; padding: 16px; position: relative; overflow: hidden; }
+    .meter { height: 16px; background: #283138; overflow: hidden; margin: 8px 0 14px; }
+    .meter i { display: block; height: 100%; width: 0%; background: #4491a8; transition: width .18s ease; }
+    .runtime { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { min-height: 138px; border: 1px solid rgba(255, 250, 241, .13); background: #171d21; padding: 12px; }
+    .card.active { outline: 2px solid #f0bd65; }
+    .card.blocked { opacity: .52; }
+    .big { display: block; margin-top: 8px; font-size: clamp(1.7rem, 4vw, 2.8rem); color: #f0bd65; font-variant-numeric: tabular-nums; }
+    .timeline { padding: 12px; margin-top: 14px; display: grid; grid-template-columns: repeat(42, 1fr); gap: 3px; min-height: 64px; }
+    .tick { height: 38px; background: #293138; border-bottom: 4px solid #59656d; }
+    .tick.ok { background: rgba(86, 181, 136, .42); border-color: #56b588; }
+    .tick.warn { background: rgba(240, 189, 101, .35); border-color: #f0bd65; }
+    .tick.drop { background: rgba(212, 92, 75, .4); border-color: #d45c4b; }
+    .feed { margin-top: 14px; padding: 12px; height: 170px; overflow: auto; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #d9eef3; }
+    @media (max-width: 940px) {
+      .toolbar, .layout, .runtime { grid-template-columns: 1fr; }
+      .timeline { grid-template-columns: repeat(21, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Delegate Fallback Latency Router</h1>
+      <p>MediaPipe Tasks Web の CPU/GPU delegate、WASM import、running mode、初期化コストを合成フレームで点検する自作ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Preferred delegate
+        <select id="preferred">
+          <option value="GPU">GPU first</option>
+          <option value="CPU">CPU only</option>
+          <option value="AUTO">Auto budget</option>
+        </select>
+      </label>
+      <label>Running mode
+        <select id="mode">
+          <option value="VIDEO">VIDEO</option>
+          <option value="LIVE_STREAM">LIVE_STREAM</option>
+          <option value="IMAGE">IMAGE</option>
+        </select>
+      </label>
+      <label>Frame budget <input id="budget" type="range" min="8" max="42" value="18"><span id="budgetValue" class="value">18 ms</span></label>
+      <label>GPU init tax <input id="gpuTax" type="range" min="0" max="40" value="18"><span id="gpuTaxValue" class="value">18 frames</span></label>
+      <label>GPU available
+        <select id="gpuAvailable">
+          <option value="yes">yes</option>
+          <option value="no">no</option>
+        </select>
+      </label>
+      <button id="toggle">Start route</button>
+      <button id="step" class="secondary">Step frame</button>
+      <button id="preset" class="secondary">Kiosk preset</button>
+      <button id="reset" class="secondary">Reset</button>
+      <button id="spike" class="secondary">Inject spike</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Runtime checks</h2>
+        <p>公式デモで起きやすい「GPU指定でも環境によりCPUへ寄る」「WASM解決に失敗する」「同期APIがUIを塞ぐ」を、モデルなしで先に観察します。</p>
+        <div class="chips">
+          <span id="importStatus" class="chip warn">Tasks import: checking</span>
+          <span id="webglStatus" class="chip warn">WebGL: checking</span>
+          <span id="modeStatus" class="chip">mode: VIDEO</span>
+          <span id="delegateStatus" class="chip">delegate: pending</span>
+        </div>
+        <p id="decision">Start route を押すと、preferred delegate と frame budget から routing decision を更新します。</p>
+      </aside>
+      <section>
+        <div class="stage">
+          <h2>Delegate candidates</h2>
+          <div id="runtime" class="runtime"></div>
+          <h2>Current frame budget</h2>
+          <div class="meter"><i id="budgetFill"></i></div>
+          <p id="summary">初期化前です。</p>
+        </div>
+        <div id="timeline" class="timeline"></div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const controls = {
+      preferred: $("preferred"),
+      mode: $("mode"),
+      budget: $("budget"),
+      gpuTax: $("gpuTax"),
+      gpuAvailable: $("gpuAvailable")
+    };
+    const state = { running: false, frame: 0, phase: "init", active: "pending", spike: 0, ticks: [], importOk: false, webglOk: false };
+
+    async function checkRuntime() {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        state.importOk = Boolean(mod.FilesetResolver && mod.FaceDetector && mod.HandLandmarker);
+        $("importStatus").textContent = state.importOk ? "Tasks import: vision exports ready" : "Tasks import: missing exports";
+        $("importStatus").className = state.importOk ? "chip pass" : "chip warn";
+      } catch (error) {
+        $("importStatus").textContent = "Tasks import: blocked or offline";
+        $("importStatus").className = "chip warn";
+      }
+      try {
+        const canvas = document.createElement("canvas");
+        state.webglOk = Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+        $("webglStatus").textContent = state.webglOk ? "WebGL: available" : "WebGL: unavailable";
+        $("webglStatus").className = state.webglOk ? "chip pass" : "chip warn";
+      } catch {
+        $("webglStatus").textContent = "WebGL: unavailable";
+      }
+      render();
+    }
+
+    function syncLabels() {
+      $("budgetValue").textContent = `${controls.budget.value} ms`;
+      $("gpuTaxValue").textContent = `${controls.gpuTax.value} frames`;
+      $("modeStatus").textContent = `mode: ${controls.mode.value}`;
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2600);
+    }
+
+    function candidateMetrics() {
+      const budget = Number(controls.budget.value);
+      const gpuPossible = controls.gpuAvailable.value === "yes" && state.webglOk;
+      const initTax = Math.max(0, Number(controls.gpuTax.value) - state.frame);
+      const videoBonus = controls.mode.value === "VIDEO" ? -2 : controls.mode.value === "LIVE_STREAM" ? -4 : 4;
+      const cpuMs = 14 + Math.sin(state.frame * .21) * 5 + (state.spike ? 12 : 0) + (controls.mode.value === "IMAGE" ? 5 : 0);
+      const gpuMs = gpuPossible ? 9 + Math.sin(state.frame * .17 + 1.8) * 3 + initTax + videoBonus : 99;
+      const autoMs = Math.min(cpuMs + 1.5, gpuMs + (initTax > 0 ? 3 : 0));
+      return [
+        { name: "CPU", ok: true, ms: cpuMs, note: "低い初期化コスト。同期VIDEO/IMAGEではUI blockingに注意。" },
+        { name: "GPU", ok: gpuPossible, ms: gpuMs, note: gpuPossible ? "初期化tax後に軽くなる想定。環境差を先に吸収。" : "WebGL/GPU不可としてCPUへfallback。" },
+        { name: "AUTO", ok: true, ms: autoMs, note: "budget超過時だけCPU/GPUを切替える試作ルール。" }
+      ].map((item) => ({ ...item, over: item.ms > budget }));
+    }
+
+    function choose(metrics) {
+      const preferred = controls.preferred.value;
+      const budget = Number(controls.budget.value);
+      if (preferred === "CPU") return metrics[0];
+      if (preferred === "GPU") return metrics[1].ok && metrics[1].ms <= budget + 8 ? metrics[1] : metrics[0];
+      const under = metrics.filter((item) => item.ok && item.ms <= budget).sort((a, b) => a.ms - b.ms)[0];
+      return under || metrics.filter((item) => item.ok).sort((a, b) => a.ms - b.ms)[0];
+    }
+
+    function step() {
+      state.frame += 1;
+      if (state.spike > 0) state.spike -= 1;
+      const metrics = candidateMetrics();
+      const picked = choose(metrics);
+      state.active = picked.name;
+      const severity = !picked.ok || picked.ms > Number(controls.budget.value) * 1.4 ? "drop" : picked.over ? "warn" : "ok";
+      state.ticks.push(severity);
+      state.ticks = state.ticks.slice(-42);
+      $("delegateStatus").textContent = `delegate: ${picked.name}`;
+      $("decision").textContent = picked.name === "GPU" ? "GPU route を採用。init tax が残る間は budget 超過を許容するか確認します。" : picked.name === "CPU" ? "CPU fallback を採用。安定する一方で同期推論はUI blockingを監視します。" : "AUTO route を採用。budget 内の候補を優先しています。";
+      $("summary").textContent = `frame ${state.frame}: ${picked.name} ${picked.ms.toFixed(1)} ms / budget ${controls.budget.value} ms (${severity})`;
+      $("budgetFill").style.width = `${Math.min(100, Math.round((picked.ms / Number(controls.budget.value)) * 100))}%`;
+      $("budgetFill").style.background = severity === "ok" ? "#56b588" : severity === "warn" ? "#f0bd65" : "#d45c4b";
+      feed(`frame=${state.frame} preferred=${controls.preferred.value} picked=${picked.name} ms=${picked.ms.toFixed(1)} status=${severity}`);
+      render(metrics);
+    }
+
+    function render(metrics = candidateMetrics()) {
+      $("runtime").innerHTML = metrics.map((item) => `
+        <article class="card ${item.name === state.active ? "active" : ""} ${item.ok ? "" : "blocked"}">
+          <h2>${item.name}</h2>
+          <span class="big">${item.ok ? item.ms.toFixed(1) : "--"} ms</span>
+          <p>${item.note}</p>
+        </article>
+      `).join("");
+      $("timeline").innerHTML = state.ticks.map((tick) => `<i class="tick ${tick}"></i>`).join("");
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 130);
+    }
+
+    Object.values(controls).forEach((control) => control.addEventListener("input", () => { syncLabels(); render(); }));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop route" : "Start route";
+      if (state.running) loop();
+      else clearTimeout(timer);
+    });
+    $("step").addEventListener("click", step);
+    $("spike").addEventListener("click", () => { state.spike = 8; feed("injected synthetic UI/main-thread spike"); });
+    $("preset").addEventListener("click", () => {
+      controls.preferred.value = "AUTO";
+      controls.mode.value = "LIVE_STREAM";
+      controls.budget.value = 16;
+      controls.gpuTax.value = 10;
+      syncLabels();
+      render();
+      feed("applied kiosk preset: AUTO + LIVE_STREAM + 16 ms budget");
+    });
+    $("reset").addEventListener("click", () => {
+      state.frame = 0;
+      state.active = "pending";
+      state.spike = 0;
+      state.ticks = [];
+      $("feed").textContent = "";
+      $("summary").textContent = "初期化前です。";
+      $("budgetFill").style.width = "0%";
+      render();
+    });
+    syncLabels();
+    checkRuntime();
+  </script>
+</body>
+</html>
