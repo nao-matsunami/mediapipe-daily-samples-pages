@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detector Label Policy Sandbox</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101416; color: #fff9ed; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(85, 143, 188, .16), transparent 35%), linear-gradient(320deg, rgba(215, 155, 73, .14), transparent 42%), #101416; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(255, 249, 237, .15); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #d8d0c2; line-height: 1.64; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 249, 237, .25); background: #fff9ed; color: #101416; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fff9ed; }
+    input, select { min-height: 40px; border: 1px solid rgba(255, 249, 237, .23); background: #171d20; color: #fff9ed; padding: 7px; }
+    input[type="range"] { width: 100%; accent-color: #558fbc; }
+    label { display: grid; gap: 7px; color: #efe6d8; font-size: .92rem; }
+    .toolbar, .panel, .board, .feed { border: 1px solid rgba(255, 249, 237, .14); background: rgba(17, 22, 25, .87); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .board { padding: 14px; }
+    .value { color: #d79b49; font-variant-numeric: tabular-nums; }
+    .rows { display: grid; gap: 8px; }
+    .row { border: 1px solid rgba(255, 249, 237, .13); background: #171d20; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .badge { border: 1px solid rgba(255, 249, 237, .21); padding: 4px 7px; font-size: .78rem; color: #d8d0c2; }
+    .pass { color: #fff9ed; border-color: rgba(85, 143, 188, .72); background: rgba(85, 143, 188, .18); }
+    .warn { color: #fff9ed; border-color: rgba(215, 155, 73, .75); background: rgba(215, 155, 73, .16); }
+    .fail { color: #fff9ed; border-color: rgba(196, 83, 72, .75); background: rgba(196, 83, 72, .18); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .card { min-height: 152px; border: 1px solid rgba(255, 249, 237, .13); background: #171d20; padding: 12px; }
+    .card strong { display: block; margin-top: 4px; color: #d79b49; font-size: clamp(1.4rem, 3vw, 2.1rem); font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; margin: 10px 0; background: #293137; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0%; background: #558fbc; transition: width .2s ease; }
+    .queue { margin-top: 14px; display: grid; gap: 8px; }
+    .queue .row { grid-template-columns: 90px 1fr auto; }
+    .feed { margin-top: 14px; padding: 12px; height: 170px; overflow: auto; white-space: pre-wrap; color: #dceaf5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 880px) {
+      .toolbar, .layout, .grid, .queue .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Detector Label Policy Sandbox</h1>
+      <p>Object Detector の category_allowlist / category_denylist / score threshold を、ラベル表示とイベント発火の安全なルールに落とす派生ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Policy
+        <select id="policy">
+          <option value="allow">allowlist focus</option>
+          <option value="deny">denylist suppress</option>
+          <option value="neutral">neutral ranking</option>
+        </select>
+      </label>
+      <label>Score threshold <input id="threshold" type="range" min="20" max="90" value="55"><span id="thresholdValue" class="value">0.55</span></label>
+      <label>Confirmation frames <input id="confirm" type="range" min="1" max="8" value="3"><span id="confirmValue" class="value">3</span></label>
+      <label>Locale
+        <select id="locale">
+          <option value="ja">ja display</option>
+          <option value="en">en display</option>
+        </select>
+      </label>
+      <button id="step">Step detections</button>
+      <button id="auto" class="secondary">Auto run</button>
+      <button id="swap" class="secondary">Swap policy set</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Policy set</h2>
+        <p>公式 option の allowlist / denylist は、単なるフィルタではなく「表示してよいカテゴリ」「イベントにしてよいカテゴリ」の境界として扱えます。</p>
+        <div id="policyRows" class="rows"></div>
+      </aside>
+      <section>
+        <div class="board">
+          <h2>Decision board</h2>
+          <div id="cards" class="grid"></div>
+          <div id="queue" class="queue"></div>
+        </div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const labels = [
+      { id: "person", ja: "人", safe: true },
+      { id: "cup", ja: "カップ", safe: true },
+      { id: "knife", ja: "ナイフ", safe: false },
+      { id: "phone", ja: "スマートフォン", safe: true },
+      { id: "bottle", ja: "ボトル", safe: true },
+      { id: "private_doc", ja: "書類", safe: false }
+    ];
+    let policySet = {
+      allow: ["person", "cup", "phone", "bottle"],
+      deny: ["knife", "private_doc"]
+    };
+    const state = { frame: 0, confirmations: new Map(), accepted: 0, suppressed: 0, pending: 0, queue: [], running: false };
+
+    function syncLabels() {
+      $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+      $("confirmValue").textContent = $("confirm").value;
+    }
+
+    function displayName(item) {
+      return $("locale").value === "ja" ? item.ja : item.id.replace("_", " ");
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2400);
+    }
+
+    function synth() {
+      state.frame += 1;
+      const threshold = Number($("threshold").value) / 100;
+      return labels.map((item, index) => {
+        const score = 0.28 + Math.abs(Math.sin(state.frame * (0.08 + index * .01) + index)) * .68;
+        return { ...item, score };
+      }).filter((item) => item.score >= threshold).sort((a, b) => b.score - a.score).slice(0, 5);
+    }
+
+    function classify(item) {
+      const policy = $("policy").value;
+      if (policy === "allow" && !policySet.allow.includes(item.id)) return { kind: "suppressed", reason: "not in allowlist" };
+      if (policy === "deny" && policySet.deny.includes(item.id)) return { kind: "suppressed", reason: "denylist match" };
+      if (!item.safe) return { kind: "pending", reason: "needs explicit UI review" };
+      const current = (state.confirmations.get(item.id) || 0) + 1;
+      state.confirmations.set(item.id, current);
+      return current >= Number($("confirm").value)
+        ? { kind: "accepted", reason: `${current} confirmed frames` }
+        : { kind: "pending", reason: `${current}/${$("confirm").value} frames` };
+    }
+
+    function step() {
+      const detections = synth();
+      const seen = new Set(detections.map((item) => item.id));
+      for (const key of state.confirmations.keys()) {
+        if (!seen.has(key)) state.confirmations.set(key, Math.max(0, state.confirmations.get(key) - 1));
+      }
+      state.queue = detections.map((item) => ({ ...item, decision: classify(item) }));
+      state.accepted += state.queue.filter((item) => item.decision.kind === "accepted").length;
+      state.suppressed += state.queue.filter((item) => item.decision.kind === "suppressed").length;
+      state.pending = state.queue.filter((item) => item.decision.kind === "pending").length;
+      feed(`frame=${state.frame} accepted=${state.queue.filter((item) => item.decision.kind === "accepted").length} pending=${state.pending} suppressed=${state.queue.filter((item) => item.decision.kind === "suppressed").length}`);
+      render();
+    }
+
+    function renderPolicies() {
+      const rows = [
+        ["allowlist", policySet.allow.join(", "), $("policy").value === "allow" ? "active" : "ready"],
+        ["denylist", policySet.deny.join(", "), $("policy").value === "deny" ? "active" : "ready"],
+        ["threshold", (Number($("threshold").value) / 100).toFixed(2), "score gate"],
+        ["confirm", `${$("confirm").value} frames`, "event gate"]
+      ];
+      $("policyRows").innerHTML = rows.map(([name, value, status]) => `<div class="row"><span>${name}<br><small>${value}</small></span><span class="badge ${status === "active" ? "pass" : "warn"}">${status}</span></div>`).join("");
+    }
+
+    function render() {
+      renderPolicies();
+      const acceptedNow = state.queue.filter((item) => item.decision.kind === "accepted").length;
+      const suppressedNow = state.queue.filter((item) => item.decision.kind === "suppressed").length;
+      const pendingNow = state.queue.filter((item) => item.decision.kind === "pending").length;
+      $("cards").innerHTML = [
+        ["accepted now", acceptedNow, "#558fbc", "イベントに変換してよい検出"],
+        ["pending now", pendingNow, "#d79b49", "確認フレーム待ちの検出"],
+        ["suppressed now", suppressedNow, "#c45348", "表示やイベントから外した検出"],
+        ["total accepted", state.accepted, "#6ead82", "このセッションの採用数"]
+      ].map(([name, value, color, note]) => `<article class="card"><h2>${name}</h2><strong>${value}</strong><div class="bar"><i style="width:${Math.min(100, Number(value) * 24 + 12)}%;background:${color}"></i></div><p>${note}</p></article>`).join("");
+      $("queue").innerHTML = state.queue.map((item) => {
+        const cls = item.decision.kind === "accepted" ? "pass" : item.decision.kind === "pending" ? "warn" : "fail";
+        return `<div class="row"><span>${displayName(item)}</span><span>${item.score.toFixed(2)} ${item.decision.reason}</span><span class="badge ${cls}">${item.decision.kind}</span></div>`;
+      }).join("") || `<div class="row"><span>no detections</span><span>threshold or policy filtered the frame</span><span class="badge warn">idle</span></div>`;
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 420);
+    }
+
+    ["policy", "threshold", "confirm", "locale"].forEach((id) => $(id).addEventListener("input", () => { syncLabels(); render(); }));
+    $("step").addEventListener("click", step);
+    $("auto").addEventListener("click", () => {
+      state.running = !state.running;
+      $("auto").textContent = state.running ? "Stop auto" : "Auto run";
+      if (state.running) loop();
+    });
+    $("swap").addEventListener("click", () => {
+      policySet = policySet.allow.includes("private_doc")
+        ? { allow: ["person", "cup", "phone", "bottle"], deny: ["knife", "private_doc"] }
+        : { allow: ["person", "phone", "private_doc"], deny: ["knife"] };
+      feed("policy set swapped");
+      render();
+    });
+    $("reset").addEventListener("click", () => {
+      state.frame = 0;
+      state.confirmations.clear();
+      state.accepted = 0;
+      state.suppressed = 0;
+      state.pending = 0;
+      state.queue = [];
+      render();
+      feed("reset policy sandbox");
+    });
+    syncLabels();
+    render();
+  </script>
+</body>
+</html>

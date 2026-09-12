@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Object Detector ROI Decay Board</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111416; color: #fff8ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(42, 148, 131, .18), transparent 36%), linear-gradient(315deg, rgba(201, 87, 66, .13), transparent 43%), #111416; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { border-bottom: 1px solid rgba(255, 248, 239, .15); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.85rem, 4vw, 3.15rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #d7cdbf; line-height: 1.64; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(255, 248, 239, .25); background: #fff8ef; color: #111416; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fff8ef; }
+    input[type="range"] { width: 100%; accent-color: #2a9483; }
+    select { min-height: 40px; border: 1px solid rgba(255, 248, 239, .23); background: #181f21; color: #fff8ef; padding: 7px; }
+    label { display: grid; gap: 7px; color: #efe6d8; font-size: .92rem; }
+    .toolbar, .panel, .stage, .timeline, .feed { border: 1px solid rgba(255, 248, 239, .14); background: rgba(18, 23, 25, .87); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(255, 248, 239, .21); color: #d7cdbf; padding: 5px 8px; font-size: .78rem; }
+    .pass { color: #fff8ef; border-color: rgba(42, 148, 131, .7); background: rgba(42, 148, 131, .18); }
+    .warn { color: #fff8ef; border-color: rgba(231, 178, 82, .76); background: rgba(231, 178, 82, .16); }
+    .value { color: #e7b252; font-variant-numeric: tabular-nums; }
+    .canvas { position: relative; min-height: 430px; background: #0d1113; overflow: hidden; border: 1px solid rgba(255, 248, 239, .12); }
+    .scan { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 34px 34px; opacity: .56; }
+    .obj { position: absolute; width: 54px; height: 54px; border-radius: 50%; background: #2a9483; box-shadow: 0 0 24px rgba(42, 148, 131, .34); transform: translate(-50%, -50%); }
+    .obj:nth-child(3) { background: #c95742; box-shadow: 0 0 24px rgba(201, 87, 66, .35); }
+    .obj:nth-child(4) { background: #e7b252; box-shadow: 0 0 24px rgba(231, 178, 82, .3); }
+    .box { position: absolute; border: 2px solid #e7b252; background: rgba(231, 178, 82, .08); transform: translate(-50%, -50%); min-width: 50px; min-height: 40px; }
+    .box.stale { border-color: #6e7d82; background: rgba(110, 125, 130, .09); }
+    .tag { position: absolute; left: -2px; top: -30px; background: #fff8ef; color: #111416; padding: 4px 7px; font-size: .78rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(255, 248, 239, .13); background: #181f21; padding: 11px; min-height: 112px; }
+    .meter strong { display: block; color: #e7b252; font-size: clamp(1.4rem, 3vw, 2.15rem); font-variant-numeric: tabular-nums; }
+    .timeline { padding: 12px; margin-top: 14px; display: grid; grid-template-columns: repeat(48, 1fr); gap: 3px; min-height: 58px; }
+    .tick { height: 34px; background: rgba(110, 125, 130, .45); border-bottom: 4px solid #6e7d82; }
+    .tick.ok { background: rgba(42, 148, 131, .44); border-color: #2a9483; }
+    .tick.warn { background: rgba(231, 178, 82, .35); border-color: #e7b252; }
+    .tick.drop { background: rgba(201, 87, 66, .38); border-color: #c95742; }
+    .feed { margin-top: 14px; padding: 12px; height: 170px; overflow: auto; white-space: pre-wrap; color: #d9f4ee; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .timeline { grid-template-columns: repeat(24, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Object Detector ROI Decay Board</h1>
+      <p>MediaPipe Object Detector の detection list を、score threshold、max results、ROI の寿命、再取得フレームに変換して観察する自作ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Score threshold <input id="threshold" type="range" min="20" max="90" value="52"><span id="thresholdValue" class="value">0.52</span></label>
+      <label>Max results <input id="maxResults" type="range" min="1" max="5" value="3"><span id="maxValue" class="value">3</span></label>
+      <label>ROI half-life <input id="halfLife" type="range" min="4" max="36" value="16"><span id="halfValue" class="value">16 frames</span></label>
+      <label>Motion jitter <input id="jitter" type="range" min="0" max="35" value="12"><span id="jitterValue" class="value">12 px</span></label>
+      <label>Detector cadence
+        <select id="cadence">
+          <option value="1">every frame</option>
+          <option value="2">every 2 frames</option>
+          <option value="4">every 4 frames</option>
+        </select>
+      </label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step frame</button>
+      <button id="drop" class="secondary">Simulate dropout</button>
+      <button id="preset" class="secondary">Retail shelf preset</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Preflight</h2>
+        <p>公式 guide の score threshold / max results を、UI 側では「残す box」「薄くする box」「再検出待ち」に翻訳します。実モデル接続前に、結果の揺れ方だけを小さく扱います。</p>
+        <div class="chips">
+          <span id="importStatus" class="chip warn">Tasks import: checking</span>
+          <span id="webglStatus" class="chip warn">WebGL: checking</span>
+          <span id="cadenceStatus" class="chip">cadence: every frame</span>
+          <span id="routeStatus" class="chip">route: idle</span>
+        </div>
+        <p id="decision">Start stream を押すと、合成 detection を ROI cache に通して box の寿命を表示します。</p>
+      </aside>
+      <section>
+        <div class="stage">
+          <h2>Detection canvas</h2>
+          <div id="canvas" class="canvas"><i class="scan"></i></div>
+          <div id="meters" class="meters"></div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const controls = {
+      threshold: $("threshold"),
+      maxResults: $("maxResults"),
+      halfLife: $("halfLife"),
+      jitter: $("jitter"),
+      cadence: $("cadence")
+    };
+    const classes = ["cup", "phone", "book", "plant", "bag"];
+    const palette = ["#2a9483", "#c95742", "#e7b252", "#6e9dcc", "#9c7ac8"];
+    const state = { running: false, frame: 0, drop: 0, rois: new Map(), ticks: [], importOk: false, webglOk: false };
+
+    function syncLabels() {
+      $("thresholdValue").textContent = (Number(controls.threshold.value) / 100).toFixed(2);
+      $("maxValue").textContent = controls.maxResults.value;
+      $("halfValue").textContent = `${controls.halfLife.value} frames`;
+      $("jitterValue").textContent = `${controls.jitter.value} px`;
+      $("cadenceStatus").textContent = `cadence: every ${controls.cadence.value} frame${controls.cadence.value === "1" ? "" : "s"}`;
+    }
+
+    async function checkRuntime() {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        state.importOk = Boolean(mod.FilesetResolver && mod.ObjectDetector);
+        $("importStatus").textContent = state.importOk ? "Tasks import: ObjectDetector ready" : "Tasks import: missing ObjectDetector";
+        $("importStatus").className = state.importOk ? "chip pass" : "chip warn";
+      } catch {
+        $("importStatus").textContent = "Tasks import: blocked or offline";
+        $("importStatus").className = "chip warn";
+      }
+      try {
+        const canvas = document.createElement("canvas");
+        state.webglOk = Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+        $("webglStatus").textContent = state.webglOk ? "WebGL: available" : "WebGL: unavailable";
+        $("webglStatus").className = state.webglOk ? "chip pass" : "chip warn";
+      } catch {
+        $("webglStatus").textContent = "WebGL: unavailable";
+      }
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2500);
+    }
+
+    function synthDetections() {
+      if (state.drop > 0) {
+        state.drop -= 1;
+        return [];
+      }
+      const threshold = Number(controls.threshold.value) / 100;
+      const maxResults = Number(controls.maxResults.value);
+      const jitter = Number(controls.jitter.value);
+      return classes.map((label, index) => {
+        const phase = state.frame * (0.045 + index * 0.012) + index * 1.4;
+        const rawScore = 0.38 + Math.abs(Math.sin(phase + .8)) * .48 - index * .025;
+        const x = 18 + index * 15 + Math.sin(phase) * 8 + Math.sin(state.frame * .7 + index) * jitter * .08;
+        const y = 32 + (index % 3) * 20 + Math.cos(phase * .88) * 11;
+        return { label, score: rawScore, x, y, w: 10 + rawScore * 12, h: 9 + rawScore * 10, color: palette[index] };
+      }).filter((item) => item.score >= threshold).sort((a, b) => b.score - a.score).slice(0, maxResults);
+    }
+
+    function step() {
+      state.frame += 1;
+      const cadence = Number(controls.cadence.value);
+      const shouldDetect = state.frame % cadence === 0;
+      const detections = shouldDetect ? synthDetections() : [];
+      const halfLife = Number(controls.halfLife.value);
+
+      for (const roi of state.rois.values()) {
+        roi.age += 1;
+        roi.score *= Math.pow(.5, 1 / halfLife);
+      }
+      detections.forEach((det) => {
+        state.rois.set(det.label, { ...det, age: 0, lastSeen: state.frame });
+      });
+      for (const [label, roi] of state.rois) {
+        if (roi.age > halfLife * 2 || roi.score < .18) state.rois.delete(label);
+      }
+
+      const live = detections.length;
+      const cached = [...state.rois.values()].filter((roi) => roi.age > 0).length;
+      const status = !shouldDetect ? "warn" : live ? "ok" : "drop";
+      state.ticks.push(status);
+      state.ticks = state.ticks.slice(-48);
+      $("routeStatus").textContent = `route: ${live} live / ${cached} cached`;
+      $("routeStatus").className = `chip ${status === "ok" ? "pass" : "warn"}`;
+      $("decision").textContent = live
+        ? "新しい detection を採用し、古い ROI は half-life で薄くします。"
+        : "新規 detection がないため、ROI cache を短時間だけ残して UI のちらつきを抑えます。";
+      feed(`frame=${state.frame} detect=${shouldDetect} live=${live} cached=${cached} threshold=${(Number(controls.threshold.value) / 100).toFixed(2)}`);
+      render(detections);
+    }
+
+    function render(detections = []) {
+      const rois = [...state.rois.values()].sort((a, b) => b.score - a.score);
+      $("canvas").innerHTML = `<i class="scan"></i>${classes.slice(0, 3).map((label, index) => {
+        const phase = state.frame * (0.045 + index * 0.012) + index * 1.4;
+        return `<i class="obj" style="left:${18 + index * 22 + Math.sin(phase) * 8}%;top:${38 + (index % 3) * 17 + Math.cos(phase * .88) * 8}%;background:${palette[index]}"></i>`;
+      }).join("")}${rois.map((roi) => `
+        <div class="box ${roi.age ? "stale" : ""}" style="left:${roi.x}%;top:${roi.y}%;width:${roi.w}%;height:${roi.h}%;opacity:${Math.max(.22, 1 - roi.age / (Number(controls.halfLife.value) * 2))}">
+          <span class="tag">${roi.label} ${(roi.score).toFixed(2)} ${roi.age ? `age ${roi.age}` : "live"}</span>
+        </div>`).join("")}`;
+      $("meters").innerHTML = [
+        ["live detections", detections.length, "ObjectDetector が返した今回の候補"],
+        ["roi cache", rois.length, "UI に残している box"],
+        ["oldest age", rois.reduce((m, r) => Math.max(m, r.age), 0), "再取得待ちの最大フレーム数"]
+      ].map(([name, value, note]) => `<article class="meter"><h2>${name}</h2><strong>${value}</strong><p>${note}</p></article>`).join("");
+      $("timeline").innerHTML = state.ticks.map((tick) => `<i class="tick ${tick}"></i>`).join("");
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 150);
+    }
+
+    Object.values(controls).forEach((control) => control.addEventListener("input", () => { syncLabels(); render(); }));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", step);
+    $("drop").addEventListener("click", () => { state.drop = 10; feed("simulated detector dropout for 10 frames"); });
+    $("preset").addEventListener("click", () => {
+      controls.threshold.value = 62;
+      controls.maxResults.value = 4;
+      controls.halfLife.value = 24;
+      controls.jitter.value = 8;
+      controls.cadence.value = 2;
+      syncLabels();
+      render();
+      feed("retail shelf preset applied");
+    });
+    $("reset").addEventListener("click", () => {
+      state.frame = 0;
+      state.drop = 0;
+      state.rois.clear();
+      state.ticks = [];
+      render();
+      feed("reset roi cache");
+    });
+    syncLabels();
+    render();
+    checkRuntime();
+  </script>
+</body>
+</html>

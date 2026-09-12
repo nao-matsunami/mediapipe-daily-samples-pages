@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-12",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Object Detector",
+  "headline": "Object Detector の検出リストを ROI の寿命とラベルポリシーへ変換する",
+  "headlineEn": "Turning Object Detector detections into ROI lifetime and label policy",
+  "summary": "Google AI Edge の Object Detector guide、MediaPipe Web setup、FilesetResolver reference、公式 mediapipe-samples-web、公式デモページを確認し、検出結果をそのまま表示する前に score threshold、max results、検出 cadence、ROI cache、allowlist / denylist を調整する自作サンプルを2本追加しました。本命は ROI の減衰ボード、派生はラベル表示とイベント化のポリシー sandbox です。",
+  "summaryEn": "After checking the Google AI Edge Object Detector guide, MediaPipe Web setup, FilesetResolver reference, the official mediapipe-samples-web repository, and the official demo page, this adds two original samples that tune score threshold, max results, detector cadence, ROI cache, and allowlist / denylist before showing detection results directly. The main sample is an ROI decay board; the derivative is a label-display and event-policy sandbox.",
+  "keyTopics": [
+    "Object Detector は still image、decoded video frame、live video feed を入力にし、category、score、bounding box を返すため、UI 側では一時的な欠落や低 score をどう扱うかが重要になる。",
+    "Object Detector の option には score threshold、max results、display name locale、category allowlist / denylist があり、検出結果の見せ方やイベント化の境界を作りやすい。",
+    "MediaPipe Tasks Web は vision/text/audio などの package と FilesetResolver の base path に依存するため、実モデルの前に import、WASM、delegate、asset path の preflight を分けて考える必要がある。",
+    "公式 mediapipe-samples-web はブラウザだけで Vision / Audio / Text tasks を試す構成を持ち、自作サンプルではそこから UI 設計の要点だけを抜き出すのがよい。",
+    "Web ML のライブ UI では、毎フレーム推論よりも detector cadence、busy frame skip、ROI decay、confirmation frames を明示した方が、端末差に強い体験を作りやすい。"
+  ],
+  "keyTopicsEn": [
+    "Object Detector accepts still images, decoded video frames, and live video feeds, returning category, score, and bounding boxes, so UI code needs a policy for temporary misses and low scores.",
+    "Object Detector options include score threshold, max results, display name locale, and category allowlist / denylist, which are useful boundaries for visual display and event conversion.",
+    "MediaPipe Tasks Web depends on vision/text/audio packages plus a FilesetResolver base path, so import, WASM, delegate, and asset-path preflight should be separated before loading real models.",
+    "The official mediapipe-samples-web project provides browser-only demos for Vision, Audio, and Text tasks; today's original samples pull out the UI design lessons rather than listing external demos.",
+    "For live Web ML UI, detector cadence, busy-frame skipping, ROI decay, and confirmation frames often produce a more device-tolerant experience than trying to infer on every frame."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Object Detector ROI Decay Board",
+      "url": "../outputs/2026-09-12_object_detector_roi_decay_board.html"
+    },
+    {
+      "label": "Today's derivative sample: Detector Label Policy Sandbox",
+      "url": "../outputs/2026-09-12_detector_label_policy_sandbox.html"
+    },
+    {
+      "label": "Google AI Edge: Object detection task guide",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/object_detector"
+    },
+    {
+      "label": "Google AI Edge: Image embedding guide for Web",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/vision/image_embedder/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge API: FilesetResolver",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-audio.filesetresolver"
+    },
+    {
+      "label": "Official mediapipe-samples-web source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe samples repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples"
+    },
+    {
+      "label": "Official MediaPipe web task demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-12-object-detector-roi-decay-board.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Object Detector の option 群です。公式 guide では score threshold、max results、display name locale、allowlist / denylist が整理されており、これは推論精度の調整だけでなく「ユーザーに見せる box」「まだ見せない label」「イベント化してよい category」を切るための UI ポリシーとして使えます。面白いのは、検出モデルを変えなくても、ROI の寿命や confirmation frames だけでライブ画面のちらつきと誤発火をかなり減らせる点です。",
+      "bodyEn": "Today's notable point is the Object Detector option set. The official guide highlights score threshold, max results, display name locale, and allowlist / denylist; these are not only model-output filters but also UI policy controls for visible boxes, hidden labels, and event-safe categories. The interesting part is that even without changing the model, ROI lifetime and confirmation frames can reduce flicker and false event firing in live views."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Object Detector ROI Decay Board` は、合成 detection を score threshold と max results に通し、毎フレーム検出しない場合でも ROI cache を half-life で薄く残します。派生の `Detector Label Policy Sandbox` は allowlist / denylist、score threshold、confirmation frames、locale 表示を操作し、検出カテゴリを accepted / pending / suppressed に分けます。どちらも外部デモの埋め込みではなく、この workspace 内で動く最小 UI として作りました。",
+      "bodyEn": "The main sample, `Object Detector ROI Decay Board`, sends synthetic detections through score threshold and max results, then keeps an ROI cache fading by half-life even when detection does not run every frame. The derivative, `Detector Label Policy Sandbox`, lets you adjust allowlist / denylist, score threshold, confirmation frames, and locale display, classifying categories as accepted, pending, or suppressed. Both are original minimal UIs in this workspace rather than embedded external demos."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、category、score、bounding box、ROI age、last seen frame、detector cadence、dropout、accepted / pending / suppressed の decision log です。実 Object Detector、Image Embedder、Gesture Recognizer、Pose Landmarker、WebGL overlay、IndexedDB session log、Service Worker cache、LLM による scene note と組み合わせると、ライブカメラ上の物体を安定した UI 状態へ変換する小さな運用パネルにできます。",
+      "bodyEn": "The samples can accumulate category, score, bounding box, ROI age, last-seen frame, detector cadence, dropout, and accepted / pending / suppressed decision logs. Combined with a real Object Detector, Image Embedder, Gesture Recognizer, Pose Landmarker, WebGL overlays, IndexedDB session logs, Service Worker cache, or LLM scene notes, this can become a small operations panel that turns camera objects into stable UI state."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装へ進める時は、`FilesetResolver.forVisionTasks(basePath)`、`ObjectDetector.createFromOptions()`、`baseOptions.modelAssetPath`、`runningMode: \"VIDEO\"` または live stream callback、`scoreThreshold`、`maxResults`、`displayNamesLocale`、`categoryAllowlist` / `categoryDenylist` を分けてログ化します。Web guide で触れられる同期処理の UI blocking リスクを避けるには、カメラフレームを毎回処理せず、cadence と busy flag を置いて `detectForVideo()` の呼び出し頻度を制御するのが扱いやすいです。",
+      "bodyEn": "For a real implementation, log `FilesetResolver.forVisionTasks(basePath)`, `ObjectDetector.createFromOptions()`, `baseOptions.modelAssetPath`, `runningMode: \"VIDEO\"` or live-stream callback, `scoreThreshold`, `maxResults`, `displayNamesLocale`, and `categoryAllowlist` / `categoryDenylist` separately. To avoid the UI-blocking risk noted in Web guides for synchronous calls, avoid processing every camera frame and control `detectForVideo()` frequency with a cadence and busy flag."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Object Detector の Web example、MediaPipe model bundle の更新、`@mediapipe/tasks-vision` の npm/CDN version、公式 sample-web の worker 構成、Image Embedder との類似度ルーティング、WebGPU / WebGL delegate fallback、GitHub issue の Tasks Web asset 配置まわりを見ます。特に、bounding box と embedding を合わせて「同じ物体らしさ」を判定する軽量 tracker を試したいです。",
+      "bodyEn": "Next, watch the Object Detector Web example, MediaPipe model bundle updates, `@mediapipe/tasks-vision` npm/CDN versions, the official samples-web worker structure, Image Embedder similarity routing, WebGPU / WebGL delegate fallback, and GitHub issues around Tasks Web asset layout. A particularly useful next step is a lightweight tracker that combines bounding boxes with embeddings to judge whether an object is likely the same one."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Object Detector ROI Decay Board` を開き、Detector cadence を every 4 frames にして `Start stream` を押すと、検出していないフレームでも box が短く残る様子が見えます。次に `Simulate dropout` を押し、ROI cache がちらつきを抑えるか確認します。派生サンプルでは policy を denylist suppress に変え、危険または非表示にしたい label がイベント化されないことを確認します。",
+      "bodyEn": "Open `Object Detector ROI Decay Board`, set Detector cadence to every 4 frames, and press `Start stream` to see boxes persist briefly even on frames without detection. Then press `Simulate dropout` and check whether the ROI cache reduces flicker. In the derivative sample, switch policy to denylist suppress and confirm that sensitive or hidden labels do not become events."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Object Detector guide、Image Embedder Web guide、Web setup guide、FilesetResolver reference、公式 mediapipe-samples-web、公式サンプル repo、公式デモページを確認。設計: 検出結果の外部デモ一覧ではなく、自作 HTML で ROI 寿命と label policy を試す。実装: 本命 HTML に合成 detection、threshold、max results、cadence、dropout、ROI half-life、Tasks import / WebGL preflight を追加。派生 HTML に allowlist / denylist、confirmation frames、locale 表示、accepted / pending / suppressed queue を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Object Detector guide, Image Embedder Web guide, Web setup guide, FilesetResolver reference, official mediapipe-samples-web, the official samples repository, and the official demo page. Design: instead of listing external demos, test ROI lifetime and label policy in original HTML. Implementation: added synthetic detection, threshold, max results, cadence, dropout, ROI half-life, and Tasks import / WebGL preflight to the main HTML. Added allowlist / denylist, confirmation frames, locale display, and accepted / pending / suppressed queue to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は delegate fallback、WASM asset path、Holistic output budget、Pose mask、Gesture policy を扱いました。今日は実モデルの入口まわりから一歩進め、Object Detector の出力を UI 状態へ変換する層を扱いました。Web ML の日次サンプルとしては、モデルを動かすだけでなく、出力を安定したインタラクションにするための cache、filter、policy、event gate が少しずつ揃ってきています。",
+      "bodyEn": "Recent entries covered delegate fallback, WASM asset paths, Holistic output budgets, Pose masks, and Gesture policy. Today moves one layer past startup and focuses on converting Object Detector output into UI state. As a Web ML daily sample track, the archive is now collecting not only model execution but also cache, filter, policy, and event-gate pieces for stable interaction."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Object Detector ROI Decay Board` です。実際に動く部分は、合成 detection、score threshold、max results、detector cadence、dropout simulation、ROI half-life、bounding box fade、Tasks Vision import / WebGL preflight です。次に足すなら実 `ObjectDetector.createFromOptions()`、実カメラ `detectForVideo()`、worker への frame handoff、同一物体 ID の追跡、Image Embedder との類似度確認を足します。派生試作は `Detector Label Policy Sandbox` で、実際に動く部分は allowlist / denylist、score threshold、confirmation frames、locale 表示、accepted / pending / suppressed の decision queue です。次に足すならユーザー編集可能な policy JSON、カテゴリ別 consent 表示、イベント webhook、ログ export を足します。",
+      "bodyEn": "The selected main prototype is `Object Detector ROI Decay Board`. The working pieces are synthetic detections, score threshold, max results, detector cadence, dropout simulation, ROI half-life, bounding-box fade, and Tasks Vision import / WebGL preflight. Next additions should connect real `ObjectDetector.createFromOptions()`, camera `detectForVideo()`, worker frame handoff, stable object IDs, and Image Embedder similarity checks. The derivative prototype is `Detector Label Policy Sandbox`; the working pieces are allowlist / denylist, score threshold, confirmation frames, locale display, and an accepted / pending / suppressed decision queue. Next additions should include user-editable policy JSON, category-specific consent messaging, event webhooks, and log export.",
+      "links": [
+        {
+          "label": "Open Object Detector ROI Decay Board",
+          "url": "../outputs/2026-09-12_object_detector_roi_decay_board.html"
+        },
+        {
+          "label": "Open Detector Label Policy Sandbox",
+          "url": "../outputs/2026-09-12_detector_label_policy_sandbox.html"
+        }
+      ]
+    }
+  ]
+}
