@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-13",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker",
+  "headline": "Hand Landmarker の normalized 座標を UI 座標と奥行きゲートへ変換する",
+  "headlineEn": "Converting Hand Landmarker normalized coordinates into UI coordinates and depth gates",
+  "summary": "Google AI Edge の Hand Landmarker Web guide、Face Landmarker Web guide、Web setup guide、NormalizedKeypoint / NormalizedRect API reference、MediaPipe release notes、Tasks Vision Web README を確認し、ランドマーク座標をそのまま描く前に mirror、crop、presence、tracking、z-depth を検証する自作サンプルを2本追加しました。本命は 21 点 hand landmark の座標キャリブレータ、派生は mirrored preview と letterbox による ROI rect のズレを見る probe です。",
+  "summaryEn": "After checking the Google AI Edge Hand Landmarker Web guide, Face Landmarker Web guide, Web setup guide, NormalizedKeypoint / NormalizedRect API references, MediaPipe release notes, and the Tasks Vision Web README, this adds two original samples that test mirror, crop, presence, tracking, and z-depth before drawing landmarks directly. The main sample is a 21-point hand landmark coordinate calibrator; the derivative is a probe for ROI rect drift caused by mirrored previews and letterboxing.",
+  "keyTopics": [
+    "Hand Landmarker Web guide は 21 hand landmarks、world landmarks、handedness を返すことを示しており、x/y は画像幅と高さで [0,1] に正規化され、z は wrist を原点に x と近いスケールで扱われる。",
+    "Hand Landmarker の `detect()` / `detectForVideo()` は同期処理で UI thread を block し得るため、座標描画より前に cadence、busy flag、worker 境界を設計しておく必要がある。",
+    "presence confidence と tracking confidence はモデル設定だけでなく、UI を更新するか、前回 pose を短時間維持するかを決める gate として使える。",
+    "NormalizedRect は center、width、height、clockwise rotation を normalized image coordinates で持つため、mirrored preview や CSS contain / cover の変換を忘れると overlay が大きくズレる。",
+    "MediaPipe v1.0.0 release notes では running mode enum の標準化や VisionTaskRunner の running mode cache、JS bundle 周りの更新があり、Web sample でも setup と runtime の境界を明示したい。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide shows that the task returns 21 hand landmarks, world landmarks, and handedness; x/y are normalized by image width and height, while z uses the wrist as origin and a scale roughly comparable to x.",
+    "`detect()` and `detectForVideo()` for Hand Landmarker are synchronous and can block the UI thread, so cadence, busy flags, and worker boundaries should be planned before landmark drawing.",
+    "Presence confidence and tracking confidence are not only model settings; they can gate whether the UI updates or briefly holds the previous pose.",
+    "NormalizedRect stores center, width, height, and clockwise rotation in normalized image coordinates, so mirrored previews and CSS contain / cover projection can move overlays far from the target if skipped.",
+    "MediaPipe v1.0.0 release notes mention standardized running mode enum constants, cached running mode in VisionTaskRunner, and JS bundle updates, making setup/runtime separation useful in Web samples."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Hand Landmark Coordinate Calibrator",
+      "url": "../outputs/2026-09-13_hand_landmark_coordinate_calibrator.html"
+    },
+    {
+      "label": "Today's derivative sample: ROI Rect Mirror Letterbox Probe",
+      "url": "../outputs/2026-09-13_roi_rect_mirror_letterbox_probe.html"
+    },
+    {
+      "label": "Google AI Edge: Hand Landmarker Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Face Landmarker Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge API: NormalizedKeypoint",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/components/containers/keypoint/NormalizedKeypoint"
+    },
+    {
+      "label": "Google AI Edge API: NormalizedRect",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/components/containers/NormalizedRect"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-13-hand-landmark-coordinate-calibrator.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Hand Landmarker の出力を「点の配列」ではなく「座標系の契約」として扱うことです。公式 guide は 21 個の landmarks、world landmarks、handedness、presence / tracking confidence を説明しており、ここから UI 側では mirrored camera、center crop、z-depth、前回 pose の保持を考える必要があります。面白いのは、モデルを変えなくても座標変換と confidence gate だけで、操作 UI の体感安定性が大きく変わる点です。",
+      "bodyEn": "Today's notable point is treating Hand Landmarker output not as a list of dots but as a coordinate contract. The official guide describes 21 landmarks, world landmarks, handedness, and presence / tracking confidence; on the UI side this means planning mirrored cameras, center crops, z-depth, and holding the previous pose. The interesting part is that coordinate projection and confidence gates can change perceived interaction stability even without changing the model."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Hand Landmark Coordinate Calibrator` は、合成 21 点ランドマークを normalized x/y から canvas pixel へ変換し、z-depth を色とサイズに変え、presence / tracking gate が落ちた時は UI 更新を止める判断を表示します。派生の `ROI Rect Mirror Letterbox Probe` は NormalizedRect と keypoint を mirrored preview、contain / cover、source aspect ratio に通し、正しい投影と変換忘れのズレを同時に見せます。",
+      "bodyEn": "The main sample, `Hand Landmark Coordinate Calibrator`, converts synthetic 21-point landmarks from normalized x/y into canvas pixels, maps z-depth into color and size, and shows when presence / tracking gates should pause UI updates. The derivative, `ROI Rect Mirror Letterbox Probe`, runs a NormalizedRect plus keypoints through mirrored preview, contain / cover, and source aspect ratio, showing the correct projection next to the drift from missed transforms."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、normalized landmarks、world z range、presence / tracking score、accepted / hold decision、mirror mode、crop mode、letterbox offset、ROI drift px、rotation、gesture state です。Hand Landmarker、Gesture Recognizer、Face Landmarker、Pose Landmarker、WebGL overlay、WebXR hand ray、Pointer Events、IndexedDB、LLM による操作ログ要約と組み合わせると、手の形を安定した UI コマンドや空間操作へ変換する小さな校正パネルになります。",
+      "bodyEn": "The samples can accumulate normalized landmarks, world z ranges, presence / tracking scores, accepted / hold decisions, mirror mode, crop mode, letterbox offsets, ROI drift pixels, rotation, and gesture state. Combined with Hand Landmarker, Gesture Recognizer, Face Landmarker, Pose Landmarker, WebGL overlays, WebXR hand rays, Pointer Events, IndexedDB, or LLM operation summaries, this becomes a small calibration panel for turning hand shape into stable UI commands or spatial controls."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装に進める時は、`FilesetResolver.forVisionTasks(basePath)`、`HandLandmarker.createFromOptions()`、`runningMode: \"VIDEO\"`、`numHands`、`minHandDetectionConfidence`、`minHandPresenceConfidence`、`minTrackingConfidence` を setup log に分けます。描画側では normalized x/y を source image の座標として受け取り、CSS の mirror、object-fit、letterbox offset、devicePixelRatio を必ず通してから overlay に変換します。`detectForVideo()` の同期 block は worker 化または cadence 制御で吸収します。",
+      "bodyEn": "For production, split setup logging across `FilesetResolver.forVisionTasks(basePath)`, `HandLandmarker.createFromOptions()`, `runningMode: \"VIDEO\"`, `numHands`, `minHandDetectionConfidence`, `minHandPresenceConfidence`, and `minTrackingConfidence`. On the rendering side, treat normalized x/y as source-image coordinates, then apply CSS mirror, object-fit, letterbox offset, and devicePixelRatio before overlay projection. Synchronous `detectForVideo()` blocking should be absorbed with workers or cadence control."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Tasks Vision Web README の export 更新、MediaPipe release notes の JavaScript bundle / running mode 周り、NormalizedKeypoint / NormalizedRect のドキュメント更新、GitHub issue の JS coordinate clarification、Gesture Recognizer と Hand Landmarker の結果統合、WebXR Hand Input への変換を見ます。特に、pinch depth と pointer capture をつないだブラウザ操作を試したいです。",
+      "bodyEn": "Next, watch Tasks Vision Web README export changes, MediaPipe release notes around JavaScript bundles and running mode, NormalizedKeypoint / NormalizedRect documentation updates, GitHub issues about JavaScript coordinate clarification, Gesture Recognizer plus Hand Landmarker result fusion, and conversion into WebXR Hand Input. A useful next step is connecting pinch depth to pointer capture for browser interaction."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Hand Landmark Coordinate Calibrator` を開き、`mirrored preview`、`center crop`、`Drop presence` を順番に触ると、座標変換と confidence gate が UI 表示をどう変えるか見えます。派生サンプルでは `Portrait trap` を押すと、source aspect ratio、cover crop、mirror が重なった時に ROI がどれだけズレるかを確認できます。",
+      "bodyEn": "Open `Hand Landmark Coordinate Calibrator` and try mirrored preview, center crop, and Drop presence to see how coordinate projection and confidence gates change UI rendering. In the derivative sample, press `Portrait trap` to see how source aspect ratio, cover crop, and mirror combine into ROI drift."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Hand Landmarker Web guide、Face Landmarker Web guide、Web setup guide、NormalizedKeypoint、NormalizedRect、GestureRecognizerResult、MediaPipe release notes、Tasks Vision Web README を確認。設計: 外部デモ一覧ではなく、自作 HTML で座標変換と UI gate を試す。実装: 本命 HTML に 21 点 landmark、normalized-to-pixel projection、mirror/crop view、z-depth color、presence/tracking gate、Tasks import probe を追加。派生 HTML に source ratio、contain/cover、mirror、NormalizedRect rotation、正誤 projection 比較、drift px meter を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Hand Landmarker Web guide, Face Landmarker Web guide, Web setup guide, NormalizedKeypoint, NormalizedRect, GestureRecognizerResult, MediaPipe release notes, and Tasks Vision Web README. Design: instead of listing external demos, test coordinate transforms and UI gates in original HTML. Implementation: added 21 landmarks, normalized-to-pixel projection, mirror/crop views, z-depth color, presence/tracking gates, and a Tasks import probe to the main HTML. Added source ratio, contain/cover, mirror, NormalizedRect rotation, correct/wrong projection comparison, and a drift-pixel meter to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は delegate fallback、WASM asset path、Holistic output budget、Pose mask、Object Detector ROI cache を扱いました。今日は hand landmark の座標契約へ寄せ、Web ML の出力を安定した UI overlay に変換する基礎を足しました。これで、起動、推論 cadence、mask / ROI cache、label policy、landmark projection の各層がつながり始めています。",
+      "bodyEn": "Recent entries covered delegate fallback, WASM asset paths, Holistic output budgets, Pose masks, and Object Detector ROI cache. Today focuses on the hand landmark coordinate contract and adds a foundation for turning Web ML output into stable UI overlays. The archive now has pieces for startup, inference cadence, mask / ROI cache, label policy, and landmark projection."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Hand Landmark Coordinate Calibrator` です。実際に動く部分は、合成 21 点 hand landmark、normalized x/y の pixel 変換、mirror / crop 表示、z-depth の色とサイズ、presence / tracking gate、Tasks Vision import probe です。次に足すなら実 `HandLandmarker.createFromOptions()`、カメラ `detectForVideo()`、worker への frame handoff、pinch gesture の pointer event 化を足します。派生試作は `ROI Rect Mirror Letterbox Probe` で、実際に動く部分は source ratio、contain / cover、mirror preview、NormalizedRect rotation、正誤 projection の drift meter です。次に足すなら実 `ImageProcessingOptions` の ROI、CSS object-fit 実測、devicePixelRatio 対応、WebXR ray への変換を足します。",
+      "bodyEn": "The selected main prototype is `Hand Landmark Coordinate Calibrator`. The working pieces are synthetic 21-point hand landmarks, normalized x/y pixel projection, mirror / crop display, z-depth color and size, presence / tracking gates, and a Tasks Vision import probe. Next additions should connect real `HandLandmarker.createFromOptions()`, camera `detectForVideo()`, worker frame handoff, and pinch gestures as pointer events. The derivative prototype is `ROI Rect Mirror Letterbox Probe`; the working pieces are source ratio, contain / cover, mirrored preview, NormalizedRect rotation, and a correct-vs-wrong projection drift meter. Next additions should include real `ImageProcessingOptions` ROI, measured CSS object-fit, devicePixelRatio handling, and conversion into a WebXR ray.",
+      "links": [
+        {
+          "label": "Open Hand Landmark Coordinate Calibrator",
+          "url": "../outputs/2026-09-13_hand_landmark_coordinate_calibrator.html"
+        },
+        {
+          "label": "Open ROI Rect Mirror Letterbox Probe",
+          "url": "../outputs/2026-09-13_roi_rect_mirror_letterbox_probe.html"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Landmark Coordinate Calibrator</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101413; color: #f8fff8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(90, 178, 128, .16), transparent 38%), linear-gradient(315deg, rgba(226, 112, 78, .13), transparent 43%), #101413; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { border-bottom: 1px solid rgba(248, 255, 248, .15); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 3.05rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #cdd9cf; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(248, 255, 248, .24); background: #f8fff8; color: #101413; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #f8fff8; }
+    input[type="range"] { width: 100%; accent-color: #5ab280; }
+    select { min-height: 40px; border: 1px solid rgba(248, 255, 248, .22); background: #171f1b; color: #f8fff8; padding: 7px; }
+    label { display: grid; gap: 7px; color: #ecf3ea; font-size: .92rem; }
+    .toolbar, .panel, .stage, .feed { border: 1px solid rgba(248, 255, 248, .14); background: rgba(18, 24, 21, .87); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .value { color: #e2704e; font-variant-numeric: tabular-nums; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip { border: 1px solid rgba(248, 255, 248, .21); color: #cdd9cf; padding: 5px 8px; font-size: .78rem; }
+    .pass { color: #f8fff8; border-color: rgba(90, 178, 128, .72); background: rgba(90, 178, 128, .18); }
+    .warn { color: #f8fff8; border-color: rgba(226, 112, 78, .72); background: rgba(226, 112, 78, .16); }
+    .canvasWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; background: #0b0f0d; overflow: hidden; border: 1px solid rgba(248, 255, 248, .13); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(248, 255, 248, .13); background: #171f1b; padding: 11px; min-height: 112px; }
+    .meter strong { display: block; color: #e2704e; font-size: clamp(1.25rem, 3vw, 2rem); font-variant-numeric: tabular-nums; }
+    .feed { margin-top: 14px; padding: 12px; height: 164px; overflow: auto; white-space: pre-wrap; color: #dff4e5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .canvasWrap { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Hand Landmark Coordinate Calibrator</h1>
+      <p>MediaPipe Hand Landmarker の normalized image coordinates と world landmark depth を、canvas 表示・ミラー表示・confidence gate に変換する自作ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Presence gate <input id="presence" type="range" min="20" max="90" value="54"><span id="presenceValue" class="value">0.54</span></label>
+      <label>Tracking gate <input id="tracking" type="range" min="20" max="90" value="62"><span id="trackingValue" class="value">0.62</span></label>
+      <label>Depth gain <input id="depth" type="range" min="20" max="160" value="78"><span id="depthValue" class="value">0.78</span></label>
+      <label>Coordinate view
+        <select id="view">
+          <option value="normal">camera normal</option>
+          <option value="mirror">mirrored preview</option>
+          <option value="crop">center crop</option>
+        </select>
+      </label>
+      <label>Motion <input id="motion" type="range" min="0" max="100" value="46"><span id="motionValue" class="value">0.46</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step frame</button>
+      <button id="jolt" class="secondary">Drop presence</button>
+      <button id="pose" class="secondary">Pinch pose</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Runtime checklist</h2>
+        <p>公式 guide では 21 hand landmarks が image width/height で [0,1] に正規化され、z は wrist を原点に x と近いスケールで示されます。ここでは実カメラ前に、座標変換と欠落時の UI だけを小さく検証します。</p>
+        <div class="chips">
+          <span id="importStatus" class="chip warn">Tasks import: checking</span>
+          <span id="modeStatus" class="chip">runningMode: VIDEO shape</span>
+          <span id="gateStatus" class="chip">gate: idle</span>
+          <span id="coordStatus" class="chip">coords: normalized</span>
+        </div>
+        <p id="decision">Start stream を押すと、合成 21 点ランドマークを pixel overlay と depth 色へ変換します。</p>
+      </aside>
+
+      <section>
+        <div class="stage">
+          <h2>Landmark overlay</h2>
+          <div class="canvasWrap"><canvas id="stage" width="1280" height="720"></canvas></div>
+          <div id="meters" class="meters"></div>
+        </div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const ctx = $("stage").getContext("2d");
+    const state = { running: false, frame: 0, presenceDrop: 0, pinch: false, trail: [], importOk: false };
+    const edges = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    const bases = [
+      [0.50,0.72,0],[0.42,0.60,-.04],[0.38,0.48,-.08],[0.35,0.38,-.12],[0.33,0.29,-.16],
+      [0.50,0.54,-.05],[0.48,0.40,-.10],[0.47,0.31,-.16],[0.46,0.23,-.22],
+      [0.57,0.55,-.04],[0.58,0.40,-.09],[0.59,0.29,-.13],[0.60,0.20,-.17],
+      [0.64,0.58,-.03],[0.67,0.45,-.07],[0.69,0.36,-.09],[0.71,0.28,-.11],
+      [0.70,0.65,-.02],[0.75,0.56,-.05],[0.78,0.49,-.07],[0.81,0.42,-.09]
+    ];
+
+    function syncLabels() {
+      $("presenceValue").textContent = (Number($("presence").value) / 100).toFixed(2);
+      $("trackingValue").textContent = (Number($("tracking").value) / 100).toFixed(2);
+      $("depthValue").textContent = (Number($("depth").value) / 100).toFixed(2);
+      $("motionValue").textContent = (Number($("motion").value) / 100).toFixed(2);
+      $("coordStatus").textContent = `coords: ${$("view").value}`;
+    }
+
+    async function checkImport() {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        state.importOk = Boolean(mod.FilesetResolver && mod.HandLandmarker);
+        $("importStatus").textContent = state.importOk ? "Tasks import: HandLandmarker ready" : "Tasks import: missing HandLandmarker";
+        $("importStatus").className = state.importOk ? "chip pass" : "chip warn";
+      } catch {
+        $("importStatus").textContent = "Tasks import: blocked or offline";
+        $("importStatus").className = "chip warn";
+      }
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2400);
+    }
+
+    function landmarks() {
+      state.frame += 1;
+      const t = state.frame * 0.055;
+      const motion = Number($("motion").value) / 100;
+      const pinch = state.pinch ? .18 : 0;
+      return bases.map(([x, y, z], i) => {
+        const sway = Math.sin(t + i * .55) * .018 * motion;
+        const curl = Math.cos(t * 1.4 + i * .38) * .025 * motion;
+        const pinchPull = [4, 8].includes(i) ? pinch : 0;
+        return {
+          i,
+          x: x + sway + (i === 4 ? pinchPull : i === 8 ? -pinchPull : 0),
+          y: y + curl,
+          z: z - Math.sin(t + i) * .035 * motion - (state.pinch && [4,8].includes(i) ? .12 : 0),
+          visibility: .55 + Math.abs(Math.sin(t + i * .2)) * .42
+        };
+      });
+    }
+
+    function toPixel(point) {
+      const view = $("view").value;
+      const inset = view === "crop" ? 0.09 : 0;
+      let x = inset + point.x * (1 - inset * 2);
+      let y = inset + point.y * (1 - inset * 2);
+      if (view === "mirror") x = 1 - x;
+      return { x: x * 1280, y: y * 720 };
+    }
+
+    function draw(points, accepted) {
+      ctx.clearRect(0, 0, 1280, 720);
+      ctx.fillStyle = "#0b0f0d";
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.strokeStyle = "rgba(248,255,248,.07)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= 1280; x += 80) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 720); ctx.stroke(); }
+      for (let y = 0; y <= 720; y += 80) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1280, y); ctx.stroke(); }
+
+      if (!accepted) {
+        ctx.fillStyle = "rgba(226,112,78,.18)";
+        ctx.fillRect(0, 0, 1280, 720);
+      }
+
+      edges.forEach(([a, b]) => {
+        const pa = toPixel(points[a]);
+        const pb = toPixel(points[b]);
+        ctx.strokeStyle = accepted ? "rgba(90,178,128,.75)" : "rgba(226,112,78,.45)";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(pa.x, pa.y);
+        ctx.lineTo(pb.x, pb.y);
+        ctx.stroke();
+      });
+
+      const gain = Number($("depth").value) / 100;
+      points.forEach((point) => {
+        const p = toPixel(point);
+        const hot = Math.max(0, Math.min(1, -point.z * gain * 3.2));
+        ctx.fillStyle = `rgb(${80 + hot * 170}, ${170 - hot * 70}, ${120 - hot * 60})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 9 + hot * 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f8fff8";
+        ctx.font = "18px ui-monospace, monospace";
+        ctx.fillText(point.i, p.x + 12, p.y - 10);
+      });
+    }
+
+    function step() {
+      const points = landmarks();
+      const presence = state.presenceDrop ? .28 : .48 + Math.abs(Math.sin(state.frame * .09)) * .47;
+      if (state.presenceDrop) state.presenceDrop -= 1;
+      const tracking = .44 + Math.abs(Math.cos(state.frame * .06)) * .48;
+      const accepted = presence >= Number($("presence").value) / 100 && tracking >= Number($("tracking").value) / 100;
+      const depthMin = Math.min(...points.map((p) => p.z));
+      const depthMax = Math.max(...points.map((p) => p.z));
+      state.trail.push({ accepted, presence, tracking });
+      state.trail = state.trail.slice(-24);
+      $("gateStatus").textContent = accepted ? "gate: accepted" : "gate: hold previous UI";
+      $("gateStatus").className = accepted ? "chip pass" : "chip warn";
+      $("decision").textContent = accepted ? "presence と tracking が閾値を超えたので、この frame の landmark を UI に反映します。" : "confidence が不足しているため、実アプリなら前回 pose を短時間だけ残す判断です。";
+      draw(points, accepted);
+      $("meters").innerHTML = [
+        ["presence", presence.toFixed(2), "手の存在スコア"],
+        ["tracking", tracking.toFixed(2), "前フレームとの追跡"],
+        ["z range", `${depthMin.toFixed(2)}..${depthMax.toFixed(2)}`, "wrist 原点の奥行き"],
+        ["accepted", state.trail.filter((d) => d.accepted).length, "直近24 frame"]
+      ].map(([name, value, note]) => `<article class="meter"><h2>${name}</h2><strong>${value}</strong><p>${note}</p></article>`).join("");
+      feed(`frame=${state.frame} presence=${presence.toFixed(2)} tracking=${tracking.toFixed(2)} view=${$("view").value} accepted=${accepted}`);
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      step();
+      timer = setTimeout(loop, 160);
+    }
+
+    ["presence", "tracking", "depth", "view", "motion"].forEach((id) => $(id).addEventListener("input", () => { syncLabels(); step(); }));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", step);
+    $("jolt").addEventListener("click", () => { state.presenceDrop = 10; feed("presence dropout injected"); });
+    $("pose").addEventListener("click", () => { state.pinch = !state.pinch; $("pose").textContent = state.pinch ? "Open hand" : "Pinch pose"; step(); });
+    $("reset").addEventListener("click", () => { state.frame = 0; state.trail = []; state.presenceDrop = 0; step(); feed("reset calibrator"); });
+    syncLabels();
+    checkImport();
+    step();
+  </script>
+</body>
+</html>

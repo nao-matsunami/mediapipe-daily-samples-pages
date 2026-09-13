@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROI Rect Mirror Letterbox Probe</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111317; color: #fbfbff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(93, 151, 206, .17), transparent 37%), linear-gradient(315deg, rgba(214, 169, 77, .14), transparent 42%), #111317; }
+    main { width: min(1140px, 100%); margin: 0 auto; padding: 24px 16px 36px; }
+    header { border-bottom: 1px solid rgba(251, 251, 255, .15); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #cfd3dc; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(251, 251, 255, .24); background: #fbfbff; color: #111317; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fbfbff; }
+    input[type="range"] { width: 100%; accent-color: #5d97ce; }
+    select { min-height: 40px; border: 1px solid rgba(251, 251, 255, .22); background: #181d23; color: #fbfbff; padding: 7px; }
+    label { display: grid; gap: 7px; color: #eef0f6; font-size: .92rem; }
+    .toolbar, .panel, .stage, .feed { border: 1px solid rgba(251, 251, 255, .14); background: rgba(18, 22, 28, .87); }
+    .toolbar { margin-top: 18px; display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .value { color: #d6a94d; font-variant-numeric: tabular-nums; }
+    .preview { position: relative; width: 100%; aspect-ratio: 16 / 10; min-height: 380px; background: #0b0e12; overflow: hidden; border: 1px solid rgba(251, 251, 255, .13); }
+    .video { position: absolute; background: repeating-linear-gradient(45deg, rgba(93,151,206,.18), rgba(93,151,206,.18) 18px, rgba(255,255,255,.04) 18px, rgba(255,255,255,.04) 36px), #131922; border: 1px solid rgba(251,251,255,.22); }
+    .rect { position: absolute; border: 3px solid #d6a94d; background: rgba(214, 169, 77, .08); transform-origin: 50% 50%; }
+    .rect.wrong { border-color: #d96855; background: rgba(217, 104, 85, .08); }
+    .dot { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #fbfbff; transform: translate(-50%, -50%); }
+    .badge { border: 1px solid rgba(251,251,255,.22); display: inline-block; padding: 5px 8px; color: #cfd3dc; font-size: .78rem; margin: 4px 6px 0 0; }
+    .pass { color: #fbfbff; border-color: rgba(93,151,206,.72); background: rgba(93,151,206,.18); }
+    .warn { color: #fbfbff; border-color: rgba(217,104,85,.72); background: rgba(217,104,85,.16); }
+    .meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(251,251,255,.13); background: #181d23; padding: 11px; min-height: 112px; }
+    .meter strong { display: block; color: #d6a94d; font-size: clamp(1.25rem, 3vw, 2rem); font-variant-numeric: tabular-nums; }
+    .feed { margin-top: 14px; padding: 12px; height: 160px; overflow: auto; white-space: pre-wrap; color: #e2eef9; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 900px) { .toolbar, .layout, .meters { grid-template-columns: 1fr; } .preview { min-height: 300px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>ROI Rect Mirror Letterbox Probe</h1>
+      <p>NormalizedRect と normalized keypoint を、ミラー表示・letterbox・回転付き ROI に変換する派生ミニ試作。実モデル前の座標ズレを視覚的に潰します。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Source ratio
+        <select id="ratio">
+          <option value="16:9">16:9 camera</option>
+          <option value="4:3">4:3 camera</option>
+          <option value="1:1">1:1 crop</option>
+        </select>
+      </label>
+      <label>Fit mode
+        <select id="fit">
+          <option value="contain">contain letterbox</option>
+          <option value="cover">cover crop</option>
+        </select>
+      </label>
+      <label>Mirror preview
+        <select id="mirror">
+          <option value="yes">yes</option>
+          <option value="no">no</option>
+        </select>
+      </label>
+      <label>ROI rotation <input id="rotation" type="range" min="-90" max="90" value="18"><span id="rotationValue" class="value">18 deg</span></label>
+      <label>ROI size <input id="size" type="range" min="18" max="62" value="38"><span id="sizeValue" class="value">0.38</span></label>
+      <button id="step">Move ROI</button>
+      <button id="auto" class="secondary">Auto run</button>
+      <button id="preset" class="secondary">Portrait trap</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Probe rule</h2>
+        <p>NormalizedRect は中心・幅・高さを [0,1] で持ち、rotation は時計回り radian として扱います。表示側が mirrored preview や letterbox を入れると、推論座標と CSS 座標が簡単にズレます。</p>
+        <span id="fitBadge" class="badge">fit: contain</span>
+        <span id="mirrorBadge" class="badge">mirror: yes</span>
+        <span id="riskBadge" class="badge warn">risk: measuring</span>
+        <p id="hint">白い点が normalized keypoint、黄色い箱が正しく変換した ROI、赤い箱が mirror/letterbox を忘れた場合のズレです。</p>
+      </aside>
+
+      <section>
+        <div class="stage">
+          <h2>Coordinate projection</h2>
+          <div id="preview" class="preview"></div>
+          <div id="meters" class="meters"></div>
+        </div>
+        <div id="feed" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const state = { frame: 0, running: false, rect: { x: .55, y: .48 } };
+
+    function ratioSize() {
+      const [w, h] = $("ratio").value.split(":").map(Number);
+      return { w, h };
+    }
+
+    function sync() {
+      $("rotationValue").textContent = `${$("rotation").value} deg`;
+      $("sizeValue").textContent = (Number($("size").value) / 100).toFixed(2);
+      $("fitBadge").textContent = `fit: ${$("fit").value}`;
+      $("mirrorBadge").textContent = `mirror: ${$("mirror").value}`;
+    }
+
+    function viewport() {
+      const box = $("preview").getBoundingClientRect();
+      const src = ratioSize();
+      const scale = $("fit").value === "contain" ? Math.min(box.width / src.w, box.height / src.h) : Math.max(box.width / src.w, box.height / src.h);
+      const w = src.w * scale;
+      const h = src.h * scale;
+      return { x: (box.width - w) / 2, y: (box.height - h) / 2, w, h, box };
+    }
+
+    function project(point, correct = true) {
+      const v = viewport();
+      let x = point.x;
+      if (correct && $("mirror").value === "yes") x = 1 - x;
+      const px = correct ? v.x + x * v.w : point.x * v.box.width;
+      const py = correct ? v.y + point.y * v.h : point.y * v.box.height;
+      return { x: px, y: py, v };
+    }
+
+    function feed(line) {
+      const now = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("feed").textContent = `${now} ${line}\n${$("feed").textContent}`.slice(0, 2200);
+    }
+
+    function move() {
+      state.frame += 1;
+      state.rect.x = .5 + Math.sin(state.frame * .17) * .23;
+      state.rect.y = .5 + Math.cos(state.frame * .13) * .18;
+      render();
+    }
+
+    function render() {
+      sync();
+      const preview = $("preview");
+      const v = viewport();
+      const size = Number($("size").value) / 100;
+      const rect = { x: state.rect.x, y: state.rect.y, w: size, h: size * .72 };
+      const correct = project(rect, true);
+      const wrong = project(rect, false);
+      const keypoints = [
+        { x: rect.x - rect.w * .23, y: rect.y - rect.h * .18 },
+        { x: rect.x + rect.w * .18, y: rect.y - rect.h * .12 },
+        { x: rect.x, y: rect.y + rect.h * .22 }
+      ].map((p) => project(p, true));
+      const dx = Math.hypot(correct.x - wrong.x, correct.y - wrong.y);
+      const risk = dx > 36 ? "high" : dx > 14 ? "medium" : "low";
+      $("riskBadge").textContent = `risk: ${risk} drift`;
+      $("riskBadge").className = `badge ${risk === "low" ? "pass" : "warn"}`;
+      preview.innerHTML = `
+        <div class="video" style="left:${v.x}px;top:${v.y}px;width:${v.w}px;height:${v.h}px"></div>
+        <div class="rect wrong" style="left:${wrong.x - rect.w * v.box.width / 2}px;top:${wrong.y - rect.h * v.box.height / 2}px;width:${rect.w * v.box.width}px;height:${rect.h * v.box.height}px;transform:rotate(${$("rotation").value}deg)"></div>
+        <div class="rect" style="left:${correct.x - rect.w * v.w / 2}px;top:${correct.y - rect.h * v.h / 2}px;width:${rect.w * v.w}px;height:${rect.h * v.h}px;transform:rotate(${$("rotation").value}deg)"></div>
+        ${keypoints.map((p) => `<i class="dot" style="left:${p.x}px;top:${p.y}px"></i>`).join("")}`;
+      $("meters").innerHTML = [
+        ["letterbox x/y", `${Math.round(v.x)}/${Math.round(v.y)}`, "CSS 余白"],
+        ["video size", `${Math.round(v.w)}x${Math.round(v.h)}`, "表示上のソース領域"],
+        ["drift", `${Math.round(dx)} px`, "変換忘れのズレ"]
+      ].map(([name, value, note]) => `<article class="meter"><h2>${name}</h2><strong>${value}</strong><p>${note}</p></article>`).join("");
+      $("hint").textContent = risk === "high" ? "mirror または letterbox の片方を忘れると、ROI が操作対象から大きく外れます。" : "この設定ではズレは小さめですが、fit mode や ratio を変えると急に広がります。";
+      feed(`frame=${state.frame} ratio=${$("ratio").value} fit=${$("fit").value} mirror=${$("mirror").value} drift=${Math.round(dx)}px`);
+    }
+
+    let timer = 0;
+    function loop() {
+      if (!state.running) return;
+      move();
+      timer = setTimeout(loop, 480);
+    }
+
+    ["ratio", "fit", "mirror", "rotation", "size"].forEach((id) => $(id).addEventListener("input", render));
+    window.addEventListener("resize", render);
+    $("step").addEventListener("click", move);
+    $("auto").addEventListener("click", () => {
+      state.running = !state.running;
+      $("auto").textContent = state.running ? "Stop auto" : "Auto run";
+      if (state.running) loop();
+    });
+    $("preset").addEventListener("click", () => {
+      $("ratio").value = "4:3";
+      $("fit").value = "cover";
+      $("mirror").value = "yes";
+      $("rotation").value = "-32";
+      render();
+    });
+    $("reset").addEventListener("click", () => {
+      state.frame = 0;
+      state.rect = { x: .55, y: .48 };
+      $("ratio").value = "16:9";
+      $("fit").value = "contain";
+      $("mirror").value = "yes";
+      $("rotation").value = "18";
+      $("size").value = "38";
+      render();
+      feed("reset probe");
+    });
+    render();
+  </script>
+</body>
+</html>
