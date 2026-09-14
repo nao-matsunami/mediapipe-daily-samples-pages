@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-14",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer",
+  "headline": "Gesture Recognizer の video stream を詰まらせず UI コマンドへ渡す",
+  "headlineEn": "Keeping Gesture Recognizer video streams from backing up before UI commands",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、Web setup guide、Tasks Vision Web README、MediaPipe release notes、npm の @mediapipe/tasks-vision 情報を確認し、video frame の重複除外、同期 block、worker queue、古い結果の破棄を観察する自作サンプルを2本追加しました。本命は gesture stream の backpressure console、派生は canned gesture の score / allowlist / denylist / dwell / cooldown を UI コマンドへ変換する policy sandbox です。",
+  "summaryEn": "After checking the Google AI Edge Gesture Recognizer Web guide, Web setup guide, Tasks Vision Web README, MediaPipe release notes, and npm information for @mediapipe/tasks-vision, this adds two original samples for observing duplicate-frame skipping, synchronous blocking, worker queues, and stale-result rejection. The main sample is a gesture stream backpressure console; the derivative is a policy sandbox that converts canned gesture scores, allowlists, denylists, dwell, and cooldown into UI commands.",
+  "keyTopics": [
+    "Gesture Recognizer Web guide は `runningMode` に IMAGE / VIDEO を示し、video や camera frame では `recognizeForVideo()` を使って frame ごとに処理する構成を説明している。",
+    "同 guide は `recognize()` / `recognizeForVideo()` が同期的に実行され UI thread を block し得るため、camera input では worker や cadence 制御を検討する必要があると明記している。",
+    "Gesture Recognizer の結果は handedness、gestures、21 hand landmarks、21 world landmarks を含むため、gesture label だけでなく座標・奥行き・左右手も command router に渡せる。",
+    "canned gesture classifier options には score threshold、max results、allowlist、denylist があり、allowlist と denylist は同時利用しない policy として設計するのがよい。",
+    "npm の @mediapipe/tasks-vision は latest が 1.0.1 と確認でき、nightly / rc tag も継続しているため、サンプル側では import version と wasm path を固定して観察できるようにしておきたい。"
+  ],
+  "keyTopicsEn": [
+    "The Gesture Recognizer Web guide lists IMAGE and VIDEO `runningMode` values and describes using `recognizeForVideo()` frame by frame for video or camera streams.",
+    "The same guide states that `recognize()` and `recognizeForVideo()` run synchronously and may block the UI thread, so camera input should consider workers or cadence control.",
+    "Gesture Recognizer results include handedness, gestures, 21 hand landmarks, and 21 world landmarks, so command routers can use coordinates, depth, and left/right hand context in addition to labels.",
+    "Canned gesture classifier options include score threshold, max results, allowlist, and denylist; allowlist and denylist should be modeled as mutually exclusive policies.",
+    "npm shows @mediapipe/tasks-vision latest at 1.0.1 with continuing nightly / rc tags, so samples should pin import versions and wasm paths when observing runtime behavior."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Stream Backpressure Console",
+      "url": "../outputs/2026-09-14_gesture_stream_backpressure_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Gesture Command Policy Sandbox",
+      "url": "../outputs/2026-09-14_gesture_command_policy_sandbox.html"
+    },
+    {
+      "label": "Google AI Edge: Gesture Recognizer Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-14-gesture-stream-backpressure.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Gesture Recognizer を gesture label の demo としてではなく、camera stream から UI command へ渡る runtime pipeline として見ることです。公式 guide は `recognizeForVideo()` の frame 処理、同期 block、worker 実装の検討、handedness / gestures / landmarks / world landmarks を説明しています。面白いのは、モデル精度を上げなくても、timestamp 重複除外、queue cap、古い結果の破棄、dwell gate だけで体感の安定性が大きく変わる点です。",
+      "bodyEn": "Today's notable angle is treating Gesture Recognizer not as a gesture-label demo but as a runtime pipeline from camera stream to UI command. The official guide describes frame processing through `recognizeForVideo()`, synchronous blocking, worker considerations, and handedness / gestures / landmarks / world landmarks. The interesting part is that duplicate timestamp skipping, queue caps, stale result rejection, and dwell gates can greatly improve perceived stability without changing model accuracy."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Gesture Stream Backpressure Console` は、camera FPS、推論 cost、worker queue capacity、adaptive cadence を動かしながら、processed / dropped / duplicate / stale の数を可視化します。派生の `Gesture Command Policy Sandbox` は、canned gesture の synthetic score を threshold、allowlist / denylist、dwell、cooldown に通し、Open_Palm、Thumb_Up、Victory などを実際の UI command に変換します。",
+      "bodyEn": "The main sample, `Gesture Stream Backpressure Console`, lets you adjust camera FPS, inference cost, worker queue capacity, and adaptive cadence while visualizing processed, dropped, duplicate, and stale counts. The derivative, `Gesture Command Policy Sandbox`, passes synthetic canned-gesture scores through threshold, allowlist / denylist, dwell, and cooldown before converting Open_Palm, Thumb_Up, Victory, and related labels into UI commands."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、video timestamp、queue depth、inference cost、dropped frame reason、stale result count、gesture score、policy pass / fail、dwell frames、cooldown、発火した command です。Gesture Recognizer、Hand Landmarker、Web Workers、OffscreenCanvas、Pointer Events、Gamepad-like command mapping、IndexedDB、WebXR controller ray、LLM による操作ログ要約と組み合わせると、手 gesture をブラウザ操作やXRパネル操作に変える前の安全な command layer になります。",
+      "bodyEn": "The samples can collect video timestamps, queue depth, inference cost, dropped-frame reasons, stale-result counts, gesture scores, policy pass / fail, dwell frames, cooldown, and fired commands. Combined with Gesture Recognizer, Hand Landmarker, Web Workers, OffscreenCanvas, Pointer Events, gamepad-like command mapping, IndexedDB, WebXR controller rays, or LLM operation-log summaries, this becomes a safe command layer before turning hand gestures into browser or XR panel controls."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装する時は、`FilesetResolver.forVisionTasks()` と `GestureRecognizer.createFromOptions()` を setup phase に分け、`runningMode: \"VIDEO\"`、`numHands`、`minHandDetectionConfidence`、`minHandPresenceConfidence`、`minTrackingConfidence`、canned classifier options を設定ログに残します。video loop では `video.currentTime` または monotonic timestamp を比較して同じ frame を捨て、worker から戻る結果は timestamp が最新かを確認してから UI に反映します。gesture label は score threshold だけでなく、dwell と cooldown を通して command 化すると誤発火が減ります。",
+      "bodyEn": "For implementation, split `FilesetResolver.forVisionTasks()` and `GestureRecognizer.createFromOptions()` into setup phase logging, including `runningMode: \"VIDEO\"`, `numHands`, `minHandDetectionConfidence`, `minHandPresenceConfidence`, `minTrackingConfidence`, and canned classifier options. In the video loop, compare `video.currentTime` or another monotonic timestamp to drop repeated frames, and only apply worker results to the UI after checking that their timestamps are current. Gesture labels should pass through dwell and cooldown in addition to score threshold before becoming commands."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Tasks Vision Web README の 1.0.x export 更新、MediaPipe release notes の JavaScript / WASM / running mode 変更、npm の nightly tag、Gesture Recognizer customize guide、Hand Landmarker と Gesture Recognizer の統合、Web Workers で ImageBitmap を渡す際の close 境界を見ます。特に `recognizeForVideo()` を worker に逃がした時の queue policy と overlay latency を詰めたいです。",
+      "bodyEn": "Next, watch Tasks Vision Web README export updates for 1.0.x, MediaPipe release notes around JavaScript / WASM / running mode changes, npm nightly tags, the Gesture Recognizer customization guide, Hand Landmarker plus Gesture Recognizer integration, and ImageBitmap close boundaries when passing frames to Web Workers. The next practical focus is tightening queue policy and overlay latency when moving `recognizeForVideo()` into a worker."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Gesture Stream Backpressure Console` で `main thread sync` のまま Inference cost を上げ、dropped frame が増える様子を見てから `worker queue` と `adaptive cadence` に切り替えると、UI block 対策の差が見えます。派生サンプルでは `Thumb spike` と `None gap` を押し、threshold と dwell がコマンド発火をどう安定させるかを確認できます。",
+      "bodyEn": "In `Gesture Stream Backpressure Console`, raise inference cost while staying in `main thread sync`, watch dropped frames increase, then switch to `worker queue` and `adaptive cadence` to see the difference in UI blocking strategy. In the derivative sample, press `Thumb spike` and `None gap` to see how threshold and dwell stabilize command firing."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、Web setup guide、Tasks Vision Web README、MediaPipe releases、npm @mediapipe/tasks-vision を確認。設計: 外部デモ一覧ではなく、自作 HTML で stream backpressure と command policy を試す。実装: 本命 HTML に camera FPS、inference cost、queue capacity、duplicate timestamp skip、busy drop、stale result rejection、adaptive cadence、Tasks import probe を追加。派生 HTML に canned gesture score、threshold、allowlist / denylist、dwell、cooldown、command mapping を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer Web guide, Web setup guide, Tasks Vision Web README, MediaPipe releases, and npm @mediapipe/tasks-vision. Design: instead of listing external demos, test stream backpressure and command policy in original HTML. Implementation: added camera FPS, inference cost, queue capacity, duplicate timestamp skipping, busy drops, stale result rejection, adaptive cadence, and a Tasks import probe to the main HTML. Added canned gesture scores, threshold, allowlist / denylist, dwell, cooldown, and command mapping to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は delegate fallback、WASM asset path、Object Detector ROI cache、Hand Landmarker coordinate projection を扱いました。今日は Gesture Recognizer の stream 制御と command policy を足し、Web ML の出力が UI に入る直前の層を補強しました。これで、起動、model path、frame cadence、ROI / landmark projection、classifier policy、command router の連なりが見えるようになっています。",
+      "bodyEn": "Recent entries covered delegate fallback, WASM asset paths, Object Detector ROI cache, and Hand Landmarker coordinate projection. Today adds Gesture Recognizer stream control and command policy, strengthening the layer right before Web ML output reaches the UI. The archive now shows a chain from startup, model paths, frame cadence, ROI / landmark projection, classifier policy, and command routing."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Gesture Stream Backpressure Console` です。実際に動く部分は、camera FPS と inference cost の調整、duplicate timestamp skip、queue overflow drop、stale result rejection、adaptive cadence、gesture score timeline、Tasks Vision import probe です。次に足すなら実 `GestureRecognizer.createFromOptions()`、カメラ `recognizeForVideo()`、worker への ImageBitmap handoff、overlay latency meter を足します。派生試作は `Gesture Command Policy Sandbox` で、実際に動く部分は canned gesture の synthetic score、threshold、allowlist / denylist、dwell、cooldown、command mapping です。次に足すなら `cannedGesturesClassifierOptions` の実設定、custom gesture model、左右手別 command、Pointer Events への発火を足します。",
+      "bodyEn": "The selected main prototype is `Gesture Stream Backpressure Console`. The working pieces are adjustable camera FPS and inference cost, duplicate timestamp skipping, queue overflow drops, stale result rejection, adaptive cadence, a gesture score timeline, and a Tasks Vision import probe. Next additions should connect real `GestureRecognizer.createFromOptions()`, camera `recognizeForVideo()`, ImageBitmap handoff to a worker, and an overlay latency meter. The derivative prototype is `Gesture Command Policy Sandbox`; the working pieces are synthetic canned gesture scores, threshold, allowlist / denylist, dwell, cooldown, and command mapping. Next additions should include real `cannedGesturesClassifierOptions`, a custom gesture model, per-handedness commands, and Pointer Events dispatch.",
+      "links": [
+        {
+          "label": "Open Gesture Stream Backpressure Console",
+          "url": "../outputs/2026-09-14_gesture_stream_backpressure_console.html"
+        },
+        {
+          "label": "Open Gesture Command Policy Sandbox",
+          "url": "../outputs/2026-09-14_gesture_command_policy_sandbox.html"
+        }
+      ]
+    }
+  ]
+}

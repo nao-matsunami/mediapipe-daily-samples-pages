@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Stream Backpressure Console</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0f1114; color: #f7faf4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 18% 8%, rgba(80, 170, 132, .18), transparent 34%), linear-gradient(145deg, rgba(216, 94, 82, .13), transparent 42%), #0f1114; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { display: grid; gap: 8px; border-bottom: 1px solid rgba(247, 250, 244, .14); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cbd4cd; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(247, 250, 244, .25); background: #f7faf4; color: #0f1114; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #f7faf4; }
+    input[type="range"] { width: 100%; accent-color: #50aa84; }
+    label { display: grid; gap: 7px; color: #edf4ec; font-size: .92rem; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(247, 250, 244, .14); background: rgba(17, 22, 23, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; margin-top: 18px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .value { color: #df7d4f; font-variant-numeric: tabular-nums; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { border: 1px solid rgba(247, 250, 244, .22); padding: 5px 8px; color: #cbd4cd; font-size: .78rem; }
+    .pass { color: #f7faf4; border-color: rgba(80, 170, 132, .78); background: rgba(80, 170, 132, .18); }
+    .warn { color: #f7faf4; border-color: rgba(216, 94, 82, .74); background: rgba(216, 94, 82, .17); }
+    .canvasWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; background: #080b0c; overflow: hidden; border: 1px solid rgba(247, 250, 244, .13); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(247, 250, 244, .13); background: #151b1c; padding: 11px; min-height: 110px; }
+    .meter strong { display: block; color: #df7d4f; font-size: clamp(1.2rem, 3vw, 1.9rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .log { margin-top: 14px; padding: 12px; height: 160px; overflow: auto; white-space: pre-wrap; color: #dcefe2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .canvasWrap { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Gesture Stream Backpressure Console</h1>
+      <p>MediaPipe Gesture Recognizer の video frame 処理を、timestamp 重複除外、同期 block、worker queue、UI反映 gate として観察する自作ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Camera FPS <input id="fps" type="range" min="12" max="60" value="30"><span id="fpsValue" class="value">30 fps</span></label>
+      <label>Inference cost <input id="cost" type="range" min="8" max="80" value="34"><span id="costValue" class="value">34 ms</span></label>
+      <label>Gesture threshold <input id="threshold" type="range" min="20" max="90" value="58"><span id="thresholdValue" class="value">0.58</span></label>
+      <label>Worker capacity <input id="capacity" type="range" min="1" max="8" value="3"><span id="capacityValue" class="value">3 frames</span></label>
+      <label>Mode
+        <select id="mode">
+          <option value="main">main thread sync</option>
+          <option value="worker">worker queue</option>
+          <option value="adaptive">adaptive cadence</option>
+        </select>
+      </label>
+      <button id="toggle">Start stream</button>
+      <button id="step" class="secondary">Step 1s</button>
+      <button id="burst" class="secondary">Burst motion</button>
+      <button id="stall" class="secondary">Model stall</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Runtime contract</h2>
+        <p>公式 Web guide は `runningMode: VIDEO` と `recognizeForVideo()` を使う流れを示し、video frame の処理は UI thread を block し得ると説明しています。ここでは実モデルの前段で、同じ timestamp を捨てる、busy 中は queue へ逃がす、古い結果を UI に戻さない、という制御だけを動かします。</p>
+        <div class="chips">
+          <span id="importStatus" class="chip warn">Tasks import: checking</span>
+          <span id="timeStatus" class="chip">timestamp: monotonic</span>
+          <span id="queueStatus" class="chip">queue: idle</span>
+          <span id="decisionStatus" class="chip">UI: waiting</span>
+        </div>
+      </aside>
+
+      <section>
+        <div class="stage">
+          <h2>Frame timeline</h2>
+          <div class="canvasWrap"><canvas id="stage" width="1280" height="720"></canvas></div>
+          <div id="meters" class="meters"></div>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const ctx = $("stage").getContext("2d");
+    const gestures = ["None", "Open_Palm", "Closed_Fist", "Pointing_Up", "Thumb_Up", "Victory", "ILoveYou"];
+    const state = { running: false, ms: 0, nextFrameMs: 0, lastVideoTime: -1, queue: [], busyUntil: 0, processed: 0, dropped: 0, duplicated: 0, accepted: 0, stale: 0, latestResultTime: -1, burst: 0, stall: 0, timeline: [] };
+
+    function labels() {
+      $("fpsValue").textContent = `${$("fps").value} fps`;
+      $("costValue").textContent = `${$("cost").value} ms`;
+      $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+      $("capacityValue").textContent = `${$("capacity").value} frames`;
+    }
+
+    async function checkImport() {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        const ok = Boolean(mod.FilesetResolver && mod.GestureRecognizer);
+        $("importStatus").textContent = ok ? "Tasks import: GestureRecognizer ready" : "Tasks import: missing export";
+        $("importStatus").className = ok ? "chip pass" : "chip warn";
+      } catch {
+        $("importStatus").textContent = "Tasks import: blocked or offline";
+        $("importStatus").className = "chip warn";
+      }
+    }
+
+    function log(line) {
+      const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2600);
+    }
+
+    function fakeGesture(frameTime) {
+      const wobble = Math.sin(frameTime / 420) * .22 + Math.sin(frameTime / 970) * .14;
+      const score = Math.max(0, Math.min(1, .56 + wobble + (state.burst ? .22 : 0)));
+      const index = Math.abs(Math.floor(frameTime / 820)) % gestures.length;
+      return { name: score < .34 ? "None" : gestures[index], score };
+    }
+
+    function enqueueFrame(videoTime) {
+      const isDuplicate = videoTime === state.lastVideoTime;
+      if (isDuplicate) {
+        state.duplicated += 1;
+        return;
+      }
+      state.lastVideoTime = videoTime;
+      const capacity = Number($("capacity").value);
+      if ($("mode").value === "main" && state.ms < state.busyUntil) {
+        state.dropped += 1;
+        state.timeline.push({ t: state.ms, kind: "drop", name: "busy", score: 0 });
+        return;
+      }
+      if (state.queue.length >= capacity) {
+        state.queue.shift();
+        state.dropped += 1;
+      }
+      state.queue.push({ videoTime, queuedAt: state.ms });
+    }
+
+    function processQueue() {
+      if (state.ms < state.busyUntil || !state.queue.length) return;
+      const frame = state.queue.shift();
+      const baseCost = Number($("cost").value) + (state.stall ? 62 : 0);
+      const cost = Math.round(baseCost + Math.abs(Math.sin(frame.videoTime / 300)) * 10);
+      state.busyUntil = state.ms + cost;
+      const result = fakeGesture(frame.videoTime);
+      const threshold = Number($("threshold").value) / 100;
+      const stale = frame.videoTime < state.latestResultTime;
+      if (stale) {
+        state.stale += 1;
+      } else {
+        state.latestResultTime = frame.videoTime;
+        if (result.score >= threshold && result.name !== "None") state.accepted += 1;
+      }
+      state.processed += 1;
+      state.timeline.push({ t: state.ms, kind: stale ? "stale" : result.score >= threshold ? "accept" : "reject", name: result.name, score: result.score, cost });
+      state.timeline = state.timeline.slice(-48);
+      log(`recognizeForVideo(t=${frame.videoTime}ms) cost=${cost}ms result=${result.name}:${result.score.toFixed(2)} stale=${stale}`);
+    }
+
+    function tick(delta = 16) {
+      state.ms += delta;
+      const frameInterval = 1000 / Number($("fps").value);
+      const adaptive = $("mode").value === "adaptive" && state.queue.length > 1 ? 2 : 1;
+      while (state.ms >= state.nextFrameMs) {
+        const roundedVideoTime = Math.floor(state.nextFrameMs / frameInterval) * Math.round(frameInterval);
+        if (Math.floor(state.nextFrameMs / 220) % 9 === 0) enqueueFrame(state.lastVideoTime);
+        enqueueFrame(roundedVideoTime);
+        state.nextFrameMs += frameInterval * adaptive;
+      }
+      processQueue();
+      if (state.burst) state.burst -= 1;
+      if (state.stall) state.stall -= 1;
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 1280, 720);
+      ctx.fillStyle = "#080b0c";
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.strokeStyle = "rgba(247,250,244,.08)";
+      ctx.lineWidth = 1;
+      for (let x = 80; x < 1280; x += 80) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 720); ctx.stroke(); }
+      ctx.fillStyle = "rgba(247,250,244,.72)";
+      ctx.font = "16px ui-monospace, monospace";
+      ctx.fillText("camera frames -> queue -> recognizeForVideo -> UI command", 28, 36);
+      const baseY = 360;
+      ctx.strokeStyle = "rgba(247,250,244,.2)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(34, baseY);
+      ctx.lineTo(1246, baseY);
+      ctx.stroke();
+      state.timeline.forEach((item, i) => {
+        const x = 52 + i * 25;
+        const h = 30 + (item.score || 0) * 120;
+        const color = item.kind === "accept" ? "#50aa84" : item.kind === "reject" ? "#df7d4f" : item.kind === "stale" ? "#d9c85b" : "#69727a";
+        ctx.fillStyle = color;
+        ctx.fillRect(x, baseY - h, 16, h);
+        ctx.fillStyle = "rgba(247,250,244,.82)";
+        ctx.save();
+        ctx.translate(x + 3, baseY + 22);
+        ctx.rotate(-Math.PI / 3);
+        ctx.fillText(item.name || item.kind, 0, 0);
+        ctx.restore();
+      });
+      const lag = Math.max(0, state.busyUntil - state.ms);
+      const ratio = Math.min(1, lag / 120);
+      ctx.fillStyle = "rgba(216,94,82,.18)";
+      ctx.fillRect(40, 600, 420 * ratio, 26);
+      ctx.strokeStyle = "rgba(247,250,244,.2)";
+      ctx.strokeRect(40, 600, 420, 26);
+      ctx.fillStyle = "#f7faf4";
+      ctx.fillText(`main/worker busy: ${Math.round(lag)}ms`, 50, 619);
+      $("queueStatus").textContent = `queue: ${state.queue.length}`;
+      $("queueStatus").className = state.queue.length >= Number($("capacity").value) ? "chip warn" : "chip";
+      $("decisionStatus").textContent = state.accepted ? `UI: ${state.accepted} commands` : "UI: no command";
+      $("decisionStatus").className = state.accepted ? "chip pass" : "chip";
+      $("meters").innerHTML = [
+        ["processed", state.processed, "推論へ渡した frame"],
+        ["dropped", state.dropped, "busy / queue overflow"],
+        ["duplicates", state.duplicated, "同一 timestamp 除外"],
+        ["stale", state.stale, "古い結果の破棄"]
+      ].map(([name, value, note]) => `<article class="meter"><h2>${name}</h2><strong>${value}</strong><p>${note}</p></article>`).join("");
+    }
+
+    function loop() {
+      if (!state.running) return;
+      tick(16);
+      requestAnimationFrame(loop);
+    }
+
+    document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", labels));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+      log(state.running ? "stream started" : "stream paused");
+      if (state.running) loop();
+    });
+    $("step").addEventListener("click", () => { for (let i = 0; i < 60; i += 1) tick(16); log("stepped 1 simulated second"); });
+    $("burst").addEventListener("click", () => { state.burst = 120; log("gesture scores boosted for burst motion"); });
+    $("stall").addEventListener("click", () => { state.stall = 100; log("temporary model stall injected"); });
+    $("reset").addEventListener("click", () => { Object.assign(state, { running: false, ms: 0, nextFrameMs: 0, lastVideoTime: -1, queue: [], busyUntil: 0, processed: 0, dropped: 0, duplicated: 0, accepted: 0, stale: 0, latestResultTime: -1, burst: 0, stall: 0, timeline: [] }); $("toggle").textContent = "Start stream"; $("log").textContent = ""; draw(); });
+    labels();
+    checkImport();
+    draw();
+  </script>
+</body>
+</html>

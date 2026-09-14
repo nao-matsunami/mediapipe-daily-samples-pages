@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Command Policy Sandbox</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111213; color: #fbfaf4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(75, 144, 188, .18), transparent 36%), linear-gradient(315deg, rgba(211, 161, 71, .15), transparent 44%), #111213; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px 16px 38px; }
+    header { display: grid; gap: 8px; border-bottom: 1px solid rgba(251, 250, 244, .15); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d1d1ca; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(251, 250, 244, .26); background: #fbfaf4; color: #111213; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #fbfaf4; }
+    input[type="range"] { width: 100%; accent-color: #4b90bc; }
+    label { display: grid; gap: 7px; color: #eff0e9; font-size: .92rem; }
+    .toolbar, .panel, .board, .log { border: 1px solid rgba(251, 250, 244, .14); background: rgba(18, 21, 22, .9); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 12px; margin-top: 18px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .board { padding: 14px; }
+    .value { color: #d3a147; font-variant-numeric: tabular-nums; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { border: 1px solid rgba(251, 250, 244, .22); padding: 5px 8px; color: #d1d1ca; font-size: .78rem; }
+    .pass { color: #fbfaf4; border-color: rgba(75, 144, 188, .8); background: rgba(75, 144, 188, .2); }
+    .warn { color: #fbfaf4; border-color: rgba(211, 161, 71, .8); background: rgba(211, 161, 71, .17); }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .gesture { min-height: 138px; border: 1px solid rgba(251, 250, 244, .14); background: #171b1d; padding: 12px; display: grid; align-content: space-between; }
+    .gesture strong { display: block; font-size: 1.05rem; overflow-wrap: anywhere; }
+    .bar { height: 12px; background: rgba(251, 250, 244, .11); overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 0%; background: #4b90bc; }
+    .active { border-color: rgba(75, 144, 188, .88); box-shadow: inset 0 0 0 2px rgba(75, 144, 188, .22); }
+    .blocked { opacity: .44; }
+    .command { margin-top: 12px; min-height: 150px; border: 1px solid rgba(251, 250, 244, .14); background: #0c0e0f; padding: 14px; display: grid; gap: 8px; }
+    .command strong { color: #d3a147; font-size: clamp(1.5rem, 4vw, 2.4rem); overflow-wrap: anywhere; }
+    .log { margin-top: 14px; padding: 12px; height: 150px; overflow: auto; white-space: pre-wrap; color: #e6edf4; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Gesture Command Policy Sandbox</h1>
+      <p>Gesture Recognizer の canned gestures を、score threshold、allowlist / denylist、dwell time、cooldown で UI コマンドへ変換する派生試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Score threshold <input id="threshold" type="range" min="20" max="90" value="60"><span id="thresholdValue" class="value">0.60</span></label>
+      <label>Dwell frames <input id="dwell" type="range" min="1" max="18" value="5"><span id="dwellValue" class="value">5</span></label>
+      <label>Cooldown frames <input id="cooldown" type="range" min="0" max="30" value="10"><span id="cooldownValue" class="value">10</span></label>
+      <label>Policy
+        <select id="policy">
+          <option value="allow">allowlist commands</option>
+          <option value="deny">denylist noisy labels</option>
+          <option value="all">accept all canned</option>
+        </select>
+      </label>
+      <label>Noise <input id="noise" type="range" min="0" max="100" value="32"><span id="noiseValue" class="value">0.32</span></label>
+      <button id="play">Play sequence</button>
+      <button id="step" class="secondary">Step frame</button>
+      <button id="thumb" class="secondary">Thumb spike</button>
+      <button id="none" class="secondary">None gap</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Classifier policy</h2>
+        <p>公式 option には canned gesture classifier の score threshold、max results、allowlist、denylist があり、allowlist と denylist は同時に使わない設計です。この試作ではモデル結果そのものではなく、結果をアプリの操作へ渡す直前の policy を触れます。</p>
+        <div class="chips">
+          <span id="allowedStatus" class="chip pass">allow: Thumb_Up, Victory, Open_Palm</span>
+          <span id="deniedStatus" class="chip warn">deny: None, ILoveYou</span>
+          <span id="commandStatus" class="chip">command: idle</span>
+        </div>
+      </aside>
+
+      <section>
+        <div class="board">
+          <h2>Canned gesture scores</h2>
+          <div id="grid" class="grid"></div>
+          <div class="command">
+            <p>Stable command</p>
+            <strong id="command">waiting</strong>
+            <p id="reason">Play sequence で、score と dwell が揃った時だけコマンドが発火します。</p>
+          </div>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const labels = ["None", "Closed_Fist", "Open_Palm", "Pointing_Up", "Thumb_Down", "Thumb_Up", "Victory", "ILoveYou"];
+    const allow = new Set(["Thumb_Up", "Victory", "Open_Palm"]);
+    const deny = new Set(["None", "ILoveYou"]);
+    const state = { running: false, frame: 0, dwellLabel: "", dwellCount: 0, cooldown: 0, command: "waiting", spike: 0, gap: 0, scores: Object.fromEntries(labels.map((label) => [label, 0])) };
+
+    function sync() {
+      $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+      $("dwellValue").textContent = $("dwell").value;
+      $("cooldownValue").textContent = $("cooldown").value;
+      $("noiseValue").textContent = (Number($("noise").value) / 100).toFixed(2);
+    }
+
+    function log(line) {
+      const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2400);
+    }
+
+    function policyAllows(label) {
+      if ($("policy").value === "allow") return allow.has(label);
+      if ($("policy").value === "deny") return !deny.has(label);
+      return true;
+    }
+
+    function synthesizeScores() {
+      state.frame += 1;
+      const noise = Number($("noise").value) / 100;
+      labels.forEach((label, i) => {
+        const phase = Math.sin(state.frame * .08 + i * .9) * .5 + .5;
+        const pulse = Math.max(0, Math.sin(state.frame * .025 + i));
+        state.scores[label] = Math.max(0, Math.min(1, .08 + phase * noise * .35 + pulse * .48));
+      });
+      const cycle = Math.floor(state.frame / 72) % 4;
+      const featured = ["Open_Palm", "Thumb_Up", "Victory", "Closed_Fist"][cycle];
+      state.scores[featured] = Math.min(1, state.scores[featured] + .36);
+      if (state.spike) {
+        state.scores.Thumb_Up = .96;
+        state.spike -= 1;
+      }
+      if (state.gap) {
+        labels.forEach((label) => { state.scores[label] = label === "None" ? .88 : .12; });
+        state.gap -= 1;
+      }
+    }
+
+    function bestAllowed() {
+      return labels
+        .map((label) => ({ label, score: state.scores[label], allowed: policyAllows(label) }))
+        .filter((item) => item.allowed)
+        .sort((a, b) => b.score - a.score)[0];
+    }
+
+    function step() {
+      synthesizeScores();
+      if (state.cooldown > 0) state.cooldown -= 1;
+      const best = bestAllowed();
+      const threshold = Number($("threshold").value) / 100;
+      const pass = best && best.score >= threshold && best.label !== "None";
+      if (pass && best.label === state.dwellLabel) {
+        state.dwellCount += 1;
+      } else {
+        state.dwellLabel = pass ? best.label : "";
+        state.dwellCount = pass ? 1 : 0;
+      }
+      const dwellReady = state.dwellCount >= Number($("dwell").value);
+      if (dwellReady && state.cooldown === 0) {
+        state.command = commandFor(best.label);
+        state.cooldown = Number($("cooldown").value);
+        log(`command fired: ${state.command} from ${best.label} score=${best.score.toFixed(2)}`);
+      }
+      $("command").textContent = state.command;
+      $("commandStatus").textContent = `command: ${state.command}`;
+      $("commandStatus").className = state.command === "waiting" ? "chip" : "chip pass";
+      $("reason").textContent = pass ? `${best.label} が ${state.dwellCount} frame 継続中。cooldown=${state.cooldown}` : "threshold または policy を満たさないため、UI コマンドには渡しません。";
+      render(best?.label || "");
+    }
+
+    function commandFor(label) {
+      return {
+        Open_Palm: "pause overlay",
+        Thumb_Up: "confirm selection",
+        Victory: "next panel",
+        Closed_Fist: "grab mode",
+        Pointing_Up: "raise cursor",
+        Thumb_Down: "cancel"
+      }[label] || "waiting";
+    }
+
+    function render(bestLabel = "") {
+      const threshold = Number($("threshold").value) / 100;
+      $("grid").innerHTML = labels.map((label) => {
+        const score = state.scores[label] || 0;
+        const allowed = policyAllows(label);
+        const active = label === bestLabel && score >= threshold && allowed;
+        return `<article class="gesture ${active ? "active" : ""} ${allowed ? "" : "blocked"}">
+          <div><strong>${label}</strong><p>${allowed ? "policy pass" : "filtered"}</p></div>
+          <div><div class="bar"><span style="width:${Math.round(score * 100)}%"></span></div><p>${score.toFixed(2)}</p></div>
+        </article>`;
+      }).join("");
+    }
+
+    function loop() {
+      if (!state.running) return;
+      step();
+      setTimeout(loop, 72);
+    }
+
+    document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { sync(); render(bestAllowed()?.label || ""); }));
+    $("play").addEventListener("click", () => { state.running = !state.running; $("play").textContent = state.running ? "Pause sequence" : "Play sequence"; if (state.running) loop(); });
+    $("step").addEventListener("click", step);
+    $("thumb").addEventListener("click", () => { state.spike = 24; log("Thumb_Up spike injected"); });
+    $("none").addEventListener("click", () => { state.gap = 32; log("None gap injected"); });
+    $("reset").addEventListener("click", () => { Object.assign(state, { running: false, frame: 0, dwellLabel: "", dwellCount: 0, cooldown: 0, command: "waiting", spike: 0, gap: 0, scores: Object.fromEntries(labels.map((label) => [label, 0])) }); $("play").textContent = "Play sequence"; $("command").textContent = "waiting"; $("reason").textContent = "Play sequence で、score と dwell が揃った時だけコマンドが発火します。"; $("log").textContent = ""; render(); });
+    sync();
+    render();
+  </script>
+</body>
+</html>
