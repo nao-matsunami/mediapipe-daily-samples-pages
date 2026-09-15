@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Matrix Stability Probe</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101214; color: #f5f4ec; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(130deg, rgba(101, 191, 145, .18), transparent 34%), linear-gradient(310deg, rgba(102, 140, 214, .18), transparent 42%), #101214; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 244, 236, .16); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.9rem); line-height: 1.05; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #ccd2ce; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(245, 244, 236, .25); background: #f5f4ec; color: #101214; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #f5f4ec; }
+    label { display: grid; gap: 7px; color: #edf2ec; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #65bf91; }
+    .toolbar, .panel, .stage, .matrix { border: 1px solid rgba(245, 244, 236, .15); background: rgba(18, 24, 26, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 12px; margin-top: 18px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .value { color: #96aeea; font-variant-numeric: tabular-nums; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { border: 1px solid rgba(245, 244, 236, .22); padding: 5px 8px; color: #ccd2ce; font-size: .78rem; }
+    .pass { color: #f5f4ec; border-color: rgba(101, 191, 145, .78); background: rgba(101, 191, 145, .16); }
+    .warn { color: #f5f4ec; border-color: rgba(150, 174, 234, .78); background: rgba(150, 174, 234, .14); }
+    .canvasWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; background: #07090c; overflow: hidden; border: 1px solid rgba(245, 244, 236, .14); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(245, 244, 236, .13); background: #171d1f; padding: 11px; min-height: 100px; }
+    .meter strong { display: block; color: #65bf91; font-size: clamp(1.1rem, 3vw, 1.7rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .matrix { margin-top: 14px; padding: 12px; overflow: auto; color: #e2e9e3; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; white-space: pre; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .canvasWrap { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Face Matrix Stability Probe</h1>
+      <p>Face Landmarker の facial transformation matrix を想定し、yaw / pitch / roll と translation の揺れを smoothing と deadband で安定化する派生試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Head motion <input id="motion" type="range" min="0" max="100" value="46"><span id="motionValue" class="value">0.46</span></label>
+      <label>Jitter <input id="jitter" type="range" min="0" max="100" value="36"><span id="jitterValue" class="value">0.36</span></label>
+      <label>Smoothing <input id="smooth" type="range" min="0" max="95" value="72"><span id="smoothValue" class="value">0.72</span></label>
+      <label>Deadband <input id="deadband" type="range" min="0" max="30" value="8"><span id="deadbandValue" class="value">0.08</span></label>
+      <label>Anchor
+        <select id="anchor">
+          <option value="nose">nose bridge</option>
+          <option value="eyes">eye center</option>
+          <option value="mouth">mouth center</option>
+        </select>
+      </label>
+      <button id="toggle">Start motion</button>
+      <button id="snap" class="secondary">Snap turn</button>
+      <button id="shake" class="secondary">Jitter burst</button>
+      <button id="zero" class="secondary">Zero matrix</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Matrix handling</h2>
+        <p>公式 guide は Face Landmarker が facial transformation matrix を返せると説明しています。AR filter や avatar retarget では値そのものより、急な揺れ、deadband、anchor 補正、表示遅延の扱いが体験を左右するため、この試作ではその層だけを切り出します。</p>
+        <div class="chips">
+          <span id="matrixStatus" class="chip pass">matrix: synthetic 4x4</span>
+          <span id="anchorStatus" class="chip">anchor: nose bridge</span>
+          <span id="stabilityStatus" class="chip">stability: idle</span>
+        </div>
+      </aside>
+
+      <section>
+        <div class="stage">
+          <h2>Raw vs stabilized face transform</h2>
+          <div class="canvasWrap"><canvas id="stage" width="1280" height="720"></canvas></div>
+          <div id="meters" class="meters"></div>
+        </div>
+        <div id="matrix" class="matrix"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const ctx = $("stage").getContext("2d");
+    const axes = ["yaw", "pitch", "roll", "z"];
+    const state = {
+      running: false,
+      t: 0,
+      snap: 0,
+      shake: 0,
+      raw: { yaw: 0, pitch: 0, roll: 0, x: 0, y: 0, z: 0 },
+      stable: { yaw: 0, pitch: 0, roll: 0, x: 0, y: 0, z: 0 },
+      history: []
+    };
+
+    function labels() {
+      for (const id of ["motion", "jitter", "smooth"]) $(id + "Value").textContent = (Number($(id).value) / 100).toFixed(2);
+      $("deadbandValue").textContent = (Number($("deadband").value) / 100).toFixed(2);
+      $("anchorStatus").textContent = `anchor: ${$("anchor").selectedOptions[0].textContent}`;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function synth(dt) {
+      state.t += dt / 1000;
+      state.snap = Math.max(0, state.snap - dt / 600);
+      state.shake = Math.max(0, state.shake - dt / 500);
+      const motion = Number($("motion").value) / 100;
+      const jitter = Number($("jitter").value) / 100;
+      const j = () => (Math.random() - .5) * jitter * (state.shake > 0 ? 18 : 6);
+      state.raw.yaw = Math.sin(state.t * 1.2) * 26 * motion + state.snap * 34 + j();
+      state.raw.pitch = Math.sin(state.t * .92 + 1.8) * 14 * motion + j() * .7;
+      state.raw.roll = Math.sin(state.t * 1.6 + .7) * 12 * motion - state.snap * 9 + j() * .6;
+      state.raw.x = Math.sin(state.t * 1.1) * 62 * motion + j() * 2;
+      state.raw.y = Math.cos(state.t * 1.3) * 34 * motion + j() * 1.4;
+      state.raw.z = 1 + Math.sin(state.t * .8) * .18 * motion + j() * .01;
+      const alpha = 1 - Number($("smooth").value) / 100;
+      const deadband = Number($("deadband").value) / 100;
+      for (const key of Object.keys(state.raw)) {
+        const delta = state.raw[key] - state.stable[key];
+        const threshold = key === "z" ? deadband * .2 : deadband * 20;
+        if (Math.abs(delta) > threshold) state.stable[key] += delta * alpha;
+      }
+      const error = Math.abs(state.raw.yaw - state.stable.yaw) + Math.abs(state.raw.pitch - state.stable.pitch) + Math.abs(state.raw.roll - state.stable.roll);
+      $("stabilityStatus").textContent = error > 28 ? "stability: lagging" : error > 12 ? "stability: filtering" : "stability: locked";
+      $("stabilityStatus").className = error > 28 ? "chip warn" : "chip pass";
+    }
+
+    function matrixFor(v) {
+      const cy = Math.cos(v.yaw * Math.PI / 180);
+      const sy = Math.sin(v.yaw * Math.PI / 180);
+      const cp = Math.cos(v.pitch * Math.PI / 180);
+      const sp = Math.sin(v.pitch * Math.PI / 180);
+      const cr = Math.cos(v.roll * Math.PI / 180);
+      const sr = Math.sin(v.roll * Math.PI / 180);
+      const anchorBias = { nose: [0, 0], eyes: [0, -16], mouth: [0, 22] }[$("anchor").value];
+      return [
+        [cy * cr + sy * sp * sr, -cy * sr + sy * sp * cr, sy * cp, v.x + anchorBias[0]],
+        [cp * sr, cp * cr, -sp, v.y + anchorBias[1]],
+        [-sy * cr + cy * sp * sr, sy * sr + cy * sp * cr, cy * cp, v.z],
+        [0, 0, 0, 1]
+      ];
+    }
+
+    function drawHead(v, x, label, color) {
+      ctx.save();
+      ctx.translate(x + v.x, 360 + v.y);
+      ctx.scale(v.z, v.z);
+      ctx.rotate(v.roll * Math.PI / 180);
+      const yawScale = Math.cos(v.yaw * Math.PI / 180);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color.replace("1)", ".12)");
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 112 * Math.max(.55, yawScale), 148, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(245,244,236,.8)";
+      ctx.beginPath();
+      ctx.moveTo(-42 * yawScale, -25);
+      ctx.lineTo(-8 * yawScale, -20);
+      ctx.moveTo(42 * yawScale, -25);
+      ctx.lineTo(8 * yawScale, -20);
+      ctx.moveTo(-44 * yawScale, 58);
+      ctx.quadraticCurveTo(0, 76 + v.pitch * .35, 44 * yawScale, 58);
+      ctx.stroke();
+      ctx.fillStyle = "#f5f4ec";
+      ctx.font = "18px Inter, sans-serif";
+      ctx.fillText(label, -54, 196);
+      ctx.restore();
+    }
+
+    function renderMeters() {
+      $("meters").innerHTML = axes.map((key) => {
+        const raw = key === "z" ? state.raw.z : state.raw[key];
+        const stable = key === "z" ? state.stable.z : state.stable[key];
+        const diff = Math.abs(raw - stable);
+        return `<div class="meter"><span>${key}</span><strong>${stable.toFixed(key === "z" ? 2 : 1)}</strong><small>raw ${raw.toFixed(key === "z" ? 2 : 1)} / diff ${diff.toFixed(1)}</small></div>`;
+      }).join("");
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 1280, 720);
+      ctx.fillStyle = "#07090c";
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.strokeStyle = "rgba(245,244,236,.08)";
+      for (let x = 0; x < 1280; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 720);
+        ctx.stroke();
+      }
+      drawHead(state.raw, 330, "raw matrix", "rgba(150,174,234,1)");
+      drawHead(state.stable, 850, "stabilized matrix", "rgba(101,191,145,1)");
+      state.history.push({ raw: state.raw.yaw, stable: state.stable.yaw });
+      state.history = state.history.slice(-180);
+      ctx.font = "15px ui-monospace, monospace";
+      ctx.strokeStyle = "#96aeea";
+      ctx.beginPath();
+      state.history.forEach((row, i) => {
+        const x = 130 + i * 3.2;
+        const y = 650 - row.raw * 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.strokeStyle = "#65bf91";
+      ctx.beginPath();
+      state.history.forEach((row, i) => {
+        const x = 130 + i * 3.2;
+        const y = 650 - row.stable * 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.fillStyle = "#ccd2ce";
+      ctx.fillText("yaw history: raw blue / stabilized green", 130, 690);
+      renderMeters();
+      const m = matrixFor(state.stable);
+      $("matrix").textContent = `facialTransformationMatrixes[0] stabilized (${ $("anchor").value })\n` + m.map((row) => row.map((v) => String(Number(v).toFixed(3)).padStart(8, " ")).join(" ")).join("\n");
+    }
+
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min(80, now - last);
+      last = now;
+      if (state.running) synth(dt);
+      draw();
+      requestAnimationFrame(tick);
+    }
+
+    document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", labels));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Pause motion" : "Start motion";
+    });
+    $("snap").addEventListener("click", () => { state.snap = 1; });
+    $("shake").addEventListener("click", () => { state.shake = 1; });
+    $("zero").addEventListener("click", () => {
+      for (const key of Object.keys(state.raw)) {
+        state.raw[key] = key === "z" ? 1 : 0;
+        state.stable[key] = key === "z" ? 1 : 0;
+      }
+    });
+    $("reset").addEventListener("click", () => location.reload());
+    labels();
+    draw();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

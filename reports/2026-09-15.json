@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-15",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Face Landmarker",
+  "headline": "Face Landmarker の blendshape と顔行列を UI 状態へ安定変換する",
+  "headlineEn": "Stabilizing Face Landmarker blendshapes and face matrices into UI state",
+  "summary": "Google AI Edge の Face Landmarker Web guide、Hand Landmarker Web guide、Web setup guide、Tasks Vision Web README、MediaPipe releases、npm の @mediapipe/tasks-vision 情報を確認し、Face Landmarker の blendshape score と facial transformation matrix を扱う自作サンプルを2本追加しました。本命は表情係数を avatar state と command に変換する mixer、派生は顔行列の yaw / pitch / roll / translation を smoothing と deadband で安定化する probe です。",
+  "summaryEn": "After checking the Google AI Edge Face Landmarker Web guide, Hand Landmarker Web guide, Web setup guide, Tasks Vision Web README, MediaPipe releases, and npm information for @mediapipe/tasks-vision, this adds two original samples around Face Landmarker blendshape scores and facial transformation matrices. The main sample maps expression coefficients into avatar state and commands; the derivative stabilizes yaw / pitch / roll / translation from a face matrix with smoothing and a deadband.",
+  "keyTopics": [
+    "Face Landmarker Web guide は出力として 3D face landmarks、face blendshape scores、facial transformation matrices を説明しており、表情 UI や avatar retarget の入口になる。",
+    "Face Landmarker の Web 設定では `runningMode` に IMAGE / VIDEO があり、video frame では timestamp と `detectForVideo()` を使う構成が示されている。",
+    "同 guide は `detect()` / `detectForVideo()` が同期的に UI thread を block し得るため、camera input では worker 化や cadence 制御を検討する必要があると説明している。",
+    "Web setup guide は Vision tasks を `@mediapipe/tasks-vision` または CDN で導入し、`BaseOptions` で model asset と delegate を設定する流れを示している。",
+    "npm の @mediapipe/tasks-vision は latest 1.0.1 と確認でき、rc / nightly tag も続いているため、公開サンプルでは import version と WASM / model path の固定を前提に観察したい。"
+  ],
+  "keyTopicsEn": [
+    "The Face Landmarker Web guide describes 3D face landmarks, face blendshape scores, and facial transformation matrices as outputs, making it a natural entry point for expression UI and avatar retargeting.",
+    "The Web configuration for Face Landmarker lists IMAGE and VIDEO `runningMode` values, with video frames handled through timestamps and `detectForVideo()`.",
+    "The same guide explains that `detect()` and `detectForVideo()` run synchronously and may block the UI thread, so camera input should consider workers or cadence control.",
+    "The Web setup guide shows using `@mediapipe/tasks-vision` or a CDN for Vision tasks, with `BaseOptions` configuring model assets and delegates.",
+    "npm shows @mediapipe/tasks-vision latest at 1.0.1 with continuing rc / nightly tags, so published samples should observe fixed import versions and WASM / model paths."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Face Blendshape Avatar Mixer",
+      "url": "../outputs/2026-09-15_face_blendshape_avatar_mixer.html"
+    },
+    {
+      "label": "Today's derivative sample: Face Matrix Stability Probe",
+      "url": "../outputs/2026-09-15_face_matrix_stability_probe.html"
+    },
+    {
+      "label": "Google AI Edge: Face Landmarker Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Hand Landmarker Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-15-face-blendshape-avatar-mixer.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Face Landmarker を face mesh の可視化だけで終わらせず、blendshape と facial transformation matrix を UI / avatar runtime の安定した入力へ変換することです。公式 guide は face landmarks、blendshape scores、transformation matrices を同じ task の出力として示しており、表情係数と頭部姿勢を同じ frame budget で扱える点が面白いです。モデルの出力をそのまま使うより、smoothing、hysteresis、deadband、dwell を通すことで、誤発火しにくい表情 command layer にできます。",
+      "bodyEn": "Today's notable angle is not stopping at face-mesh visualization, but converting Face Landmarker blendshapes and facial transformation matrices into stable inputs for UI / avatar runtimes. The official guide lists face landmarks, blendshape scores, and transformation matrices as outputs from the same task, which is interesting because expression coefficients and head pose can share one frame budget. Rather than using model output directly, smoothing, hysteresis, deadbands, and dwell can form an expression command layer that avoids false triggers."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Face Blendshape Avatar Mixer` は、mouthSmile、browInnerUp、jawOpen、eyeBlink を synthetic stream として動かし、happy / surprised / blink の状態にまとめて command を発火します。派生の `Face Matrix Stability Probe` は、facial transformation matrix を想定した yaw / pitch / roll / translation を raw と stabilized で並べ、AR filter や avatar head bone に渡す前の揺れを観察します。",
+      "bodyEn": "The main sample, `Face Blendshape Avatar Mixer`, animates mouthSmile, browInnerUp, jawOpen, and eyeBlink as a synthetic stream, collapsing them into happy / surprised / blink states before firing commands. The derivative, `Face Matrix Stability Probe`, places raw and stabilized yaw / pitch / roll / translation side by side for a facial-transformation-matrix-like stream, making head-pose jitter visible before it drives an AR filter or avatar head bone."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、blendshape score、smoothed score、expression state、dwell frames、command fire log、raw matrix、stabilized matrix、anchor、deadband、overlay latency です。Face Landmarker、Holistic Landmarker、Web Workers、WebXR、VRM / Three.js avatar、CSS filters、Web Audio、IndexedDB、LLM による表情ログ要約と組み合わせると、顔表情を avatar、会議 UI、アクセシビリティ操作、XR パネル操作へ安全に渡す基盤になります。",
+      "bodyEn": "The samples can collect blendshape scores, smoothed scores, expression states, dwell frames, command fire logs, raw matrices, stabilized matrices, anchors, deadbands, and overlay latency. Combined with Face Landmarker, Holistic Landmarker, Web Workers, WebXR, VRM / Three.js avatars, CSS filters, Web Audio, IndexedDB, or LLM summaries of expression logs, this becomes a safe base for routing facial expressions into avatars, meeting UIs, accessibility controls, and XR panels."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `FilesetResolver.forVisionTasks()`、`FaceLandmarker.createFromOptions()`、`runningMode: \"VIDEO\"`、`outputFaceBlendshapes: true`、`outputFacialTransformationMatrixes: true` を初期化ログに残します。video loop では timestamp 重複を避け、`detectForVideo()` の同期 block を worker 化するか cadence 制御します。blendshape は threshold だけでなく smoothing と dwell を通して command に変換し、matrix は deadband と anchor 補正を挟んで overlay や avatar bone に渡すと安定します。",
+      "bodyEn": "For implementation, log initialization around `FilesetResolver.forVisionTasks()`, `FaceLandmarker.createFromOptions()`, `runningMode: \"VIDEO\"`, `outputFaceBlendshapes: true`, and `outputFacialTransformationMatrixes: true`. The video loop should avoid duplicate timestamps and move synchronous `detectForVideo()` work to a worker or cadence gate. Blendshapes should become commands through smoothing and dwell, not thresholds alone; matrices should pass through deadband and anchor correction before reaching overlays or avatar bones."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Face Landmarker guide の model / configuration 更新、Tasks Vision Web README の export 変更、MediaPipe release notes の JavaScript / WASM / delegate 周り、npm の nightly tag、Holistic Landmarker の face / pose / hand 同時出力、Web Worker で ImageBitmap を渡す時の close 境界を見ます。特に実 camera で blendshape と matrix を同じ frame から取得し、UI thread block と overlay latency を同時に測りたいです。",
+      "bodyEn": "Next, watch Face Landmarker guide updates around models and configuration, Tasks Vision Web README export changes, MediaPipe release notes around JavaScript / WASM / delegates, npm nightly tags, Holistic Landmarker face / pose / hand outputs, and ImageBitmap close boundaries in Web Workers. The practical next step is measuring UI-thread blocking and overlay latency while extracting blendshapes and matrices from the same real camera frame."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Face Blendshape Avatar Mixer` で `Laugh pulse` と `Surprise pulse` を押し、smoothing と expression gate を変えて command が早すぎたり遅すぎたりする境目を見ます。派生サンプルでは `Snap turn` と `Jitter burst` を押し、deadband を上げると揺れは消えるが追従が鈍くなる、という顔行列の実装上のトレードオフを確認できます。",
+      "bodyEn": "In `Face Blendshape Avatar Mixer`, press `Laugh pulse` and `Surprise pulse`, then adjust smoothing and the expression gate to find where commands become too eager or too delayed. In the derivative sample, press `Snap turn` and `Jitter burst` to see the face-matrix tradeoff: raising the deadband removes jitter but makes tracking feel slower."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Face Landmarker Web guide、Hand Landmarker Web guide、Web setup guide、Tasks Vision Web README、MediaPipe releases、npm @mediapipe/tasks-vision を確認。設計: 外部デモ一覧ではなく、自作 HTML で blendshape-to-command と matrix stabilization を試す。実装: 本命 HTML に synthetic blendshape stream、smoothing、hysteresis、dwell、command log、Tasks import probe を追加。派生 HTML に raw / stabilized face pose、4x4 matrix、deadband、anchor、yaw history を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Face Landmarker Web guide, Hand Landmarker Web guide, Web setup guide, Tasks Vision Web README, MediaPipe releases, and npm @mediapipe/tasks-vision. Design: instead of listing external demos, test blendshape-to-command and matrix stabilization in original HTML. Implementation: added a synthetic blendshape stream, smoothing, hysteresis, dwell, command logs, and a Tasks import probe to the main HTML. Added raw / stabilized face pose, a 4x4 matrix, deadband, anchor selection, and yaw history to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は delegate fallback、Object Detector ROI、Hand Landmarker coordinate projection、Gesture Recognizer backpressure を扱いました。今日は Face Landmarker の出力を runtime state に変換する層を足し、起動、WASM / model path、frame cadence、gesture command、face expression command、face matrix overlay までの流れがつながりました。次は実 camera 接続と worker latency を同じ測定画面へ寄せると、より制作に使いやすくなります。",
+      "bodyEn": "Recent entries covered delegate fallback, Object Detector ROI, Hand Landmarker coordinate projection, and Gesture Recognizer backpressure. Today adds the layer that converts Face Landmarker output into runtime state, connecting startup, WASM / model paths, frame cadence, gesture commands, face expression commands, and face-matrix overlays. The next step is bringing real camera input and worker latency into the same measurement view."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Face Blendshape Avatar Mixer` です。実際に動く部分は、mouthSmile / browInnerUp / jawOpen / eyeBlink の synthetic stream、smoothing、expression gate、dwell、cooldown、avatar face drawing、command log、Tasks Vision import probe です。次に足すなら実 `FaceLandmarker.createFromOptions()`、`detectForVideo()`、`outputFaceBlendshapes: true`、Web Worker handoff、VRM / Three.js avatar 接続を足します。派生試作は `Face Matrix Stability Probe` で、実際に動く部分は yaw / pitch / roll / translation の raw / stabilized 比較、4x4 matrix 表示、deadband、anchor、jitter burst、snap turn です。次に足すなら実 `facialTransformationMatrixes`、landmark index anchor 補正、AR filter overlay latency meter を足します。",
+      "bodyEn": "The selected main prototype is `Face Blendshape Avatar Mixer`. The working pieces are synthetic mouthSmile / browInnerUp / jawOpen / eyeBlink streams, smoothing, expression gates, dwell, cooldown, avatar face drawing, command logs, and a Tasks Vision import probe. Next additions should connect real `FaceLandmarker.createFromOptions()`, `detectForVideo()`, `outputFaceBlendshapes: true`, Web Worker handoff, and a VRM / Three.js avatar. The derivative prototype is `Face Matrix Stability Probe`; the working pieces are raw / stabilized yaw / pitch / roll / translation comparison, 4x4 matrix display, deadband, anchors, jitter bursts, and snap turns. Next additions should include real `facialTransformationMatrixes`, landmark-index anchor correction, and an AR filter overlay latency meter.",
+      "links": [
+        {
+          "label": "Open Face Blendshape Avatar Mixer",
+          "url": "../outputs/2026-09-15_face_blendshape_avatar_mixer.html"
+        },
+        {
+          "label": "Open Face Matrix Stability Probe",
+          "url": "../outputs/2026-09-15_face_matrix_stability_probe.html"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Blendshape Avatar Mixer</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111315; color: #f5f7ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(57, 151, 186, .18), transparent 36%), linear-gradient(320deg, rgba(232, 154, 82, .16), transparent 42%), #111315; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 247, 239, .16); }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 3rem); line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cfd4ca; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button { min-height: 42px; border: 1px solid rgba(245, 247, 239, .25); background: #f5f7ef; color: #111315; padding: 9px 12px; cursor: pointer; }
+    button.secondary { background: transparent; color: #f5f7ef; }
+    label { display: grid; gap: 7px; color: #eef3e8; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #62bad3; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 247, 239, .15); background: rgba(19, 24, 26, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(142px, 1fr)); gap: 12px; margin-top: 18px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .value { color: #e89a52; font-variant-numeric: tabular-nums; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { border: 1px solid rgba(245, 247, 239, .22); padding: 5px 8px; color: #cfd4ca; font-size: .78rem; }
+    .pass { color: #f5f7ef; border-color: rgba(98, 186, 211, .78); background: rgba(98, 186, 211, .17); }
+    .warn { color: #f5f7ef; border-color: rgba(232, 154, 82, .78); background: rgba(232, 154, 82, .15); }
+    .canvasWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; background: #080b0d; overflow: hidden; border: 1px solid rgba(245, 247, 239, .14); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(245, 247, 239, .13); background: #171d20; padding: 11px; min-height: 104px; }
+    .meter strong { display: block; color: #62bad3; font-size: clamp(1.15rem, 3vw, 1.8rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .bar { height: 10px; background: #242c2f; margin-top: 7px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #62bad3, #e89a52); }
+    .log { margin-top: 14px; padding: 12px; height: 154px; overflow: auto; white-space: pre-wrap; color: #e3eadf; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .canvasWrap { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Face Blendshape Avatar Mixer</h1>
+      <p>MediaPipe Face Landmarker が返す blendshape score を、表情状態、avatar parameter、UI command へ変換する前段を観察する自作ミニ試作。</p>
+    </header>
+
+    <section class="toolbar">
+      <label>Smile drive <input id="smile" type="range" min="0" max="100" value="42"><span id="smileValue" class="value">0.42</span></label>
+      <label>Brow drive <input id="brow" type="range" min="0" max="100" value="26"><span id="browValue" class="value">0.26</span></label>
+      <label>Jaw drive <input id="jaw" type="range" min="0" max="100" value="18"><span id="jawValue" class="value">0.18</span></label>
+      <label>Smoothing <input id="smoothing" type="range" min="0" max="95" value="68"><span id="smoothingValue" class="value">0.68</span></label>
+      <label>Expression gate <input id="gate" type="range" min="20" max="90" value="58"><span id="gateValue" class="value">0.58</span></label>
+      <button id="toggle">Start stream</button>
+      <button id="laugh" class="secondary">Laugh pulse</button>
+      <button id="surprise" class="secondary">Surprise pulse</button>
+      <button id="blink" class="secondary">Blink noise</button>
+      <button id="reset" class="secondary">Reset</button>
+    </section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Runtime contract</h2>
+        <p>公式 Web guide は Face Landmarker の出力として 3D face landmarks、face blendshapes、facial transformation matrix を示しています。このサンプルは実モデル接続前に、係数を smoothing、hysteresis、command gate に通して avatar 側の扱いやすい状態へ落とします。</p>
+        <div class="chips">
+          <span id="importStatus" class="chip warn">Tasks import: checking</span>
+          <span id="modeStatus" class="chip">runningMode: VIDEO-ready</span>
+          <span id="stateStatus" class="chip">expression: neutral</span>
+          <span id="commandStatus" class="chip">command: idle</span>
+        </div>
+      </aside>
+
+      <section>
+        <div class="stage">
+          <h2>Blendshape to avatar state</h2>
+          <div class="canvasWrap"><canvas id="stage" width="1280" height="720"></canvas></div>
+          <div id="meters" class="meters"></div>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const ctx = $("stage").getContext("2d");
+    const keys = ["mouthSmile", "browInnerUp", "jawOpen", "eyeBlink"];
+    const state = {
+      running: false,
+      t: 0,
+      pulse: { laugh: 0, surprise: 0, blink: 0 },
+      raw: { mouthSmile: .42, browInnerUp: .26, jawOpen: .18, eyeBlink: .05 },
+      smooth: { mouthSmile: .42, browInnerUp: .26, jawOpen: .18, eyeBlink: .05 },
+      active: "neutral",
+      dwell: 0,
+      cooldown: 0,
+      commands: [],
+      history: []
+    };
+
+    function labels() {
+      for (const id of ["smile", "brow", "jaw"]) $(id + "Value").textContent = (Number($(id).value) / 100).toFixed(2);
+      $("smoothingValue").textContent = (Number($("smoothing").value) / 100).toFixed(2);
+      $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+    }
+
+    async function checkImport() {
+      try {
+        const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+        const ok = Boolean(mod.FilesetResolver && mod.FaceLandmarker);
+        $("importStatus").textContent = ok ? "Tasks import: FaceLandmarker ready" : "Tasks import: missing export";
+        $("importStatus").className = ok ? "chip pass" : "chip warn";
+      } catch {
+        $("importStatus").textContent = "Tasks import: blocked or offline";
+        $("importStatus").className = "chip warn";
+      }
+    }
+
+    function log(line) {
+      const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+      $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2600);
+    }
+
+    function syntheticBlendshapes(dt) {
+      state.t += dt / 1000;
+      state.pulse.laugh = Math.max(0, state.pulse.laugh - dt / 850);
+      state.pulse.surprise = Math.max(0, state.pulse.surprise - dt / 720);
+      state.pulse.blink = Math.max(0, state.pulse.blink - dt / 520);
+      const wobble = (phase, amp) => Math.sin(state.t * 2.3 + phase) * amp + Math.sin(state.t * 6.7 + phase) * amp * .42;
+      state.raw.mouthSmile = clamp(Number($("smile").value) / 100 + wobble(.2, .06) + state.pulse.laugh * .52);
+      state.raw.browInnerUp = clamp(Number($("brow").value) / 100 + wobble(1.7, .05) + state.pulse.surprise * .48);
+      state.raw.jawOpen = clamp(Number($("jaw").value) / 100 + wobble(3.4, .04) + state.pulse.surprise * .36 + state.pulse.laugh * .18);
+      state.raw.eyeBlink = clamp(.04 + Math.max(0, Math.sin(state.t * 3.1)) * .08 + state.pulse.blink * .78);
+      const alpha = 1 - Number($("smoothing").value) / 100;
+      for (const key of keys) state.smooth[key] += (state.raw[key] - state.smooth[key]) * alpha;
+    }
+
+    function decideExpression() {
+      const gate = Number($("gate").value) / 100;
+      const scores = {
+        happy: state.smooth.mouthSmile * .82 + (1 - state.smooth.eyeBlink) * .18,
+        surprised: state.smooth.browInnerUp * .52 + state.smooth.jawOpen * .48,
+        blink: state.smooth.eyeBlink
+      };
+      let next = "neutral";
+      let best = gate;
+      for (const [name, value] of Object.entries(scores)) {
+        if (value > best) {
+          best = value;
+          next = name;
+        }
+      }
+      if (next === state.active) state.dwell += 1;
+      else {
+        state.active = next;
+        state.dwell = 1;
+      }
+      state.cooldown = Math.max(0, state.cooldown - 1);
+      if (state.active !== "neutral" && state.dwell === 12 && state.cooldown === 0) {
+        const command = state.active === "happy" ? "confirm" : state.active === "surprised" ? "focus peek" : "pause overlay";
+        state.commands.unshift({ command, at: state.t.toFixed(1), source: state.active });
+        state.commands = state.commands.slice(0, 5);
+        state.cooldown = 42;
+        log(`command ${command} from ${state.active}`);
+      }
+      $("stateStatus").textContent = `expression: ${state.active} / dwell ${state.dwell}`;
+      $("stateStatus").className = state.active === "neutral" ? "chip" : "chip pass";
+      $("commandStatus").textContent = state.commands[0] ? `command: ${state.commands[0].command}` : "command: idle";
+      $("commandStatus").className = state.commands[0] ? "chip pass" : "chip";
+    }
+
+    function clamp(value) {
+      return Math.max(0, Math.min(1, value));
+    }
+
+    function drawFace(cx, cy, scale) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      const smile = state.smooth.mouthSmile;
+      const brow = state.smooth.browInnerUp;
+      const jaw = state.smooth.jawOpen;
+      const blink = state.smooth.eyeBlink;
+      ctx.strokeStyle = "rgba(245,247,239,.75)";
+      ctx.lineWidth = 4;
+      ctx.fillStyle = "rgba(98,186,211,.16)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 142 * scale, (170 + jaw * 26) * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "#62bad3";
+      ctx.beginPath();
+      ctx.moveTo(-76 * scale, (-40 - brow * 34) * scale);
+      ctx.quadraticCurveTo(-42 * scale, (-62 - brow * 44) * scale, -15 * scale, (-45 - brow * 18) * scale);
+      ctx.moveTo(15 * scale, (-45 - brow * 18) * scale);
+      ctx.quadraticCurveTo(42 * scale, (-62 - brow * 44) * scale, 76 * scale, (-40 - brow * 34) * scale);
+      ctx.stroke();
+      ctx.strokeStyle = "#f5f7ef";
+      ctx.beginPath();
+      const eyeHeight = Math.max(4, 22 * (1 - blink)) * scale;
+      ctx.ellipse(-48 * scale, -15 * scale, 27 * scale, eyeHeight, 0, 0, Math.PI * 2);
+      ctx.ellipse(48 * scale, -15 * scale, 27 * scale, eyeHeight, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "#e89a52";
+      ctx.beginPath();
+      ctx.moveTo(-68 * scale, (62 - smile * 16) * scale);
+      ctx.quadraticCurveTo(0, (94 + jaw * 44 + smile * 32) * scale, 68 * scale, (62 - smile * 16) * scale);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function renderMeters() {
+      $("meters").innerHTML = keys.map((key) => {
+        const raw = state.raw[key];
+        const smooth = state.smooth[key];
+        return `<div class="meter"><span>${key}</span><strong>${smooth.toFixed(2)}</strong><small>raw ${raw.toFixed(2)}</small><div class="bar"><span style="width:${Math.round(smooth * 100)}%"></span></div></div>`;
+      }).join("");
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 1280, 720);
+      ctx.fillStyle = "#080b0d";
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.strokeStyle = "rgba(245,247,239,.08)";
+      for (let x = 0; x < 1280; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 720);
+        ctx.stroke();
+      }
+      drawFace(355, 360, 1.25);
+      ctx.fillStyle = "#f5f7ef";
+      ctx.font = "26px Inter, sans-serif";
+      ctx.fillText(`avatar state: ${state.active}`, 690, 118);
+      ctx.font = "16px ui-monospace, monospace";
+      ctx.fillStyle = "#cfd4ca";
+      ctx.fillText(`smoothing ${(Number($("smoothing").value) / 100).toFixed(2)} / gate ${(Number($("gate").value) / 100).toFixed(2)} / cooldown ${state.cooldown}`, 690, 150);
+      ctx.fillStyle = "#e89a52";
+      state.commands.forEach((item, index) => ctx.fillText(`${item.at}s ${item.command} <- ${item.source}`, 690, 210 + index * 30));
+      state.history.push({ ...state.smooth });
+      state.history = state.history.slice(-150);
+      const baseY = 620;
+      keys.forEach((key, i) => {
+        ctx.strokeStyle = ["#62bad3", "#e89a52", "#b9d969", "#dd7286"][i];
+        ctx.beginPath();
+        state.history.forEach((row, index) => {
+          const x = 690 + index * 3.3;
+          const y = baseY - row[key] * 160 - i * 8;
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fillText(key, 690, 360 + i * 28);
+      });
+      renderMeters();
+    }
+
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min(80, now - last);
+      last = now;
+      if (state.running) {
+        syntheticBlendshapes(dt);
+        decideExpression();
+      }
+      draw();
+      requestAnimationFrame(tick);
+    }
+
+    document.querySelectorAll("input").forEach((el) => el.addEventListener("input", labels));
+    $("toggle").addEventListener("click", () => {
+      state.running = !state.running;
+      $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+      log(state.running ? "synthetic blendshape stream started" : "stream paused");
+    });
+    $("laugh").addEventListener("click", () => { state.pulse.laugh = 1; log("laugh pulse injected"); });
+    $("surprise").addEventListener("click", () => { state.pulse.surprise = 1; log("surprise pulse injected"); });
+    $("blink").addEventListener("click", () => { state.pulse.blink = 1; log("blink noise injected"); });
+    $("reset").addEventListener("click", () => location.reload());
+    labels();
+    checkImport();
+    renderMeters();
+    log("ready: map Face Landmarker blendshape scores into stable avatar commands");
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
