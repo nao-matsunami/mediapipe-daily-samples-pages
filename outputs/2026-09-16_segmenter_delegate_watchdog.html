@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Segmenter Delegate Watchdog</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101312; color: #f4f7f0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(58, 136, 146, .22), transparent 38%), linear-gradient(320deg, rgba(216, 174, 85, .16), transparent 42%), #101312; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 15px; border-bottom: 1px solid rgba(244, 247, 240, .16); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.9rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #94d3dc; letter-spacing: 0; }
+    p { margin: 0; color: #cdd4ca; line-height: 1.62; }
+    button, select, input { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(244, 247, 240, .25); background: #f4f7f0; color: #101312; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(17, 22, 22, .92); color: #f4f7f0; }
+    label { display: grid; gap: 6px; color: #edf3e8; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #94d3dc; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(244, 247, 240, .15); background: rgba(17, 22, 22, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 370px; background: #070908; border: 1px solid rgba(244, 247, 240, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { border: 1px solid rgba(244, 247, 240, .22); padding: 5px 8px; color: #cfd8d2; font-size: .78rem; }
+    .pass { color: #f4f7f0; border-color: rgba(148, 211, 220, .78); background: rgba(148, 211, 220, .14); }
+    .warn { color: #fff8e8; border-color: rgba(216, 174, 85, .78); background: rgba(216, 174, 85, .13); }
+    .bad { color: #ffe9e2; border-color: rgba(230, 112, 89, .78); background: rgba(230, 112, 89, .13); }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(244, 247, 240, .13); background: #171d1d; min-height: 104px; padding: 10px; }
+    .meter strong { display: block; margin-top: 4px; color: #f4f7f0; font-size: clamp(1.2rem, 3vw, 1.85rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .bar { height: 10px; background: #262c2b; margin-top: 8px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #94d3dc, #d8ae55, #e67059); }
+    .value { color: #d8ae55; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 152px; overflow: auto; white-space: pre-wrap; color: #dbe5dc; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Image Segmenter Delegate Watchdog</h1>
+    <p>MediaPipe Image Segmenter を長時間 video loop で使う前に、GPU delegate の可否、mask output の種類、close 境界、fallback 判断を観察する自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Requested delegate
+      <select id="delegate"><option value="GPU">GPU</option><option value="CPU">CPU</option></select>
+    </label>
+    <label>Mask output
+      <select id="maskKind"><option value="confidence">confidence masks</option><option value="category">category mask</option><option value="both">both masks</option></select>
+    </label>
+    <label>Mask size <input id="maskSize" type="range" min="128" max="640" step="64" value="320"><span id="maskSizeValue" class="value">320 px</span></label>
+    <label>GPU pressure <input id="gpuPressure" type="range" min="0" max="100" value="36"><span id="gpuPressureValue" class="value">0.36</span></label>
+    <label>Close discipline <select id="closeMode"><option value="strict">close after draw</option><option value="sample">retain 6 frames</option><option value="leak">retain forever</option></select></label>
+    <button id="toggle">Start loop</button>
+    <button id="step" class="secondary">Step frame</button>
+    <button id="burst" class="secondary">Stress burst</button>
+    <button id="flush" class="secondary">Flush masks</button>
+    <button id="probe" class="secondary">Probe API</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Runtime contract</h2>
+      <p>公式 Web guide は `segment()` / `segmentForVideo()` が同期実行で UI thread を block し得るため、camera stream では worker や cadence 制御を検討するよう説明しています。このサンプルではその前段として、delegate と mask 寿命の健康状態を見える化します。</p>
+      <div class="chips">
+        <span id="apiChip" class="chip warn">Tasks import: waiting</span>
+        <span id="glChip" class="chip">WebGL: checking</span>
+        <span id="delegateChip" class="chip">delegate: GPU requested</span>
+        <span id="lifecycleChip" class="chip">mask lifecycle: clean</span>
+      </div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Synthetic mask stream</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div class="meters" id="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const canvas = $("stage");
+const ctx = canvas.getContext("2d");
+const state = {
+  running: false,
+  frame: 0,
+  retained: [],
+  lastCost: 0,
+  fallback: false,
+  burst: 0,
+  history: [],
+  gl: { webgl2: false, float: false, halfFloat: false },
+  apiReady: false
+};
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2600);
+}
+
+function labels() {
+  $("maskSizeValue").textContent = `${$("maskSize").value} px`;
+  $("gpuPressureValue").textContent = (Number($("gpuPressure").value) / 100).toFixed(2);
+  $("delegateChip").textContent = `delegate: ${state.fallback ? "CPU fallback" : $("delegate").value + " requested"}`;
+  $("delegateChip").className = state.fallback ? "chip warn" : "chip pass";
+}
+
+function probeWebGL() {
+  const gl = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl");
+  state.gl.webgl2 = Boolean(gl && gl.constructor.name.includes("WebGL2"));
+  state.gl.float = Boolean(gl && (gl.getExtension("EXT_color_buffer_float") || gl.getExtension("WEBGL_color_buffer_float")));
+  state.gl.halfFloat = Boolean(gl && gl.getExtension("EXT_color_buffer_half_float"));
+  const ok = Boolean(gl);
+  $("glChip").textContent = ok ? `WebGL: ${state.gl.webgl2 ? "2" : "1"} / float ${state.gl.float ? "yes" : "no"}` : "WebGL: unavailable";
+  $("glChip").className = ok && (state.gl.float || $("delegate").value === "CPU") ? "chip pass" : "chip warn";
+  return ok;
+}
+
+async function probeApi() {
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm");
+    state.apiReady = Boolean(mod.FilesetResolver && mod.ImageSegmenter);
+    $("apiChip").textContent = state.apiReady ? "Tasks import: ImageSegmenter ready" : "Tasks import: export missing";
+    $("apiChip").className = state.apiReady ? "chip pass" : "chip warn";
+    log(state.apiReady ? "import probe passed for FilesetResolver + ImageSegmenter" : "import probe loaded but expected exports were missing");
+  } catch {
+    $("apiChip").textContent = "Tasks import: blocked or offline";
+    $("apiChip").className = "chip warn";
+    log("import probe could not reach CDN; synthetic watchdog still runs");
+  }
+}
+
+function makeMask(size, kind) {
+  const pixels = size * size;
+  const bytesPerPixel = kind === "confidence" ? 4 : 1;
+  return { size, kind, bytes: pixels * bytesPerPixel, closed: false };
+}
+
+function estimateCost(mask) {
+  const size = mask.size / 320;
+  const pressure = Number($("gpuPressure").value) / 100;
+  const outputMultiplier = $("maskKind").value === "both" ? 1.65 : $("maskKind").value === "confidence" ? 1.25 : 1;
+  const delegateMultiplier = $("delegate").value === "GPU" && !state.fallback ? .72 : 1.35;
+  const leakPenalty = Math.min(24, state.retained.length * .55);
+  const burstPenalty = state.burst > 0 ? 8 : 0;
+  return 5 + size * size * 5.8 * outputMultiplier * delegateMultiplier + pressure * 18 + leakPenalty + burstPenalty;
+}
+
+function simulateFrame() {
+  state.frame += 1;
+  if (state.burst > 0) state.burst -= 1;
+  const size = Number($("maskSize").value);
+  const kind = $("maskKind").value === "category" ? "category" : "confidence";
+  const mask = makeMask(size, kind);
+  let cost = estimateCost(mask);
+  const gpuRisk = $("delegate").value === "GPU" && (!state.gl.float || Number($("gpuPressure").value) > 72 || $("maskKind").value === "both");
+  if (gpuRisk && state.frame % 4 === 0) {
+    state.fallback = true;
+    cost += 10;
+    log("watchdog switched to CPU fallback because GPU mask path looked risky");
+  }
+  state.lastCost = cost;
+  if ($("closeMode").value === "strict") {
+    mask.closed = true;
+  } else {
+    state.retained.push(mask);
+    if ($("closeMode").value === "sample" && state.retained.length > 6) state.retained.shift().closed = true;
+  }
+  state.history.push(cost);
+  state.history = state.history.slice(-90);
+  draw(mask, cost);
+  renderStats();
+}
+
+function draw(mask, cost) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#070908";
+  ctx.fillRect(0, 0, w, h);
+  const t = state.frame * .08;
+  ctx.fillStyle = "rgba(148, 211, 220, .16)";
+  for (let i = 0; i < 14; i += 1) {
+    const x = (i / 13) * w;
+    const y = h * (.52 + Math.sin(t + i * .55) * .16);
+    ctx.beginPath();
+    ctx.arc(x, y, 76 + Math.sin(t * 1.8 + i) * 30, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const cx = w * (.5 + Math.sin(t * .8) * .18);
+  const cy = h * (.48 + Math.cos(t * .9) * .12);
+  const radius = Math.min(w, h) * (.19 + Math.sin(t) * .025);
+  const gradient = ctx.createRadialGradient(cx, cy, 20, cx, cy, radius);
+  gradient.addColorStop(0, "rgba(216,174,85,.88)");
+  gradient.addColorStop(.55, "rgba(148,211,220,.44)");
+  gradient.addColorStop(1, "rgba(16,19,18,0)");
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = state.fallback ? "#d8ae55" : "#94d3dc";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(42, 42, w - 84, h - 84);
+  ctx.fillStyle = "#f4f7f0";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`frame ${state.frame} / ${mask.kind} / ${mask.size}px`, 62, 84);
+  ctx.fillText(`cost ${cost.toFixed(1)}ms / retained ${state.retained.length}`, 62, 116);
+  const baseY = h - 84;
+  ctx.strokeStyle = "rgba(244,247,240,.22)";
+  ctx.beginPath();
+  ctx.moveTo(62, baseY);
+  ctx.lineTo(w - 62, baseY);
+  ctx.stroke();
+  ctx.strokeStyle = "#e67059";
+  ctx.beginPath();
+  state.history.forEach((value, index) => {
+    const x = 62 + (index / 89) * (w - 124);
+    const y = baseY - Math.min(170, value * 3.3);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function renderStats() {
+  const retainedBytes = state.retained.reduce((sum, mask) => sum + mask.bytes, 0);
+  const lifecycleBad = state.retained.length > 18 || $("closeMode").value === "leak";
+  $("lifecycleChip").textContent = lifecycleBad ? `mask lifecycle: ${state.retained.length} retained` : "mask lifecycle: clean";
+  $("lifecycleChip").className = lifecycleBad ? "chip bad" : "chip pass";
+  const budget = 33;
+  const meters = [
+    ["Frame cost", `${state.lastCost.toFixed(1)} ms`, Math.min(100, state.lastCost / budget * 100)],
+    ["Retained masks", `${state.retained.length}`, Math.min(100, state.retained.length / 24 * 100)],
+    ["Retained bytes", byteLabel(retainedBytes), Math.min(100, retainedBytes / (18 * 1024 * 1024) * 100)],
+    ["Fallback", state.fallback ? "CPU" : "GPU path", state.fallback ? 74 : 18]
+  ];
+  $("meters").innerHTML = meters.map(([label, value, pct]) => `<div class="meter"><span>${label}</span><strong>${value}</strong><div class="bar"><span style="width:${pct}%"></span></div></div>`).join("");
+}
+
+function byteLabel(bytes) {
+  return bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 120) {
+    simulateFrame();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Pause loop" : "Start loop";
+  log(state.running ? "loop started" : "loop paused");
+});
+$("step").addEventListener("click", simulateFrame);
+$("burst").addEventListener("click", () => { state.burst = 18; log("stress burst queued"); });
+$("flush").addEventListener("click", () => { state.retained = []; state.fallback = false; log("retained masks flushed and fallback reset"); renderStats(); });
+$("probe").addEventListener("click", probeApi);
+for (const id of ["delegate", "maskKind", "maskSize", "gpuPressure", "closeMode"]) $(id).addEventListener("input", () => { labels(); renderStats(); });
+
+labels();
+probeWebGL();
+probeApi();
+renderStats();
+draw(makeMask(Number($("maskSize").value), "confidence"), 0);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

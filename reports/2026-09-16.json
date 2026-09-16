@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-16",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter",
+  "headline": "Image Segmenter の delegate と mask 寿命を watchdog 化する",
+  "headlineEn": "Turning Image Segmenter delegates and mask lifetimes into a watchdog",
+  "summary": "Google AI Edge の Image Segmenter Web guide、Web setup guide、Tasks Vision Web README、MediaPipe releases、GitHub issues、npm の @mediapipe/tasks-vision 情報を確認し、Image Segmenter の長時間 video loop に向けた自作サンプルを2本追加しました。本命は GPU / CPU delegate、WebGL capability、mask output、close discipline、fallback を観察する watchdog、派生は `segmentForVideo()` 相当の worker queue と backpressure policy を触る scheduler です。",
+  "summaryEn": "After checking the Google AI Edge Image Segmenter Web guide, Web setup guide, Tasks Vision Web README, MediaPipe releases, GitHub issues, and npm information for @mediapipe/tasks-vision, this adds two original samples for long-running Image Segmenter video loops. The main sample watches GPU / CPU delegate choices, WebGL capabilities, mask outputs, close discipline, and fallback decisions; the derivative explores a worker queue and backpressure policy for a `segmentForVideo()`-style loop.",
+  "keyTopics": [
+    "Image Segmenter Web guide は `outputCategoryMask` と `outputConfidenceMasks` を分けており、uint8 category mask と float confidence mask は描画・転送・保持コストの扱いを分ける必要がある。",
+    "同 guide は `segment()` / `segmentForVideo()` が同期的に UI thread を block し得るため、camera input では worker 化や cadence 制御を検討するよう説明している。",
+    "Web setup guide は Vision tasks の導入方法と `BaseOptions` の `modelAssetPath` / `modelAssetBuffer` / `delegate: CPU | GPU` を示しており、delegate preflight の基礎になる。",
+    "GitHub issues では ImageSegmenter の GPU delegate、WebGL float / half-float capability、MPMask close、Worker postMessage、sync point / performance 周りの論点が継続している。",
+    "npm の @mediapipe/tasks-vision は latest 1.0.1 と確認でき、rc / nightly tag も続いているため、公開サンプルは import version と WASM / model path を固定して観察する前提にしたい。"
+  ],
+  "keyTopicsEn": [
+    "The Image Segmenter Web guide separates `outputCategoryMask` and `outputConfidenceMasks`, so uint8 category masks and float confidence masks need different drawing, transfer, and retention policies.",
+    "The same guide explains that `segment()` and `segmentForVideo()` run synchronously and may block the UI thread, so camera input should consider workers or cadence control.",
+    "The Web setup guide describes Vision task installation and `BaseOptions` fields such as `modelAssetPath`, `modelAssetBuffer`, and `delegate: CPU | GPU`, which become the basis for delegate preflight.",
+    "GitHub issues continue to surface ImageSegmenter topics around GPU delegates, WebGL float / half-float capability, MPMask close, Worker postMessage boundaries, and sync point / performance behavior.",
+    "npm shows @mediapipe/tasks-vision latest at 1.0.1 with continuing rc / nightly tags, so published samples should observe fixed import versions and WASM / model paths."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Segmenter Delegate Watchdog",
+      "url": "../outputs/2026-09-16_segmenter_delegate_watchdog.html"
+    },
+    {
+      "label": "Today's derivative sample: Mask Backpressure Scheduler",
+      "url": "../outputs/2026-09-16_mask_backpressure_scheduler.html"
+    },
+    {
+      "label": "Google AI Edge: Image Segmenter Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe issues",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-16-segmenter-delegate-watchdog.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Image Segmenter を単なる背景ぼかしデモではなく、長時間 video loop の runtime として扱うことです。公式 guide は category mask と confidence masks を分けて説明し、さらに `segment()` / `segmentForVideo()` が同期的に UI thread を block し得ると明記しています。ここに GitHub issues で見える GPU delegate、WebGL format、MPMask close、Worker postMessage の論点を重ねると、推論精度より先に、delegate preflight、mask lifecycle、backpressure が制作上の要点になります。",
+      "bodyEn": "Today's notable angle is treating Image Segmenter not as a background-blur demo, but as a long-running video-loop runtime. The official guide separates category masks and confidence masks, and explicitly notes that `segment()` / `segmentForVideo()` may synchronously block the UI thread. Combined with GitHub issue themes around GPU delegates, WebGL formats, MPMask close, and Worker postMessage boundaries, the production focus becomes delegate preflight, mask lifecycle, and backpressure before model accuracy."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Image Segmenter Delegate Watchdog` は、GPU / CPU delegate、mask output、mask size、GPU pressure、close discipline を触ると、fallback と retained masks がどう変わるかを可視化します。派生の `Mask Backpressure Scheduler` は、camera FPS、segment interval、worker cost、queue capacity、transfer cost を分け、latest wins と quality queue のどちらが触感に合うかを比較します。",
+      "bodyEn": "The main sample, `Image Segmenter Delegate Watchdog`, lets you adjust GPU / CPU delegate choice, mask output, mask size, GPU pressure, and close discipline to see fallback and retained masks change. The derivative, `Mask Backpressure Scheduler`, separates camera FPS, segment interval, worker cost, queue capacity, and transfer cost so you can compare latest-wins behavior against a quality-preserving queue."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、requested delegate、実際の fallback state、WebGL capability、mask kind、mask size、retained mask count、estimated bytes、frame cost、queue depth、drop count、average latency、stale mask ratio です。Image Segmenter、Interactive Segmenter、Object Detector、Pose Landmarker、Web Workers、OffscreenCanvas、WebGL/WebGPU、WebRTC、WebXR、IndexedDB、LLM による runtime log 要約と組み合わせると、マスクを使う UI の安定性を日次で比較できます。",
+      "bodyEn": "The samples can collect requested delegates, actual fallback state, WebGL capabilities, mask kind, mask size, retained mask counts, estimated bytes, frame cost, queue depth, drop count, average latency, and stale-mask ratio. Combined with Image Segmenter, Interactive Segmenter, Object Detector, Pose Landmarker, Web Workers, OffscreenCanvas, WebGL/WebGPU, WebRTC, WebXR, IndexedDB, or LLM summaries of runtime logs, this can compare mask-driven UI stability day by day."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `FilesetResolver.forVisionTasks()`、`ImageSegmenter.createFromOptions()`、`baseOptions.delegate`、`outputCategoryMask`、`outputConfidenceMasks`、`runningMode: \"VIDEO\"`、`segmentForVideo()` の初期化と実測を分けてログします。GPU を要求する前に WebGL2、float / half-float render target、対象ブラウザを probe し、弱い場合は CPU fallback を明示します。confidence mask は描画用、category mask は index / policy 用として保持期間を分け、描画後に close する責務を worker boundary に置くと事故が減ります。",
+      "bodyEn": "For implementation, log initialization and measurement separately around `FilesetResolver.forVisionTasks()`, `ImageSegmenter.createFromOptions()`, `baseOptions.delegate`, `outputCategoryMask`, `outputConfidenceMasks`, `runningMode: \"VIDEO\"`, and `segmentForVideo()`. Before requesting GPU, probe WebGL2, float / half-float render targets, and the browser; explicitly choose CPU fallback when weak. Treat confidence masks as drawing payloads and category masks as index / policy payloads, and put close responsibility at the worker boundary after drawing."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Image Segmenter guide の model / output option 更新、Tasks Vision Web README の export 変更、MediaPipe release notes の JavaScript / WASM / delegate 周り、npm の nightly tag、GitHub issues の ImageSegmenter / MPMask / Worker / WebGL format 論点を見ます。特に実 camera + GPU delegate + confidence masks で、長時間 run の retained resource と latency drift を同じ画面で測りたいです。",
+      "bodyEn": "Next, watch Image Segmenter guide updates around models and output options, Tasks Vision Web README export changes, MediaPipe release notes around JavaScript / WASM / delegates, npm nightly tags, and GitHub issue threads around ImageSegmenter, MPMask, Workers, and WebGL formats. The practical target is measuring retained resources and latency drift in the same real-camera, GPU-delegate, confidence-mask run."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Image Segmenter Delegate Watchdog` で `Mask output` を both masks、`Close discipline` を retain forever に変え、retained masks と fallback が増える様子を見ます。派生サンプルでは `Cost spike` を押して、latest wins policy では古い入力を捨てて mask age を抑え、quality queue では drop は減っても latency と stale mask が増えることを確認できます。",
+      "bodyEn": "In `Image Segmenter Delegate Watchdog`, switch `Mask output` to both masks and `Close discipline` to retain forever, then watch retained masks and fallback increase. In the derivative sample, press `Cost spike` to see latest-wins policy discard old input and control mask age, while quality queue reduces incoming drops at the cost of latency and stale masks."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Segmenter Web guide、Web setup guide、Tasks Vision Web README、MediaPipe releases、GitHub issues、npm @mediapipe/tasks-vision を確認。設計: 外部デモ一覧ではなく、自作 HTML で delegate watchdog と backpressure scheduler を試す。実装: 本命 HTML に WebGL probe、Tasks import probe、synthetic mask stream、fallback、retained masks、close discipline、stress burst を追加。派生 HTML に latest wins / quality queue、worker cost、transfer cost、drop、latency、stale mask を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Segmenter Web guide, Web setup guide, Tasks Vision Web README, MediaPipe releases, GitHub issues, and npm @mediapipe/tasks-vision. Design: instead of listing external demos, test a delegate watchdog and backpressure scheduler in original HTML. Implementation: added WebGL probe, Tasks import probe, synthetic mask stream, fallback, retained masks, close discipline, and stress bursts to the main HTML. Added latest-wins / quality-queue policies, worker cost, transfer cost, drops, latency, and stale masks to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は delegate fallback、Object Detector ROI、Hand coordinate projection、Gesture backpressure、Face blendshape / matrix stabilization を扱いました。今日は Image Segmenter に戻り、mask output と delegate の運用面を厚くしました。これで Vision task の起動、WASM / model path、frame cadence、gesture / face command、mask lifecycle、worker queue までの横断的な runtime 観察がつながります。",
+      "bodyEn": "Recent entries covered delegate fallback, Object Detector ROI, hand coordinate projection, gesture backpressure, and face blendshape / matrix stabilization. Today returns to Image Segmenter and deepens the operational side of mask outputs and delegates. This connects runtime observation across startup, WASM / model paths, frame cadence, gesture / face commands, mask lifecycle, and worker queues."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Segmenter Delegate Watchdog` です。実際に動く部分は、WebGL capability probe、Tasks Vision import probe、GPU / CPU delegate request、mask output 切り替え、synthetic mask stream、retained mask meter、fallback、stress burst、close discipline です。次に足すなら実 `ImageSegmenter.createFromOptions()`、DeepLab / selfie segmentation model、`segmentForVideo()` 実測、MPMask close audit を足します。派生試作は `Mask Backpressure Scheduler` で、実際に動く部分は camera FPS、segment interval、worker cost、queue capacity、transfer cost、latest wins / quality queue、drop、latency、stale mask の比較です。次に足すなら OffscreenCanvas worker、ImageBitmap transfer、実 mask bitmap payload、WebRTC camera input を足します。",
+      "bodyEn": "The selected main prototype is `Image Segmenter Delegate Watchdog`. The working pieces are WebGL capability probing, Tasks Vision import probing, GPU / CPU delegate requests, mask output switching, a synthetic mask stream, retained-mask meters, fallback, stress bursts, and close discipline. Next additions should connect real `ImageSegmenter.createFromOptions()`, DeepLab / selfie segmentation models, measured `segmentForVideo()` timings, and an MPMask close audit. The derivative prototype is `Mask Backpressure Scheduler`; the working pieces are camera FPS, segment interval, worker cost, queue capacity, transfer cost, latest-wins / quality-queue policies, drops, latency, and stale-mask comparison. Next additions should include an OffscreenCanvas worker, ImageBitmap transfer, real mask bitmap payloads, and WebRTC camera input.",
+      "links": [
+        {
+          "label": "Open Image Segmenter Delegate Watchdog",
+          "url": "../outputs/2026-09-16_segmenter_delegate_watchdog.html"
+        },
+        {
+          "label": "Open Mask Backpressure Scheduler",
+          "url": "../outputs/2026-09-16_mask_backpressure_scheduler.html"
+        }
+      ]
+    }
+  ]
+}
