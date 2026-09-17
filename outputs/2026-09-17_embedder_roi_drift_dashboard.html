@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Embedder ROI Drift Dashboard</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0d1117; color: #f4f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(68, 196, 161, .16), transparent 38%), linear-gradient(315deg, rgba(239, 151, 93, .14), transparent 46%), #0d1117; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 15px; border-bottom: 1px solid rgba(244, 247, 251, .16); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #44c4a1; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #c8d1dc; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(244, 247, 251, .25); background: #f4f7fb; color: #0d1117; padding: 8px 11px; cursor: pointer; }
+    button.secondary { background: rgba(13, 17, 23, .92); color: #f4f7fb; }
+    label { display: grid; gap: 6px; color: #edf3f7; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #44c4a1; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(244, 247, 251, .15); background: rgba(13, 17, 23, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; background: #05080d; border: 1px solid rgba(244, 247, 251, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .vector { border: 1px solid rgba(244, 247, 251, .13); background: #151b24; min-height: 92px; padding: 10px; }
+    .meter strong { display: block; margin-top: 4px; color: #f4f7fb; font-size: clamp(1.15rem, 3vw, 1.75rem); font-variant-numeric: tabular-nums; }
+    .vector { margin-top: 12px; display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; min-height: 0; }
+    .bar { height: 54px; background: #27313e; position: relative; overflow: hidden; }
+    .bar span { position: absolute; inset: auto 0 0; height: 50%; background: linear-gradient(180deg, #44c4a1, #ef975d); }
+    .value { color: #efc05d; font-variant-numeric: tabular-nums; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 247, 251, .22); padding: 5px 8px; color: #d4dde8; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(68, 196, 161, .78); background: rgba(68, 196, 161, .14); color: #f4f7fb; }
+    .warn { border-color: rgba(239, 192, 93, .78); background: rgba(239, 192, 93, .13); color: #fff8e6; }
+    .bad { border-color: rgba(239, 151, 93, .78); background: rgba(239, 151, 93, .13); color: #ffe9de; }
+    .log { margin-top: 14px; padding: 12px; height: 146px; overflow: auto; white-space: pre-wrap; color: #dce5ef; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Image Embedder ROI Drift Dashboard</h1>
+    <p>MediaPipe Image Embedder の ROI と `embedForVideo()` を、動画ループ内の同期コスト、cosine similarity、再利用判定として観察する自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>ROI speed <input id="speed" type="range" min="1" max="12" value="5"><span id="speedValue" class="value">5</span></label>
+    <label>Embed interval <input id="interval" type="range" min="1" max="10" value="3"><span id="intervalValue" class="value">every 3 frames</span></label>
+    <label>Sync cost <input id="cost" type="range" min="4" max="60" value="22"><span id="costValue" class="value">22 ms</span></label>
+    <label>Similarity gate <input id="gate" type="range" min="70" max="99" value="88"><span id="gateValue" class="value">0.88</span></label>
+    <label>ROI size <input id="roiSize" type="range" min="18" max="46" value="30"><span id="roiSizeValue" class="value">30%</span></label>
+    <button id="toggle">Start loop</button>
+    <button id="step" class="secondary">Step</button>
+    <button id="jitter" class="secondary">Add jitter</button>
+    <button id="reset" class="secondary">Reset</button>
+    <button id="probe" class="secondary">Import probe</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Embed policy</h2>
+      <p>公式 guide は ROI、`ImageEmbedder.cosineSimilarity()`、`embed()` / `embedForVideo()` の同期実行を示します。ここでは ROI が少しずつずれる時、前回 embedding を使い回せるか、UI budget を超えるかを軽量に見ます。</p>
+      <span id="importChip" class="chip">tasks-vision: not probed</span>
+      <span id="gateChip" class="chip pass">reuse gate: stable</span>
+      <span id="budgetChip" class="chip">budget: ok</span>
+      <div id="vector" class="vector"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>ROI / synthetic embedding</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div class="meters" id="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, frame: 0, clock: 0, lastEmbedFrame: 0, lastVector: null, vector: null, jitter: 0, embeds: 0, reused: 0, blocked: 0, similarities: [] };
+
+function labels() {
+  $("speedValue").textContent = $("speed").value;
+  $("intervalValue").textContent = `every ${$("interval").value} frames`;
+  $("costValue").textContent = `${$("cost").value} ms`;
+  $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+  $("roiSizeValue").textContent = `${$("roiSize").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function roiAt(frame = state.frame) {
+  const speed = Number($("speed").value) * .012;
+  const size = Number($("roiSize").value) / 100;
+  const x = .5 + Math.sin(frame * speed) * .29 + state.jitter;
+  const y = .5 + Math.cos(frame * speed * .7) * .18 - state.jitter * .5;
+  return { x: Math.max(size / 2, Math.min(1 - size / 2, x)), y: Math.max(size / 2, Math.min(1 - size / 2, y)), size };
+}
+
+function makeVector(roi) {
+  const out = [];
+  for (let i = 0; i < 16; i += 1) {
+    const v = Math.sin(roi.x * (i + 2) * 4.3) * .45 + Math.cos(roi.y * (i + 3) * 3.1) * .35 + Math.sin(roi.size * (i + 1) * 9) * .2;
+    out.push(v);
+  }
+  const norm = Math.hypot(...out) || 1;
+  return out.map((v) => v / norm);
+}
+
+function cosine(a, b) {
+  if (!a || !b) return 0;
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function tick() {
+  state.frame += 1;
+  state.clock += 16.7;
+  if (state.jitter) state.jitter *= .92;
+  const shouldEmbed = state.frame % Number($("interval").value) === 0;
+  const candidate = makeVector(roiAt());
+  const similarity = cosine(state.vector || candidate, candidate);
+  const gate = Number($("gate").value) / 100;
+  if (shouldEmbed && similarity < gate) {
+    state.lastVector = state.vector;
+    state.vector = candidate;
+    state.lastEmbedFrame = state.frame;
+    state.embeds += 1;
+    state.blocked += Number($("cost").value) > 28 ? 1 : 0;
+    log(`embedForVideo style sample: frame ${state.frame}, similarity ${similarity.toFixed(3)}`);
+  } else if (shouldEmbed) {
+    state.reused += 1;
+  }
+  state.similarities.push(similarity);
+  state.similarities = state.similarities.slice(-80);
+  if (!state.vector) state.vector = candidate;
+  draw();
+  render();
+}
+
+function draw() {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#05080d";
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 14; i += 1) {
+    const x = ((i * 97 + state.frame * 3) % w);
+    const y = 120 + Math.sin(state.frame * .04 + i) * 70 + i * 33;
+    ctx.fillStyle = i % 2 ? "rgba(68,196,161,.18)" : "rgba(239,151,93,.16)";
+    ctx.fillRect(x - 64, y - 32, 128, 64);
+  }
+  const roi = roiAt();
+  const x = (roi.x - roi.size / 2) * w;
+  const y = (roi.y - roi.size / 2) * h;
+  const rw = roi.size * w;
+  const rh = roi.size * h;
+  ctx.strokeStyle = "#44c4a1";
+  ctx.lineWidth = 5;
+  ctx.strokeRect(x, y, rw, rh);
+  ctx.fillStyle = "rgba(68,196,161,.18)";
+  ctx.fillRect(x, y, rw, rh);
+  ctx.fillStyle = "#f4f7fb";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`frame ${state.frame}`, 48, 72);
+  ctx.fillText(`last embedding frame ${state.lastEmbedFrame}`, 48, 104);
+  ctx.fillText(`ROI ${roi.x.toFixed(2)}, ${roi.y.toFixed(2)}, ${roi.size.toFixed(2)}`, 48, 136);
+}
+
+function render() {
+  const latest = state.similarities.at(-1) ?? 1;
+  const avg = state.similarities.length ? state.similarities.reduce((a, b) => a + b, 0) / state.similarities.length : 1;
+  const age = state.frame - state.lastEmbedFrame;
+  const budget = Number($("cost").value) <= 28;
+  $("gateChip").textContent = latest >= Number($("gate").value) / 100 ? "reuse gate: stable" : "reuse gate: refresh";
+  $("gateChip").className = latest >= Number($("gate").value) / 100 ? "chip pass" : "chip warn";
+  $("budgetChip").textContent = budget ? "budget: ok" : "budget: blocking risk";
+  $("budgetChip").className = budget ? "chip pass" : "chip bad";
+  $("meters").innerHTML = [
+    ["Similarity", latest.toFixed(3)],
+    ["Avg similarity", avg.toFixed(3)],
+    ["Embed age", `${age} frames`],
+    ["Blocked ticks", String(state.blocked)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("vector").innerHTML = (state.vector || []).map((v) => `<span class="bar"><span style="height:${Math.max(4, Math.abs(v) * 120)}%; background:${v >= 0 ? "#44c4a1" : "#ef975d"}"></span></span>`).join("");
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 33) {
+    tick();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+async function probeImport() {
+  $("importChip").textContent = "tasks-vision: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs");
+    $("importChip").textContent = mod.ImageEmbedder ? "tasks-vision: ImageEmbedder export ok" : "tasks-vision: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-vision@1.0.1 vision bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-vision: import blocked";
+    $("importChip").className = "chip bad";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+
+["speed", "interval", "cost", "gate", "roiSize"].forEach((id) => $(id).addEventListener("input", labels));
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause loop" : "Start loop"; });
+$("step").addEventListener("click", tick);
+$("jitter").addEventListener("click", () => { state.jitter = (Math.random() - .5) * .22; log("ROI jitter injected"); });
+$("reset").addEventListener("click", () => { Object.assign(state, { frame: 0, clock: 0, lastEmbedFrame: 0, lastVector: null, vector: null, jitter: 0, embeds: 0, reused: 0, blocked: 0, similarities: [] }); tick(); log("state reset"); });
+$("probe").addEventListener("click", probeImport);
+labels();
+tick();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

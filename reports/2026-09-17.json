@@ -1,0 +1,122 @@
+{
+  "date": "2026-09-17",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder",
+  "headline": "Image Embedder の ROI drift と cache 再利用を可視化する",
+  "headlineEn": "Visualizing Image Embedder ROI drift and cache reuse",
+  "summary": "Google AI Edge の Image Embedder Web guide、Image Embedder task guide、Tasks Vision Web README、MediaPipe releases、npm の @mediapipe/tasks-vision 情報を確認し、Image Embedder を動画ループ内の ROI drift、cosine similarity、同期実行コスト、cache 再利用として扱う自作サンプルを2本追加しました。本命は ROI の動きと embedding refresh gate を見る dashboard、派生は cache eviction policy を hit rate と stale entry で比較する playground です。",
+  "summaryEn": "After checking the Google AI Edge Image Embedder Web guide, Image Embedder task guide, Tasks Vision Web README, MediaPipe releases, and npm information for @mediapipe/tasks-vision, this adds two original samples that treat Image Embedder as a video-loop system for ROI drift, cosine similarity, synchronous execution cost, and cache reuse. The main sample watches ROI motion and embedding refresh gates; the derivative compares cache eviction policies through hit rate and stale entries.",
+  "keyTopics": [
+    "Image Embedder Web guide は画像を embedding vector に変換し、`ImageEmbedder.cosineSimilarity()` で類似度比較できることを示している。",
+    "同 guide は Web configuration として `running_mode`、`l2Normalize`、`quantize` を示し、ROI を使って画像全体ではなく対象領域の embedding を取れることを説明している。",
+    "`embed()` と `embedForVideo()` は同期的に UI thread を block し得るため、video frame では worker や cadence 制御を検討する必要がある。",
+    "Tasks Vision Web README は `FilesetResolver.forVisionTasks()` と `ImageEmbedder.createFromModelPath()` の最小例を示しており、Vision task 群と同じ package / WASM 配置で扱える。",
+    "npm の @mediapipe/tasks-vision は latest 1.0.1 と確認でき、rc / nightly tag も継続しているため、公開サンプルでは version pin と import probe を持たせる方針にした。"
+  ],
+  "keyTopicsEn": [
+    "The Image Embedder Web guide shows how images become embedding vectors and how `ImageEmbedder.cosineSimilarity()` compares them.",
+    "The same guide lists Web configuration options such as `running_mode`, `l2Normalize`, and `quantize`, and explains that ROI can embed a region rather than the entire image.",
+    "`embed()` and `embedForVideo()` may synchronously block the UI thread, so video-frame usage should consider workers or cadence control.",
+    "The Tasks Vision Web README provides minimal `FilesetResolver.forVisionTasks()` and `ImageEmbedder.createFromModelPath()` examples, placing Image Embedder in the same package / WASM setup as other Vision tasks.",
+    "npm shows @mediapipe/tasks-vision latest at 1.0.1 with continuing rc / nightly tags, so the public sample keeps version pinning and an import probe."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Embedder ROI Drift Dashboard",
+      "url": "../outputs/2026-09-17_embedder_roi_drift_dashboard.html"
+    },
+    {
+      "label": "Today's derivative sample: Embedding Cache Eviction Playground",
+      "url": "../outputs/2026-09-17_embedding_cache_eviction_playground.html"
+    },
+    {
+      "label": "Google AI Edge: Image Embedder Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder/web_js"
+    },
+    {
+      "label": "Google AI Edge: Image Embedder task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder"
+    },
+    {
+      "label": "GitHub: Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-17-image-embedder-roi-drift.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Image Embedder を「画像検索や似た画像比較」だけではなく、video loop の中で ROI が動き続ける時の runtime 部品として扱うことです。公式 guide は cosine similarity と ROI を明確に示し、さらに `embed()` / `embedForVideo()` の同期実行が UI thread を block し得ると説明しています。つまり制作では、毎フレーム embedding を取るより、ROI drift、類似度しきい値、cache 再利用、worker handoff を一緒に設計する方が重要になります。",
+      "bodyEn": "Today's notable angle is treating Image Embedder not only as image search or pairwise similarity, but as a runtime component inside a video loop where the ROI keeps moving. The official guide clearly covers cosine similarity and ROI, and also explains that `embed()` / `embedForVideo()` can synchronously block the UI thread. In production, the important design is not embedding every frame, but coordinating ROI drift, similarity thresholds, cache reuse, and worker handoff."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Image Embedder ROI Drift Dashboard` は、ROI speed、embed interval、sync cost、similarity gate、ROI size を触り、embedding refresh と再利用の境界を可視化します。派生の `Embedding Cache Eviction Playground` は、scene drift、cache slots、TTL、reuse threshold、embed cost を操作し、LRU と similarity-first eviction のどちらが体験に合うかを hit rate と stale slot で比べます。",
+      "bodyEn": "The main sample, `Image Embedder ROI Drift Dashboard`, lets you adjust ROI speed, embed interval, sync cost, similarity gates, and ROI size to visualize the boundary between embedding refresh and reuse. The derivative, `Embedding Cache Eviction Playground`, adjusts scene drift, cache slots, TTL, reuse threshold, and embed cost to compare LRU and similarity-first eviction through hit rate and stale slots."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、ROI center / size、embedding vector、cosine similarity、last embedded frame、reuse count、blocked tick、cache hit / miss、eviction count、stale slot、import probe result です。Image Embedder、Image Classifier、Object Detector、Interactive Segmenter、Web Workers、OffscreenCanvas、IndexedDB、WebRTC camera、WebXR anchor、LLM による類似フレーム要約と組み合わせると、映像内の対象追跡、類似カット検索、参照画像に近い状態だけを拾う UI に発展できます。",
+      "bodyEn": "The samples can collect ROI center / size, embedding vectors, cosine similarity, last embedded frame, reuse count, blocked ticks, cache hits / misses, eviction counts, stale slots, and import probe results. Combined with Image Embedder, Image Classifier, Object Detector, Interactive Segmenter, Web Workers, OffscreenCanvas, IndexedDB, WebRTC camera, WebXR anchors, or LLM summaries of similar frames, this can grow into object tracking in video, similar-shot search, or UIs that react only when a frame is close to a reference image."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `FilesetResolver.forVisionTasks()`、`ImageEmbedder.createFromOptions()`、`modelAssetPath`、`runningMode: \"VIDEO\"`、`ImageProcessingOptions` の ROI、`embedForVideo()`、`ImageEmbedder.cosineSimilarity()` を分けて計測します。`embedForVideo()` を main thread で直接連打せず、ROI が十分変わった時だけ worker 側で embedding を更新し、cache hit の場合は UI だけ更新する設計にすると、体感遅延を抑えやすいです。",
+      "bodyEn": "For implementation, measure `FilesetResolver.forVisionTasks()`, `ImageEmbedder.createFromOptions()`, `modelAssetPath`, `runningMode: \"VIDEO\"`, ROI through `ImageProcessingOptions`, `embedForVideo()`, and `ImageEmbedder.cosineSimilarity()` separately. Rather than calling `embedForVideo()` repeatedly on the main thread, update embeddings in a worker only when the ROI changes enough, and update only the UI when cache hits occur."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、Image Embedder Web guide の ROI / quantize / l2Normalize 更新、Tasks Vision Web README の export 変更、MediaPipe release notes の JavaScript / WASM / model 周り、npm の nightly tag、GitHub issues の Tasks Vision Web performance や worker 周りを見ます。特に実モデルで ROI embedding を取った時の vector size、quantized embedding の類似度、worker transfer payload を確認したいです。",
+      "bodyEn": "Next, watch Image Embedder Web guide updates around ROI / quantize / l2Normalize, Tasks Vision Web README export changes, MediaPipe release notes around JavaScript / WASM / models, npm nightly tags, and GitHub issues around Tasks Vision Web performance and workers. The concrete follow-up is measuring real-model ROI embeddings, vector size, quantized similarity, and worker transfer payloads."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Image Embedder ROI Drift Dashboard` で `ROI speed` と `Similarity gate` を上げ、`Add jitter` を押して、どの程度の drift で embedding refresh に切り替わるかを見ます。派生サンプルでは `Scene burst` を押し、LRU と similarity-first eviction を切り替えると、hit rate は保てても stale slot が増える場面を確認できます。",
+      "bodyEn": "In `Image Embedder ROI Drift Dashboard`, raise `ROI speed` and `Similarity gate`, press `Add jitter`, and observe how much drift triggers an embedding refresh. In the derivative sample, press `Scene burst` and switch between LRU and similarity-first eviction to see cases where hit rate can stay high while stale slots grow."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Embedder Web guide、Image Embedder task guide、Tasks Vision Web README、MediaPipe releases、npm @mediapipe/tasks-vision を確認。設計: 外部デモ一覧ではなく、自作 HTML で ROI drift dashboard と cache eviction playground を作る。実装: 本命 HTML に ROI animation、synthetic vector、cosine similarity、reuse gate、sync cost meter、import probe を追加。派生 HTML に cache slots、TTL、LRU / similarity-first eviction、hit / miss、stale slot、scene burst を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Embedder Web guide, Image Embedder task guide, Tasks Vision Web README, MediaPipe releases, and npm @mediapipe/tasks-vision. Design: instead of listing external demos, build original HTML for an ROI drift dashboard and cache eviction playground. Implementation: added ROI animation, synthetic vectors, cosine similarity, reuse gates, sync-cost meters, and an import probe to the main HTML. Added cache slots, TTL, LRU / similarity-first eviction, hit / miss, stale slots, and scene bursts to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Gesture backpressure、Face blendshape / matrix stabilization、Image Segmenter delegate watchdog で、リアルタイム Vision task の frame budget と resource lifecycle を見てきました。今日は Image Embedder で、検出やマスクではなく embedding を runtime state として扱いました。これで Vision task の観察軸に、位置、姿勢、表情、マスク、分類、類似度、cache が並びます。",
+      "bodyEn": "Recent entries covered gesture backpressure, face blendshape / matrix stabilization, and Image Segmenter delegate watchdogs, focusing on frame budgets and resource lifecycles for real-time Vision tasks. Today uses Image Embedder to treat embeddings as runtime state rather than detections or masks. This adds similarity and cache behavior alongside position, pose, expression, masks, and classification."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Embedder ROI Drift Dashboard` です。実際に動く部分は、ROI drift animation、synthetic embedding vector、cosine similarity、reuse gate、sync cost risk、Tasks Vision import probe です。次に足すなら実 `ImageEmbedder.createFromOptions()`、`mobilenet_v3_small.tflite`、`ImageProcessingOptions` の ROI、worker handoff を足します。派生試作は `Embedding Cache Eviction Playground` で、実際に動く部分は cache slots、TTL、reuse threshold、LRU / similarity-first eviction、hit rate、stale slot、scene burst です。次に足すなら IndexedDB cache、実サムネイル画像、query-by-example UI、Web Worker を足します。",
+      "bodyEn": "The selected main prototype is `Image Embedder ROI Drift Dashboard`. The working pieces are ROI drift animation, synthetic embedding vectors, cosine similarity, reuse gates, sync-cost risk, and a Tasks Vision import probe. Next additions should connect real `ImageEmbedder.createFromOptions()`, `mobilenet_v3_small.tflite`, ROI through `ImageProcessingOptions`, and worker handoff. The derivative prototype is `Embedding Cache Eviction Playground`; the working pieces are cache slots, TTL, reuse thresholds, LRU / similarity-first eviction, hit rate, stale slots, and scene bursts. Next additions should include IndexedDB cache, real thumbnail images, query-by-example UI, and a Web Worker.",
+      "links": [
+        {
+          "label": "Open Image Embedder ROI Drift Dashboard",
+          "url": "../outputs/2026-09-17_embedder_roi_drift_dashboard.html"
+        },
+        {
+          "label": "Open Embedding Cache Eviction Playground",
+          "url": "../outputs/2026-09-17_embedding_cache_eviction_playground.html"
+        }
+      ]
+    }
+  ]
+}

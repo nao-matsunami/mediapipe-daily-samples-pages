@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embedding Cache Eviction Playground</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101216; color: #f8f7f2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(91, 184, 222, .15), transparent 34%), linear-gradient(315deg, rgba(231, 112, 124, .15), transparent 45%), #101216; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 15px; border-bottom: 1px solid rgba(248, 247, 242, .16); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #5bb8de; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d0d4dc; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(248, 247, 242, .25); background: #f8f7f2; color: #101216; padding: 8px 11px; cursor: pointer; }
+    button.secondary { background: rgba(16, 18, 22, .92); color: #f8f7f2; }
+    label { display: grid; gap: 6px; color: #edf1f5; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #5bb8de; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(248, 247, 242, .15); background: rgba(16, 18, 22, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+    .tile { min-height: 86px; border: 1px solid rgba(248, 247, 242, .14); background: #181c22; padding: 9px; display: grid; align-content: space-between; }
+    .tile strong { font-size: 1.3rem; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; background: #06080b; border: 1px solid rgba(248, 247, 242, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(248, 247, 242, .13); background: #181c22; min-height: 92px; padding: 10px; }
+    .meter strong { display: block; margin-top: 4px; color: #f8f7f2; font-size: clamp(1.15rem, 3vw, 1.75rem); font-variant-numeric: tabular-nums; }
+    .value { color: #f1c866; font-variant-numeric: tabular-nums; }
+    .chip { display: inline-block; border: 1px solid rgba(248, 247, 242, .22); padding: 5px 8px; color: #d8dde6; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(91, 184, 222, .78); background: rgba(91, 184, 222, .13); color: #f8f7f2; }
+    .warn { border-color: rgba(241, 200, 102, .78); background: rgba(241, 200, 102, .13); color: #fff8e6; }
+    .bad { border-color: rgba(231, 112, 124, .78); background: rgba(231, 112, 124, .13); color: #ffe9ee; }
+    .log { margin-top: 14px; padding: 12px; height: 146px; overflow: auto; white-space: pre-wrap; color: #e2e7ee; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters, .grid { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Embedding Cache Eviction Playground</h1>
+    <p>Image Embedder の cosine similarity を、毎回推論せずに「いつ cache から捨てるか」を決める小さな派生試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Scene drift <input id="drift" type="range" min="1" max="12" value="4"><span id="driftValue" class="value">4</span></label>
+    <label>Cache slots <input id="slots" type="range" min="2" max="10" value="5"><span id="slotsValue" class="value">5</span></label>
+    <label>TTL <input id="ttl" type="range" min="4" max="60" value="24"><span id="ttlValue" class="value">24 frames</span></label>
+    <label>Reuse threshold <input id="threshold" type="range" min="60" max="98" value="84"><span id="thresholdValue" class="value">0.84</span></label>
+    <label>Embed cost <input id="cost" type="range" min="4" max="54" value="18"><span id="costValue" class="value">18 ms</span></label>
+    <button id="toggle">Start</button>
+    <button id="step" class="secondary">Step</button>
+    <button id="clear" class="secondary">Clear cache</button>
+    <button id="burst" class="secondary">Scene burst</button>
+    <button id="policy" class="secondary">Switch eviction</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Cache state</h2>
+      <p>ROI embedding を実 UI に使うなら、似たフレームを再利用し、似ていない時だけ更新したい。この試作は LRU と similarity-first eviction の違いを、hit rate と stale entry で見ます。</p>
+      <span id="policyChip" class="chip pass">eviction: LRU</span>
+      <span id="budgetChip" class="chip">budget: ok</span>
+      <div id="cacheGrid" class="grid"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Similarity field</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div class="meters" id="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, frame: 0, cache: [], hits: 0, misses: 0, evictions: 0, stale: 0, burst: 0, policy: "lru", lastSimilarity: 0 };
+
+function labels() {
+  $("driftValue").textContent = $("drift").value;
+  $("slotsValue").textContent = $("slots").value;
+  $("ttlValue").textContent = `${$("ttl").value} frames`;
+  $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+  $("costValue").textContent = `${$("cost").value} ms`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function vector(seed) {
+  const out = [];
+  for (let i = 0; i < 18; i += 1) {
+    const v = Math.sin(seed * .031 * (i + 1)) * .5 + Math.cos(seed * .017 * (i + 4)) * .32 + Math.sin((seed + i * 13) * .007) * .18;
+    out.push(v);
+  }
+  const norm = Math.hypot(...out) || 1;
+  return out.map((v) => v / norm);
+}
+
+function cosine(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function currentVector() {
+  const drift = Number($("drift").value);
+  const burst = state.burst > 0 ? state.burst * 19 : 0;
+  return vector(state.frame * drift + burst);
+}
+
+function tick() {
+  state.frame += 1;
+  if (state.burst > 0) state.burst -= 1;
+  const candidate = currentVector();
+  const threshold = Number($("threshold").value) / 100;
+  let best = null;
+  for (const item of state.cache) {
+    const sim = cosine(candidate, item.vector);
+    if (!best || sim > best.sim) best = { item, sim };
+  }
+  state.lastSimilarity = best ? best.sim : 0;
+  if (best && best.sim >= threshold && state.frame - best.item.frame <= Number($("ttl").value)) {
+    best.item.frame = state.frame;
+    best.item.hits += 1;
+    state.hits += 1;
+  } else {
+    addCache(candidate);
+    state.misses += 1;
+  }
+  state.stale = state.cache.filter((item) => state.frame - item.frame > Number($("ttl").value)).length;
+  draw(candidate);
+  render();
+}
+
+function addCache(vec) {
+  const slots = Number($("slots").value);
+  if (state.cache.length >= slots) {
+    let index = 0;
+    if (state.policy === "similarity") {
+      index = state.cache.map((item) => cosine(vec, item.vector)).reduce((worst, sim, i, arr) => sim < arr[worst] ? i : worst, 0);
+    } else {
+      index = state.cache.reduce((oldest, item, i, arr) => item.frame < arr[oldest].frame ? i : oldest, 0);
+    }
+    const removed = state.cache.splice(index, 1)[0];
+    state.evictions += 1;
+    log(`evicted slot ${removed.id} by ${state.policy}`);
+  }
+  state.cache.push({ id: Math.floor(Math.random() * 9999), vector: vec, frame: state.frame, hits: 0 });
+}
+
+function draw(vec) {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#06080b";
+  ctx.fillRect(0, 0, w, h);
+  vec.forEach((v, i) => {
+    const x = 80 + (i % 6) * 204 + Math.sin(state.frame * .03 + i) * 24;
+    const y = 90 + Math.floor(i / 6) * 178 + Math.cos(state.frame * .025 + i) * 28;
+    const r = 34 + Math.abs(v) * 92;
+    ctx.fillStyle = v >= 0 ? "rgba(91,184,222,.54)" : "rgba(231,112,124,.54)";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.fillStyle = "#f8f7f2";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`frame ${state.frame}`, 48, 66);
+  ctx.fillText(`cache ${state.cache.length}/${$("slots").value}  similarity ${state.lastSimilarity.toFixed(3)}`, 48, 98);
+}
+
+function render() {
+  const total = state.hits + state.misses;
+  const hitRate = total ? state.hits / total * 100 : 0;
+  $("policyChip").textContent = `eviction: ${state.policy === "lru" ? "LRU" : "similarity-first"}`;
+  $("policyChip").className = state.policy === "lru" ? "chip pass" : "chip warn";
+  $("budgetChip").textContent = Number($("cost").value) <= 28 ? "budget: ok" : "budget: blocking risk";
+  $("budgetChip").className = Number($("cost").value) <= 28 ? "chip pass" : "chip bad";
+  $("meters").innerHTML = [
+    ["Hit rate", `${hitRate.toFixed(0)}%`],
+    ["Misses", String(state.misses)],
+    ["Evictions", String(state.evictions)],
+    ["Stale slots", String(state.stale)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("cacheGrid").innerHTML = state.cache.map((item) => `<div class="tile"><span>#${item.id}</span><strong>${item.hits}</strong><span>age ${state.frame - item.frame}</span></div>`).join("");
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 90) {
+    tick();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+["drift", "slots", "ttl", "threshold", "cost"].forEach((id) => $(id).addEventListener("input", labels));
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause" : "Start"; });
+$("step").addEventListener("click", tick);
+$("clear").addEventListener("click", () => { state.cache = []; state.hits = 0; state.misses = 0; state.evictions = 0; state.stale = 0; log("cache cleared"); render(); });
+$("burst").addEventListener("click", () => { state.burst = 8; log("scene burst injected"); });
+$("policy").addEventListener("click", () => { state.policy = state.policy === "lru" ? "similarity" : "lru"; log(`policy changed to ${state.policy}`); render(); });
+labels();
+tick();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
