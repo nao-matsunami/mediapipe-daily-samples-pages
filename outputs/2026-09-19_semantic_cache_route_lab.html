@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Cache Route Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111217; color: #f5f2f6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(103, 170, 224, .15), transparent 35%), linear-gradient(315deg, rgba(226, 116, 142, .13), transparent 45%), #111217; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 242, 246, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #67aae0; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cfd2dc; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(245, 242, 246, .23); background: #f5f2f6; color: #111217; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(17, 18, 23, .9); color: #f5f2f6; }
+    label { display: grid; gap: 6px; color: #f5f2f6; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #67aae0; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 242, 246, .15); background: rgba(17, 18, 23, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #07080c; border: 1px solid rgba(245, 242, 246, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .cache { border: 1px solid rgba(245, 242, 246, .13); background: #191b23; padding: 10px; min-height: 88px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.08rem, 3vw, 1.55rem); color: #f5f2f6; font-variant-numeric: tabular-nums; }
+    .cache { margin-top: 10px; display: grid; gap: 6px; }
+    .bar { height: 12px; background: #282c36; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #67aae0, #e2748e); }
+    .chip { display: inline-block; border: 1px solid rgba(245, 242, 246, .24); padding: 5px 8px; color: #dee2ec; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(103, 170, 224, .78); background: rgba(103, 170, 224, .14); color: #f5f2f6; }
+    .warn { border-color: rgba(226, 116, 142, .78); background: rgba(226, 116, 142, .13); color: #ffe8ee; }
+    .value { color: #e1c16c; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e7e9f0; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 880px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Semantic Cache Route Lab</h1>
+    <p>Text Embedder の発展案として、問い合わせ文を embedding cache に近似照合し、再 embed / reuse / human review を切り替える派生ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Cache gate <input id="gate" type="range" min="45" max="96" value="78"><span id="gateValue" class="value">0.78</span></label>
+    <label>Query drift <input id="drift" type="range" min="0" max="100" value="34"><span id="driftValue" class="value">0.34</span></label>
+    <label>TTL decay <input id="decay" type="range" min="0" max="80" value="22"><span id="decayValue" class="value">22%</span></label>
+    <label>Quantize <input id="quantize" type="range" min="0" max="100" value="18"><span id="quantizeValue" class="value">18%</span></label>
+    <label>Topic <select id="topic"><option>docs</option><option>vision</option><option>audio</option><option>genai</option></select><span class="value">incoming query</span></label>
+    <button id="toggle">Start stream</button>
+    <button id="step" class="secondary">Step query</button>
+    <button id="miss" class="secondary">Force miss</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Cache policy</h2>
+      <p>公式 API の TextEmbedder は embedding を同期的に返します。UI 側では全入力を毎回実 embed する前に、近い過去結果を再利用できるか、しきい値と TTL で判断すると体感待ち時間を抑えられます。</p>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="ttlChip" class="chip">ttl: fresh</span>
+      <div id="cacheList"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Cache hits over query stream</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const names = ["docs", "vision", "audio", "genai"];
+const colors = { docs: "#67aae0", vision: "#7ac283", audio: "#e1c16c", genai: "#e2748e" };
+const base = {
+  docs: [0.8, 0.3, .1, -.1, .2, -.2, .3, .5, -.1, .2],
+  vision: [.2, .7, .5, .1, -.3, .4, .2, -.2, .3, .1],
+  audio: [-.1, .1, .4, .7, .2, .3, -.4, .1, .5, -.2],
+  genai: [.1, -.2, .2, .3, .8, .5, .1, -.3, .2, .4]
+};
+const state = { running: false, tick: 0, forceMiss: false, hits: 0, misses: 0, reviews: 0, history: [], cache: [] };
+
+function labels() {
+  $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+  $("driftValue").textContent = (Number($("drift").value) / 100).toFixed(2);
+  $("decayValue").textContent = `${$("decay").value}%`;
+  $("quantizeValue").textContent = `${$("quantize").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2000);
+}
+
+function norm(v) {
+  const size = Math.hypot(...v) || 1;
+  return v.map((x) => x / size);
+}
+
+function vectorFor(topic) {
+  const drift = Number($("drift").value) / 100;
+  const quantize = Number($("quantize").value) / 100;
+  const t = state.tick * .15;
+  let v = base[topic].map((x, i) => x + Math.sin(t + i * 1.9) * drift * .26 + (state.forceMiss ? Math.cos(t * 2 + i) * .7 : 0));
+  if (quantize > 0) {
+    const steps = Math.max(4, Math.round(48 - quantize * 40));
+    v = v.map((x) => Math.round(x * steps) / steps);
+  }
+  return norm(v);
+}
+
+function cosine(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function seedCache() {
+  state.cache = names.map((topic, i) => ({ topic, vector: norm(base[topic]), age: i * 2, hits: 0 }));
+}
+
+function step() {
+  state.tick += 1;
+  const topic = $("topic").value;
+  const query = vectorFor(topic);
+  const decay = Number($("decay").value) / 100;
+  state.cache.forEach((item) => { item.age += 1; });
+  const scored = state.cache.map((item) => ({ ...item, raw: cosine(query, item.vector), score: cosine(query, item.vector) - item.age * decay * .012 })).sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  const gate = Number($("gate").value) / 100;
+  let route = "review";
+  if (best.score >= gate) {
+    route = "reuse";
+    state.hits += 1;
+    const hit = state.cache.find((item) => item.topic === best.topic);
+    hit.age = 0;
+    hit.hits += 1;
+  } else if (best.raw >= gate * .86) {
+    route = "review";
+    state.reviews += 1;
+  } else {
+    route = "embed";
+    state.misses += 1;
+    state.cache.push({ topic, vector: query, age: 0, hits: 0 });
+    state.cache = state.cache.slice(-7);
+  }
+  state.history.push({ topic, best: best.topic, score: best.score, route });
+  state.history = state.history.slice(-48);
+  state.forceMiss = false;
+  log(`query ${state.tick}: ${topic} -> ${route} via ${best.topic} (${best.score.toFixed(3)})`);
+  draw();
+  render();
+}
+
+function draw() {
+  const ctx = $("stage").getContext("2d");
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#07080c";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(245,242,246,.15)";
+  for (let i = 0; i < 5; i += 1) {
+    const y = 110 + i * 95;
+    ctx.beginPath();
+    ctx.moveTo(56, y);
+    ctx.lineTo(w - 56, y);
+    ctx.stroke();
+  }
+  state.history.forEach((item, i) => {
+    const x = 70 + i * ((w - 140) / 47);
+    const y = h - 110 - Math.max(0, Math.min(1, item.score)) * 430;
+    ctx.fillStyle = item.route === "reuse" ? colors[item.best] : item.route === "embed" ? "#e2748e" : "#e1c16c";
+    ctx.fillRect(x - 8, y - 8, 16, 16);
+  });
+  const gateY = h - 110 - (Number($("gate").value) / 100) * 430;
+  ctx.strokeStyle = "#f5f2f6";
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(56, gateY);
+  ctx.lineTo(w - 56, gateY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#f5f2f6";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`topic ${$("topic").value}`, 56, 52);
+  ctx.fillText(`cache gate ${(Number($("gate").value) / 100).toFixed(2)}`, 56, gateY - 12);
+}
+
+function render() {
+  const latest = state.history.at(-1);
+  $("routeChip").textContent = latest ? `route: ${latest.route}` : "route: waiting";
+  $("routeChip").className = latest?.route === "reuse" ? "chip pass" : "chip warn";
+  const oldest = Math.max(...state.cache.map((item) => item.age), 0);
+  $("ttlChip").textContent = oldest > 12 ? "ttl: stale entries" : "ttl: fresh";
+  $("ttlChip").className = oldest > 12 ? "chip warn" : "chip pass";
+  $("cacheList").innerHTML = state.cache.map((item) => {
+    const freshness = Math.max(0, 100 - item.age * 7);
+    return `<div class="cache"><strong>${item.topic}</strong><div class="bar"><span style="width:${freshness}%; background:${colors[item.topic]}"></span></div><span class="value">age ${item.age} / hits ${item.hits}</span></div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Hits", String(state.hits)],
+    ["Embeds", String(state.misses)],
+    ["Reviews", String(state.reviews)],
+    ["Cache", String(state.cache.length)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 420) {
+    step();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+document.querySelectorAll("input, select").forEach((input) => input.addEventListener("input", () => { labels(); draw(); render(); }));
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause stream" : "Start stream"; log(state.running ? "query stream started" : "query stream paused"); });
+$("step").addEventListener("click", step);
+$("miss").addEventListener("click", () => { state.forceMiss = true; log("next query will drift away from cache"); step(); });
+$("reset").addEventListener("click", () => { Object.assign(state, { running: false, tick: 0, forceMiss: false, hits: 0, misses: 0, reviews: 0, history: [] }); $("toggle").textContent = "Start stream"; seedCache(); draw(); render(); log("reset"); });
+labels();
+seedCache();
+draw();
+render();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

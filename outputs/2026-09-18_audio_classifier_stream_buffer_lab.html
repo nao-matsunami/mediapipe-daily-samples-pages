@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audio Classifier Stream Buffer Lab</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101217; color: #f7f1e8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 15% 15%, rgba(93, 188, 210, .16), transparent 34%), linear-gradient(135deg, rgba(238, 111, 87, .12), transparent 42%), #101217; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; border-bottom: 1px solid rgba(247, 241, 232, .16); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #5dbcd2; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cfc8be; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 241, 232, .22); background: #f7f1e8; color: #101217; padding: 8px 11px; cursor: pointer; }
+    button.secondary { background: rgba(16, 18, 23, .9); color: #f7f1e8; }
+    label { display: grid; gap: 6px; color: #f7f1e8; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #5dbcd2; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(247, 241, 232, .15); background: rgba(16, 18, 23, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; border: 1px solid rgba(247, 241, 232, .13); background: #07090d; overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .lane { border: 1px solid rgba(247, 241, 232, .13); background: #191d25; min-height: 92px; padding: 10px; }
+    .meter strong { display: block; margin-top: 4px; color: #f7f1e8; font-size: clamp(1.08rem, 3vw, 1.65rem); font-variant-numeric: tabular-nums; }
+    .lane { margin-top: 10px; min-height: 0; }
+    .bar { height: 12px; margin-top: 6px; background: #29313d; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #5dbcd2, #ee6f57); }
+    .chip { display: inline-block; border: 1px solid rgba(247, 241, 232, .24); padding: 5px 8px; color: #ddd8cf; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(93, 188, 210, .78); background: rgba(93, 188, 210, .14); color: #f7f1e8; }
+    .warn { border-color: rgba(238, 111, 87, .78); background: rgba(238, 111, 87, .13); color: #ffe8e0; }
+    .value { color: #f0bd6a; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 138px; overflow: auto; white-space: pre-wrap; color: #e7ded3; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Audio Classifier Stream Buffer Lab</h1>
+    <p>MediaPipe Audio Classifier の `classify()` を、マイクストリームの ring buffer、解析窓、オーバーラップ、同期ブロックとして扱う自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Input energy <input id="energy" type="range" min="10" max="100" value="58"><span id="energyValue" class="value">58%</span></label>
+    <label>Window size <input id="window" type="range" min="256" max="4096" step="256" value="2048"><span id="windowValue" class="value">2048 samples</span></label>
+    <label>Overlap <input id="overlap" type="range" min="0" max="85" value="50"><span id="overlapValue" class="value">50%</span></label>
+    <label>Sync cost <input id="cost" type="range" min="4" max="64" value="24"><span id="costValue" class="value">24 ms</span></label>
+    <label>Smoothing <input id="smooth" type="range" min="0" max="90" value="62"><span id="smoothValue" class="value">0.62</span></label>
+    <button id="toggle">Start stream</button>
+    <button id="step" class="secondary">Step chunk</button>
+    <button id="burst" class="secondary">Noise burst</button>
+    <button id="reset" class="secondary">Reset</button>
+    <button id="probe" class="secondary">Import probe</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Classifier policy</h2>
+      <p>公式 Web guide は `@mediapipe/tasks-audio`、`FilesetResolver.forAudioTasks()`、`AudioClassifier.createFromOptions()`、`classify()` を示し、マイク入力では同期実行が UI thread を block し得るため worker を検討すると説明しています。</p>
+      <span id="importChip" class="chip">tasks-audio: not probed</span>
+      <span id="budgetChip" class="chip pass">budget: ok</span>
+      <span id="dropChip" class="chip pass">queue: healthy</span>
+      <div id="lanes"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Ring buffer / classification timeline</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div class="meters" id="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const classes = ["speech", "music", "clap", "silence"];
+const colors = { speech: "#5dbcd2", music: "#ee6f57", clap: "#f0bd6a", silence: "#798391" };
+const state = { running: false, frame: 0, write: 0, queue: 0, drops: 0, blocks: 0, burst: 0, scores: { speech: .35, music: .25, clap: .12, silence: .28 }, history: [] };
+
+function labels() {
+  $("energyValue").textContent = `${$("energy").value}%`;
+  $("windowValue").textContent = `${$("window").value} samples`;
+  $("overlapValue").textContent = `${$("overlap").value}%`;
+  $("costValue").textContent = `${$("cost").value} ms`;
+  $("smoothValue").textContent = (Number($("smooth").value) / 100).toFixed(2);
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function rawScores() {
+  const t = state.frame * .05;
+  const energy = Number($("energy").value) / 100;
+  const burst = state.burst;
+  return {
+    speech: Math.max(0, .34 + Math.sin(t * 1.1) * .18 + energy * .22 - burst * .08),
+    music: Math.max(0, .28 + Math.cos(t * .72) * .2 + energy * .16),
+    clap: Math.max(0, .06 + burst * .82 + Math.max(0, Math.sin(t * 3.4)) * .08),
+    silence: Math.max(0, .46 - energy * .36 - burst * .18)
+  };
+}
+
+function normalize(scores) {
+  const sum = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
+  return Object.fromEntries(Object.entries(scores).map(([k, v]) => [k, v / sum]));
+}
+
+function classifyStep() {
+  state.frame += 1;
+  state.write = (state.write + 512) % 8192;
+  if (state.burst) state.burst *= .86;
+  const hop = Number($("window").value) * (1 - Number($("overlap").value) / 100);
+  const cost = Number($("cost").value);
+  const smooth = Number($("smooth").value) / 100;
+  state.queue = Math.max(0, state.queue + cost - hop / 48);
+  if (state.queue > 58) {
+    state.drops += 1;
+    state.queue *= .62;
+  }
+  if (cost > 28) state.blocks += 1;
+  const scores = normalize(rawScores());
+  for (const key of classes) state.scores[key] = state.scores[key] * smooth + scores[key] * (1 - smooth);
+  const top = classes.reduce((a, b) => state.scores[a] > state.scores[b] ? a : b);
+  state.history.push({ top, scores: { ...state.scores }, queue: state.queue, write: state.write });
+  state.history = state.history.slice(-96);
+  if (state.frame % 10 === 0 || state.burst > .7) log(`classify window ${state.frame}: ${top} ${(state.scores[top] * 100).toFixed(1)}%, queue ${state.queue.toFixed(1)} ms`);
+  draw();
+  render();
+}
+
+function draw() {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#07090d";
+  ctx.fillRect(0, 0, w, h);
+  const mid = h * .42;
+  ctx.strokeStyle = "rgba(247,241,232,.18)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i += 1) {
+    const y = 80 + i * 62;
+    ctx.beginPath();
+    ctx.moveTo(40, y);
+    ctx.lineTo(w - 40, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#5dbcd2";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let x = 0; x < w; x += 4) {
+    const sample = Math.sin((x + state.frame * 18) * .025) * (Number($("energy").value) / 100) + Math.sin((x + state.frame * 10) * .083) * state.burst;
+    const y = mid + sample * 140;
+    if (x === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  const windowPx = Math.max(70, Number($("window").value) / 4096 * 420);
+  const x = 80 + (state.write / 8192) * (w - 220);
+  ctx.fillStyle = "rgba(238,111,87,.18)";
+  ctx.fillRect(x, 70, windowPx, 420);
+  ctx.strokeStyle = "#ee6f57";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, 70, windowPx, 420);
+  const baseY = 590;
+  state.history.forEach((item, i) => {
+    ctx.fillStyle = colors[item.top];
+    ctx.fillRect(44 + i * 12, baseY - item.scores[item.top] * 100, 9, item.scores[item.top] * 100);
+  });
+  ctx.fillStyle = "#f7f1e8";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`ring write ${state.write} / 8192`, 48, 44);
+  ctx.fillText(`analysis queue ${state.queue.toFixed(1)} ms`, 48, 535);
+}
+
+function render() {
+  const top = classes.reduce((a, b) => state.scores[a] > state.scores[b] ? a : b);
+  $("lanes").innerHTML = classes.map((label) => `<div class="lane"><strong>${label}</strong><div class="bar"><span style="width:${Math.round(state.scores[label] * 100)}%; background:${colors[label]}"></span></div><span class="value">${(state.scores[label] * 100).toFixed(1)}%</span></div>`).join("");
+  $("budgetChip").textContent = Number($("cost").value) <= 28 ? "budget: ok" : "budget: blocking risk";
+  $("budgetChip").className = Number($("cost").value) <= 28 ? "chip pass" : "chip warn";
+  $("dropChip").textContent = state.queue < 45 ? "queue: healthy" : "queue: dropping windows";
+  $("dropChip").className = state.queue < 45 ? "chip pass" : "chip warn";
+  $("meters").innerHTML = [
+    ["Top class", top],
+    ["Queue", `${state.queue.toFixed(1)} ms`],
+    ["Dropped", String(state.drops)],
+    ["UI blocks", String(state.blocks)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 70) {
+    classifyStep();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+async function probeImport() {
+  $("importChip").textContent = "tasks-audio: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-audio@1.0.1/audio_bundle.mjs");
+    $("importChip").textContent = mod.AudioClassifier ? "tasks-audio: AudioClassifier export ok" : "tasks-audio: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-audio@1.0.1 audio bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-audio: import blocked";
+    $("importChip").className = "chip warn";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+
+document.querySelectorAll("input").forEach((input) => input.addEventListener("input", labels));
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+  log(state.running ? "stream loop started" : "stream loop paused");
+});
+$("step").addEventListener("click", classifyStep);
+$("burst").addEventListener("click", () => { state.burst = 1; log("synthetic noise burst injected"); });
+$("reset").addEventListener("click", () => { Object.assign(state, { running: false, frame: 0, write: 0, queue: 0, drops: 0, blocks: 0, burst: 0, scores: { speech: .35, music: .25, clap: .12, silence: .28 }, history: [] }); $("toggle").textContent = "Start stream"; draw(); render(); log("reset"); });
+$("probe").addEventListener("click", probeImport);
+labels();
+draw();
+render();
+log("ready: tune window, overlap, and sync cost");
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

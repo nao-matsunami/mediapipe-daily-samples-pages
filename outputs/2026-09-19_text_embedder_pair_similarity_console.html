@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Embedder Pair Similarity Console</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101313; color: #f4f2eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(87, 183, 164, .16), transparent 35%), linear-gradient(315deg, rgba(224, 167, 88, .14), transparent 44%), #101313; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(244, 242, 235, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.7rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #57b7a4; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #ccd2ca; line-height: 1.62; }
+    button, textarea, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(244, 242, 235, .24); background: #f4f2eb; color: #101313; padding: 8px 12px; cursor: pointer; }
+    button.secondary, select, textarea { background: rgba(16, 19, 19, .9); color: #f4f2eb; }
+    textarea { width: 100%; min-height: 108px; resize: vertical; border: 1px solid rgba(244, 242, 235, .18); padding: 10px; line-height: 1.48; }
+    label { display: grid; gap: 6px; color: #f4f2eb; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #57b7a4; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(244, 242, 235, .15); background: rgba(16, 19, 19, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .textGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stageFrame { width: 100%; min-height: 330px; border: 1px solid rgba(244, 242, 235, .13); background: #070909; padding: 14px; overflow: hidden; }
+    .bars { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; height: 150px; align-items: end; margin-top: 18px; }
+    .bar { min-height: 4px; background: #273130; position: relative; }
+    .bar span { position: absolute; inset: auto 0 0; background: linear-gradient(180deg, #57b7a4, #e0a758); }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .token { border: 1px solid rgba(244, 242, 235, .13); background: #181e1d; padding: 10px; min-height: 84px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.1rem, 3vw, 1.6rem); color: #f4f2eb; font-variant-numeric: tabular-nums; }
+    .tokens { display: grid; gap: 8px; margin-top: 10px; }
+    .token { min-height: 0; display: flex; justify-content: space-between; gap: 10px; color: #ccd2ca; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 242, 235, .24); padding: 5px 8px; color: #dce0d8; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(87, 183, 164, .78); background: rgba(87, 183, 164, .14); color: #f4f2eb; }
+    .warn { border-color: rgba(224, 167, 88, .78); background: rgba(224, 167, 88, .13); color: #fff4df; }
+    .bad { border-color: rgba(220, 104, 92, .78); background: rgba(220, 104, 92, .13); color: #ffe9e5; }
+    .value { color: #e0c36f; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e6e8df; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .textGrid, .meters { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Text Embedder Pair Similarity Console</h1>
+    <p>MediaPipe Text Embedder の `embed()` と `TextEmbedder.cosineSimilarity()` を想定し、文章ペア、同期コスト、float / quantized embedding の違いを合成ベクトルで観察する自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Similarity gate <input id="gate" type="range" min="40" max="96" value="74"><span id="gateValue" class="value">0.74</span></label>
+    <label>Quantize <input id="quantize" type="range" min="0" max="100" value="22"><span id="quantizeValue" class="value">22%</span></label>
+    <label>Sync cost <input id="cost" type="range" min="2" max="48" value="16"><span id="costValue" class="value">16 ms</span></label>
+    <label>Preset <select id="preset"><option value="edge">edge docs</option><option value="vision">vision note</option><option value="audio">audio note</option><option value="far">distant pair</option></select><span class="value">text pair</span></label>
+    <label>Noise <input id="noise" type="range" min="0" max="70" value="12"><span id="noiseValue" class="value">0.12</span></label>
+    <button id="run">Run embed pair</button>
+    <button id="swap" class="secondary">Swap text B</button>
+    <button id="probe" class="secondary">Import probe</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Task notes</h2>
+      <p>`@mediapipe/tasks-text` は FilesetResolver、LanguageDetector、TextClassifier、TextEmbedder を含みます。公式 API は TextEmbedder が embedding 抽出を行い、cosine similarity を utility として提供するため、検索、重複検出、プロンプト候補の近さ判定に向きます。</p>
+      <span id="importChip" class="chip">tasks-text: not probed</span>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="budgetChip" class="chip">budget: ok</span>
+      <div id="tokens" class="tokens"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Pair input</h2>
+        <div class="textGrid">
+          <label>Text A<textarea id="textA">MediaPipe Text Embedder turns local text into semantic vectors for private browser-side search.</textarea></label>
+          <label>Text B<textarea id="textB">A browser app can embed sentences on device and compare them with cosine similarity.</textarea></label>
+        </div>
+        <div class="stageFrame">
+          <p id="summary">Run the pair to draw the synthetic embedding delta.</p>
+          <div id="bars" class="bars"></div>
+        </div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const presets = {
+  edge: [
+    "MediaPipe Text Embedder turns local text into semantic vectors for private browser-side search.",
+    "A browser app can embed sentences on device and compare them with cosine similarity."
+  ],
+  vision: [
+    "Image Embedder stores visual feature vectors for comparing camera regions over time.",
+    "A vision task can reuse frame embeddings when the region of interest barely moves."
+  ],
+  audio: [
+    "Audio tasks use buffers and windows before classification or embedding.",
+    "Sound embeddings can route similar events while ignoring short novel spikes."
+  ],
+  far: [
+    "The hand landmark gate waits for a stable pinch before firing a command.",
+    "A shipping dashboard filters container arrivals by port and carrier risk."
+  ]
+};
+const state = { runs: 0, accepted: 0, blocked: 0, lastScore: 0, lastA: [], lastB: [] };
+
+function labels() {
+  $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+  $("quantizeValue").textContent = `${$("quantize").value}%`;
+  $("costValue").textContent = `${$("cost").value} ms`;
+  $("noiseValue").textContent = (Number($("noise").value) / 100).toFixed(2);
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2000);
+}
+
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\u3040-\u30ff\u3400-\u9fff\s-]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+function embed(text, salt) {
+  const tokens = tokenize(text);
+  const noise = Number($("noise").value) / 100;
+  let vector = Array.from({ length: 24 }, () => 0);
+  tokens.forEach((token, t) => {
+    for (let i = 0; i < vector.length; i += 1) {
+      let code = 0;
+      for (let c = 0; c < token.length; c += 1) code += token.charCodeAt(c) * (i + 3 + c);
+      vector[i] += Math.sin(code * .013 + salt + t * .37) + Math.cos(code * .007 + i * .41) * .55;
+    }
+  });
+  vector = vector.map((v, i) => v + Math.sin((text.length + i) * .3) * noise);
+  const quantize = Number($("quantize").value) / 100;
+  if (quantize > 0) {
+    const steps = Math.max(4, Math.round(64 - quantize * 56));
+    vector = vector.map((v) => Math.round(v * steps) / steps);
+  }
+  const norm = Math.hypot(...vector) || 1;
+  return vector.map((v) => v / norm);
+}
+
+function cosine(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function runPair() {
+  const a = embed($("textA").value, .3);
+  const b = embed($("textB").value, .9);
+  const score = cosine(a, b);
+  const gate = Number($("gate").value) / 100;
+  state.runs += 1;
+  state.accepted += score >= gate ? 1 : 0;
+  state.blocked += Number($("cost").value) > 28 ? 1 : 0;
+  state.lastScore = score;
+  state.lastA = a;
+  state.lastB = b;
+  log(`TextEmbedder.embed style run ${state.runs}: cosine ${score.toFixed(3)} ${score >= gate ? "accept" : "review"}`);
+  render();
+}
+
+function render() {
+  const score = state.lastScore;
+  const gate = Number($("gate").value) / 100;
+  $("routeChip").textContent = score >= gate ? "route: accept pair" : "route: review pair";
+  $("routeChip").className = score >= gate ? "chip pass" : "chip warn";
+  $("budgetChip").textContent = Number($("cost").value) > 28 ? "budget: blocking risk" : "budget: ok";
+  $("budgetChip").className = Number($("cost").value) > 28 ? "chip bad" : "chip pass";
+  $("summary").textContent = `cosine ${score.toFixed(3)} / gate ${gate.toFixed(2)} / quantize ${$("quantize").value}%`;
+  $("bars").innerHTML = state.lastA.map((v, i) => {
+    const delta = Math.abs(v - state.lastB[i]);
+    return `<span class="bar"><span style="height:${Math.max(4, delta * 360)}%; background:${state.lastB[i] >= v ? "#57b7a4" : "#e0a758"}"></span></span>`;
+  }).join("");
+  const all = [...tokenize($("textA").value), ...tokenize($("textB").value)];
+  const counts = all.reduce((map, token) => map.set(token, (map.get(token) || 0) + 1), new Map());
+  $("tokens").innerHTML = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(([token, count]) => `<div class="token"><span>${token}</span><strong>${count}</strong></div>`).join("");
+  $("meters").innerHTML = [
+    ["Similarity", score.toFixed(3)],
+    ["Accepted", String(state.accepted)],
+    ["Runs", String(state.runs)],
+    ["Blocked", String(state.blocked)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+async function probeImport() {
+  $("importChip").textContent = "tasks-text: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@1.0.1/text_bundle.mjs");
+    $("importChip").textContent = mod.TextEmbedder ? "tasks-text: TextEmbedder export ok" : "tasks-text: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-text@1.0.1 text bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-text: import blocked";
+    $("importChip").className = "chip bad";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+
+$("preset").addEventListener("input", () => { const pair = presets[$("preset").value]; $("textA").value = pair[0]; $("textB").value = pair[1]; runPair(); });
+document.querySelectorAll("input, textarea").forEach((input) => input.addEventListener("input", () => { labels(); render(); }));
+$("run").addEventListener("click", runPair);
+$("swap").addEventListener("click", () => { const temp = $("textB").value; $("textB").value = "This sentence intentionally pulls the query toward a different topic: camera landmarks, gesture dwell, and ROI tracking."; log("text B swapped to a harder negative"); runPair(); $("textB").value = temp; });
+$("probe").addEventListener("click", probeImport);
+$("reset").addEventListener("click", () => { Object.assign(state, { runs: 0, accepted: 0, blocked: 0, lastScore: 0, lastA: Array(24).fill(0), lastB: Array(24).fill(0) }); log("reset"); render(); });
+labels();
+state.lastA = embed($("textA").value, .3);
+state.lastB = embed($("textB").value, .9);
+state.lastScore = cosine(state.lastA, state.lastB);
+render();
+</script>
+</body>
+</html>

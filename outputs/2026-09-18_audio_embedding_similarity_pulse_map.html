@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audio Embedding Similarity Pulse Map</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0f1314; color: #f5f4ee; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(124, 198, 111, .15), transparent 36%), linear-gradient(315deg, rgba(97, 149, 228, .14), transparent 45%), #0f1314; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; border-bottom: 1px solid rgba(245, 244, 238, .16); padding-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #7cc66f; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #c9d0c3; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(245, 244, 238, .23); background: #f5f4ee; color: #0f1314; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(15, 19, 20, .9); color: #f5f4ee; }
+    label { display: grid; gap: 6px; color: #f5f4ee; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #7cc66f; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 244, 238, .15); background: rgba(15, 19, 20, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #070909; border: 1px solid rgba(245, 244, 238, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .ref { border: 1px solid rgba(245, 244, 238, .13); background: #171d1d; padding: 10px; min-height: 88px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.1rem, 3vw, 1.6rem); color: #f5f4ee; font-variant-numeric: tabular-nums; }
+    .ref { margin-top: 10px; display: grid; gap: 6px; }
+    .bar { height: 12px; background: #273132; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #7cc66f, #6195e4); }
+    .chip { display: inline-block; border: 1px solid rgba(245, 244, 238, .24); padding: 5px 8px; color: #dce2d8; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(124, 198, 111, .78); background: rgba(124, 198, 111, .14); color: #f5f4ee; }
+    .warn { border-color: rgba(97, 149, 228, .78); background: rgba(97, 149, 228, .14); color: #eaf0ff; }
+    .value { color: #e0c16d; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e7eadf; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 880px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Audio Embedding Similarity Pulse Map</h1>
+    <p>AudioEmbedder の `embed()` と cosine similarity を想定し、音イベントの近さ、量子化、しきい値ルーティングを合成データで試す派生ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Pulse drift <input id="drift" type="range" min="0" max="100" value="38"><span id="driftValue" class="value">0.38</span></label>
+    <label>Threshold <input id="threshold" type="range" min="45" max="95" value="72"><span id="thresholdValue" class="value">0.72</span></label>
+    <label>Quantize <input id="quantize" type="range" min="0" max="100" value="24"><span id="quantizeValue" class="value">24%</span></label>
+    <label>History length <input id="history" type="range" min="12" max="80" value="42"><span id="historyValue" class="value">42 pulses</span></label>
+    <label>Reference <select id="reference"><option>speech</option><option>music</option><option>clap</option><option>silence</option></select><span class="value">query clip</span></label>
+    <button id="toggle">Start pulses</button>
+    <button id="step" class="secondary">Step pulse</button>
+    <button id="swap" class="secondary">Swap reference</button>
+    <button id="spike" class="secondary">Novel event</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Embedding route</h2>
+      <p>`@mediapipe/tasks-audio` は AudioEmbedder も提供し、`embed(audioData, sampleRate)` は Float32Array から embedding を同期的に返します。この試作では実モデルの前段として、類似度しきい値と量子化誤差がイベント UI に与える影響を見ます。</p>
+      <span id="routeChip" class="chip pass">route: matched</span>
+      <span id="quantChip" class="chip">quantize: mild</span>
+      <div id="refs"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Cosine similarity pulse map</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div class="meters" id="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const names = ["speech", "music", "clap", "silence"];
+const palette = { speech: "#7cc66f", music: "#6195e4", clap: "#e0c16d", silence: "#7f8884" };
+const base = {
+  speech: [0.7, 0.2, -0.1, 0.4, 0.1, -0.2, 0.3, 0.4],
+  music: [0.1, 0.6, 0.5, -0.1, 0.4, 0.1, -0.2, 0.2],
+  clap: [-0.2, 0.2, 0.8, 0.1, -0.3, 0.4, 0.3, -0.1],
+  silence: [0.05, -0.1, 0.1, 0.2, 0.08, 0.1, -0.05, 0.06]
+};
+const state = { running: false, tick: 0, novel: 0, routed: 0, misses: 0, points: [] };
+
+function norm(v) {
+  const size = Math.hypot(...v) || 1;
+  return v.map((x) => x / size);
+}
+
+function cosine(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function vectorFor(name) {
+  const drift = Number($("drift").value) / 100;
+  const quantize = Number($("quantize").value) / 100;
+  const t = state.tick * .12;
+  let v = base[name].map((x, i) => x + Math.sin(t + i * 1.7) * drift * .24 + state.novel * Math.cos(t * 2 + i) * .55);
+  if (quantize > 0) {
+    const steps = Math.max(3, Math.round(32 - quantize * 28));
+    v = v.map((x) => Math.round(x * steps) / steps);
+  }
+  return norm(v);
+}
+
+function labels() {
+  $("driftValue").textContent = (Number($("drift").value) / 100).toFixed(2);
+  $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+  $("quantizeValue").textContent = `${$("quantize").value}%`;
+  $("historyValue").textContent = `${$("history").value} pulses`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2000);
+}
+
+function step() {
+  state.tick += 1;
+  if (state.novel) state.novel *= .82;
+  const refName = $("reference").value;
+  const candidates = names.map((name) => ({ name, score: cosine(vectorFor(refName), vectorFor(name)) }));
+  const best = candidates.reduce((a, b) => a.score > b.score ? a : b);
+  const ok = best.score >= Number($("threshold").value) / 100;
+  state.routed += ok ? 1 : 0;
+  state.misses += ok ? 0 : 1;
+  state.points.push({ best: best.name, score: best.score, candidates, ok });
+  state.points = state.points.slice(-Number($("history").value));
+  if (state.tick % 8 === 0 || !ok) log(`embed pulse ${state.tick}: ${best.name} ${best.score.toFixed(3)} ${ok ? "route" : "hold"}`);
+  draw();
+  render();
+}
+
+function draw() {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#070909";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(245,244,238,.16)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i += 1) {
+    const y = 90 + i * 90;
+    ctx.beginPath();
+    ctx.moveTo(54, y);
+    ctx.lineTo(w - 54, y);
+    ctx.stroke();
+  }
+  state.points.forEach((point, i) => {
+    const x = 70 + i * ((w - 140) / Math.max(1, Number($("history").value) - 1));
+    const y = h - 110 - point.score * 430;
+    ctx.fillStyle = palette[point.best];
+    ctx.beginPath();
+    ctx.arc(x, y, point.ok ? 12 : 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = point.ok ? "#f5f4ee" : "rgba(245,244,238,.3)";
+    ctx.stroke();
+  });
+  const thresholdY = h - 110 - (Number($("threshold").value) / 100) * 430;
+  ctx.strokeStyle = "#e0c16d";
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(54, thresholdY);
+  ctx.lineTo(w - 54, thresholdY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#f5f4ee";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`reference ${$("reference").value}`, 54, 48);
+  ctx.fillText(`threshold ${(Number($("threshold").value) / 100).toFixed(2)}`, 54, thresholdY - 12);
+}
+
+function render() {
+  const latest = state.points.at(-1);
+  const best = latest?.best || $("reference").value;
+  const score = latest?.score ?? 1;
+  $("routeChip").textContent = latest?.ok === false ? "route: hold" : "route: matched";
+  $("routeChip").className = latest?.ok === false ? "chip warn" : "chip pass";
+  $("quantChip").textContent = Number($("quantize").value) > 65 ? "quantize: coarse" : "quantize: mild";
+  $("quantChip").className = Number($("quantize").value) > 65 ? "chip warn" : "chip";
+  $("refs").innerHTML = names.map((name) => {
+    const scoreValue = latest?.candidates.find((item) => item.name === name)?.score ?? cosine(vectorFor($("reference").value), vectorFor(name));
+    return `<div class="ref"><strong>${name}</strong><div class="bar"><span style="width:${Math.max(0, Math.min(100, scoreValue * 100))}%; background:${palette[name]}"></span></div><span class="value">${scoreValue.toFixed(3)}</span></div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Best match", best],
+    ["Similarity", score.toFixed(3)],
+    ["Routes", String(state.routed)],
+    ["Held", String(state.misses)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 180) {
+    step();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+document.querySelectorAll("input, select").forEach((input) => input.addEventListener("input", () => { labels(); draw(); render(); }));
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause pulses" : "Start pulses"; log(state.running ? "pulse loop started" : "pulse loop paused"); });
+$("step").addEventListener("click", step);
+$("swap").addEventListener("click", () => { const index = (names.indexOf($("reference").value) + 1) % names.length; $("reference").value = names[index]; log(`reference swapped to ${$("reference").value}`); step(); });
+$("spike").addEventListener("click", () => { state.novel = 1; log("novel event spike added"); step(); });
+$("reset").addEventListener("click", () => { Object.assign(state, { running: false, tick: 0, novel: 0, routed: 0, misses: 0, points: [] }); $("toggle").textContent = "Start pulses"; draw(); render(); log("reset"); });
+labels();
+draw();
+render();
+log("ready: compare references and threshold routing");
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

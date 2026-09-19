@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-19",
+  "category": "MediaPipe Tasks / Google AI Edge / Web ML / Text",
+  "headline": "Text Embedder の cosine similarity と semantic cache を小さく試す",
+  "headlineEn": "Trying Text Embedder cosine similarity and semantic cache routing",
+  "summary": "Google AI Edge の tasks-text API reference、TextEmbedder / Embedding API、MediaPipe samples-web、npm の @mediapipe/tasks-text 情報を確認し、Text Embedder を文章ペアの cosine similarity、量子化誤差、同期 embed cost、semantic cache routing として扱う自作サンプルを2本追加しました。本命は文章ペアの類似度を観察する console、派生は問い合わせ stream を cache hit / re-embed / review に振り分ける lab です。",
+  "summaryEn": "After checking the Google AI Edge tasks-text API reference, TextEmbedder / Embedding APIs, MediaPipe samples-web, and npm information for @mediapipe/tasks-text, this adds two original samples that treat Text Embedder as pairwise cosine similarity, quantization error, synchronous embed cost, and semantic cache routing. The main sample observes similarity for a text pair; the derivative routes a query stream into cache hit, re-embed, or review.",
+  "keyTopics": [
+    "tasks-text package は `FilesetResolver`、`LanguageDetector`、`TextClassifier`、`TextEmbedder` を JavaScript API として提供している。",
+    "`TextEmbedder` は `createFromModelPath()`、`createFromModelBuffer()`、`createFromOptions()`、同期的な `embed(text)`、static utility の `cosineSimilarity()` を持つ。",
+    "`Embedding` interface は `floatEmbedding` または `quantizedEmbedding` のどちらか一方を持つため、量子化時はしきい値と cache policy の余裕を設計する必要がある。",
+    "google-ai-edge/mediapipe-samples-web は Text Embedding demo と worker 実装を含み、2文の embedding と cosine similarity を worker 経由で返す構成を参考にできる。",
+    "npm の @mediapipe/tasks-text は latest 1.0.1 として公開されており、公開サンプルでは version pin と import probe を持たせる方針にした。"
+  ],
+  "keyTopicsEn": [
+    "The tasks-text package exposes `FilesetResolver`, `LanguageDetector`, `TextClassifier`, and `TextEmbedder` as JavaScript APIs.",
+    "`TextEmbedder` provides `createFromModelPath()`, `createFromModelBuffer()`, `createFromOptions()`, synchronous `embed(text)`, and the static `cosineSimilarity()` utility.",
+    "The `Embedding` interface contains either `floatEmbedding` or `quantizedEmbedding`, so threshold and cache policies need room for quantization error.",
+    "google-ai-edge/mediapipe-samples-web includes a Text Embedding demo and worker implementation that returns two text embeddings and cosine similarity from a worker.",
+    "npm publishes @mediapipe/tasks-text latest as 1.0.1, so the public sample keeps version pinning and an import probe."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Text Embedder Pair Similarity Console",
+      "url": "../outputs/2026-09-19_text_embedder_pair_similarity_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Semantic Cache Route Lab",
+      "url": "../outputs/2026-09-19_semantic_cache_route_lab.html"
+    },
+    {
+      "label": "Google AI Edge: tasks-text package API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text"
+    },
+    {
+      "label": "Google AI Edge: TextEmbedder JS API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.textembedder"
+    },
+    {
+      "label": "Google AI Edge: Embedding interface",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.embedding"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: text-embedder.worker.ts",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/text-embedder.worker.ts"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-text",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-text"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-19-text-embedder-pair-similarity.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Text Embedder を「文章をベクトルにする task」だけでなく、2文比較、重複検出、検索 cache、プロンプト候補の近さ判定として扱うことです。公式 API は `embed(text)` が同期的に結果を待つこと、`TextEmbedder.cosineSimilarity()` が embedding 同士の比較 utility として用意されていることを示しており、UI では worker、cache、threshold、quantized embedding の誤差吸収が設計ポイントになります。",
+      "bodyEn": "Today's notable angle is treating Text Embedder not only as a task that turns text into vectors, but also as a building block for pair comparison, duplicate detection, search caches, and prompt candidate routing. The official API shows that `embed(text)` waits synchronously and that `TextEmbedder.cosineSimilarity()` is provided for comparing embeddings, making workers, caches, thresholds, and quantized-embedding tolerance the important UI design points."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Text Embedder Pair Similarity Console` は、2つの文章を編集し、synthetic embedding の差分、cosine similarity、量子化、同期 cost、accept / review route を可視化します。派生の `Semantic Cache Route Lab` は、問い合わせ stream が過去 embedding cache に近いかを見て、reuse、re-embed、human review を切り替えます。文章 UI では分類ラベルよりも「この入力は既存結果を使い回してよいか」を見せる方が実運用に近いです。",
+      "bodyEn": "The main sample, `Text Embedder Pair Similarity Console`, lets you edit two texts and visualize synthetic embedding deltas, cosine similarity, quantization, synchronous cost, and accept / review routing. The derivative, `Semantic Cache Route Lab`, watches whether a query stream is close to previous embedding-cache entries and switches between reuse, re-embed, and human review. For text UI, showing whether an input can safely reuse an existing result is often closer to production needs than showing a simple label."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは、入力文、token frequency、embedding vector、float / quantized mode、cosine similarity、threshold decision、sync cost、cache age、TTL decay、reuse count、review count、re-embed count です。Text Embedder、Language Detector、Text Classifier、Image Embedder、AudioEmbedder、IndexedDB、Web Worker、LiteRT-LM / on-device LLM と組み合わせると、ローカル検索、重複問い合わせ抑制、類似メモ推薦、画像・音・文章の cross-modal event log、プライバシー重視のプロンプト cache に発展できます。",
+      "bodyEn": "The samples can collect input text, token frequency, embedding vectors, float / quantized mode, cosine similarity, threshold decisions, sync cost, cache age, TTL decay, reuse counts, review counts, and re-embed counts. Combined with Text Embedder, Language Detector, Text Classifier, Image Embedder, AudioEmbedder, IndexedDB, Web Workers, and LiteRT-LM / on-device LLMs, this can grow into local search, duplicate-query suppression, similar-note recommendations, cross-modal event logs for image / audio / text, and privacy-oriented prompt caches."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `FilesetResolver.forTextTasks()`、`TextEmbedder.createFromModelPath()`、`TextEmbedder.createFromOptions()`、`TextEmbedder.embed(text)`、`TextEmbedder.cosineSimilarity()`、`Embedding.floatEmbedding`、`Embedding.quantizedEmbedding` を分けて計測します。文章が短い場合は similarity が揺れやすいため、しきい値は task ごとに UI で調整できるようにし、同期 embed は worker に逃がして main thread の入力遅延を避けます。cache は semantic score だけでなく age と provenance を表示すると安全です。",
+      "bodyEn": "For implementation, measure `FilesetResolver.forTextTasks()`, `TextEmbedder.createFromModelPath()`, `TextEmbedder.createFromOptions()`, `TextEmbedder.embed(text)`, `TextEmbedder.cosineSimilarity()`, `Embedding.floatEmbedding`, and `Embedding.quantizedEmbedding` separately. Short text can produce unstable similarity, so thresholds should be adjustable per task, and synchronous embedding should move to a worker to avoid main-thread input delay. For caches, expose age and provenance as well as semantic score."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は、tasks-text の Web guide / API reference の更新、TextEmbedder の `setOptions()` と quantize option、samples-web の text-embedder worker 差分、npm の latest / nightly tag、MediaPipe release notes の JavaScript text task 更新を見ます。特に実モデルで Universal Sentence Encoder の初期化時間、1文あたりの embed latency、worker transfer cost、IndexedDB cache のサイズを測りたいです。",
+      "bodyEn": "Next, watch tasks-text Web guide / API reference updates, TextEmbedder `setOptions()` and quantize options, text-embedder worker diffs in samples-web, npm latest / nightly tags, and JavaScript text task updates in MediaPipe release notes. The concrete follow-up is measuring Universal Sentence Encoder initialization time, per-sentence embed latency, worker transfer cost, and IndexedDB cache size with a real model."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Text Embedder Pair Similarity Console` で `Preset` を `distant pair` に切り替え、`Similarity gate` と `Quantize` を上げると、同じ threshold でも review に落ちる様子が見えます。派生サンプルでは `Force miss` を押して、cache gate、TTL decay、query drift の組み合わせで reuse から re-embed に切り替わる瞬間を確認します。",
+      "bodyEn": "In `Text Embedder Pair Similarity Console`, switch `Preset` to `distant pair` and raise `Similarity gate` plus `Quantize` to see the same threshold fall into review. In the derivative sample, press `Force miss` and watch cache gate, TTL decay, and query drift flip the route from reuse to re-embed."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: tasks-text package API、TextEmbedder API、Embedding interface、samples-web、text-embedder worker、npm @mediapipe/tasks-text を確認。設計: 外部デモ一覧ではなく、自作 HTML で文章ペア similarity console と semantic cache route lab を作る。実装: 本命 HTML に synthetic embedding、cosine、量子化差分、sync cost、import probe、accept / review route を追加。派生 HTML に query stream、cache gate、TTL decay、reuse / re-embed / review、cache freshness を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top/day/sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the tasks-text package API, TextEmbedder API, Embedding interface, samples-web, text-embedder worker, and npm @mediapipe/tasks-text. Design: instead of listing external demos, build original HTML for a text-pair similarity console and semantic cache route lab. Implementation: added synthetic embeddings, cosine similarity, quantization deltas, sync cost, an import probe, and accept / review routing to the main HTML. Added query streams, cache gates, TTL decay, reuse / re-embed / review, and cache freshness to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Vision の ROI drift、Audio の stream buffer / embedding similarity を見てきました。今日は Text Embedder に寄せ、映像 ROI や音声 window と同じように、文章入力も embedding、similarity、threshold、cache age で扱えることを確認しました。これで Vision / Audio / Text の3系統を、feature vector と routing policy という共通語彙で比較できるようになります。",
+      "bodyEn": "Recent entries looked at Vision ROI drift and Audio stream buffers / embedding similarity. Today moves to Text Embedder and confirms that text input can also be handled through embeddings, similarity, thresholds, and cache age, just like visual ROIs and audio windows. This lets the Vision / Audio / Text tracks be compared through the shared vocabulary of feature vectors and routing policies."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Text Embedder Pair Similarity Console` です。実際に動く部分は、文章ペア入力、synthetic embedding、cosine similarity、float / quantized 風の差分、同期 cost meter、accept / review route、Tasks Text import probe です。次に足すなら実 `FilesetResolver.forTextTasks()`、Universal Sentence Encoder model、`TextEmbedder.createFromModelPath()`、worker handoff、実 embedding の quantized / float 切り替えを足します。派生試作は `Semantic Cache Route Lab` で、実際に動く部分は query stream、semantic cache、TTL decay、cache gate、reuse / re-embed / review route、cache freshness meter です。次に足すなら実 TextEmbedder、IndexedDB cache、worker-side LRU、検索結果の provenance 表示、privacy notice を足します。",
+      "bodyEn": "The selected main prototype is `Text Embedder Pair Similarity Console`. The working pieces are text-pair input, synthetic embeddings, cosine similarity, float / quantized-style deltas, a sync-cost meter, accept / review routing, and a Tasks Text import probe. Next additions should connect real `FilesetResolver.forTextTasks()`, a Universal Sentence Encoder model, `TextEmbedder.createFromModelPath()`, worker handoff, and actual quantized / float embedding modes. The derivative prototype is `Semantic Cache Route Lab`; the working pieces are a query stream, semantic cache, TTL decay, cache gate, reuse / re-embed / review routing, and cache freshness meters. Next additions should include real TextEmbedder, IndexedDB cache, worker-side LRU, result provenance display, and a privacy notice.",
+      "links": [
+        {
+          "label": "Open Text Embedder Pair Similarity Console",
+          "url": "../outputs/2026-09-19_text_embedder_pair_similarity_console.html"
+        },
+        {
+          "label": "Open Semantic Cache Route Lab",
+          "url": "../outputs/2026-09-19_semantic_cache_route_lab.html"
+        }
+      ]
+    }
+  ]
+}
