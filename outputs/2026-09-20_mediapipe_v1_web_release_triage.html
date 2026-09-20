@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaPipe v1 Web Release Triage</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101314; color: #f5f2e8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 20% 0%, rgba(91, 180, 156, .18), transparent 32%), radial-gradient(circle at 90% 10%, rgba(216, 177, 92, .16), transparent 30%), #101314; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 242, 232, .14); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #5bb49c; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d4d8d0; line-height: 1.6; }
+    button, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(245, 242, 232, .22); background: #f5f2e8; color: #101314; padding: 8px 12px; }
+    button { cursor: pointer; }
+    button.secondary, select { background: rgba(16, 19, 20, .88); color: #f5f2e8; }
+    input[type="range"] { width: 100%; accent-color: #5bb49c; }
+    label { display: grid; gap: 6px; color: #f5f2e8; font-size: .92rem; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 242, 232, .15); background: rgba(16, 19, 20, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile { border: 1px solid rgba(245, 242, 232, .13); background: #171c1d; padding: 11px; display: grid; gap: 7px; }
+    .tile strong { color: #f5f2e8; }
+    .tile small { color: #bfc8c1; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(245, 242, 232, .24); padding: 5px 8px; color: #dde3dc; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(91, 180, 156, .8); background: rgba(91, 180, 156, .14); }
+    .warn { border-color: rgba(216, 177, 92, .82); background: rgba(216, 177, 92, .13); }
+    .bad { border-color: rgba(222, 102, 88, .82); background: rgba(222, 102, 88, .13); }
+    .stageFrame { min-height: 390px; border: 1px solid rgba(245, 242, 232, .13); background: #070909; padding: 14px; overflow: hidden; }
+    .matrix { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .cell { min-height: 140px; border: 1px solid rgba(245, 242, 232, .13); background: #131819; padding: 10px; position: relative; overflow: hidden; }
+    .cell h3 { margin: 0; font-size: .95rem; color: #f5f2e8; letter-spacing: 0; }
+    .bar { height: 8px; background: rgba(245, 242, 232, .1); margin: 10px 0 7px; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #5bb49c, #d8b15c); }
+    .score { font-size: clamp(1.35rem, 3vw, 2rem); font-variant-numeric: tabular-nums; color: #f5f2e8; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(245, 242, 232, .13); background: #171c1d; padding: 10px; min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+    .pulse { position: absolute; width: 100px; aspect-ratio: 1; border: 1px solid rgba(91, 180, 156, .55); border-radius: 50%; transform: translate(-50%, -50%); opacity: .45; }
+    .log { margin-top: 14px; padding: 12px; height: 128px; overflow: auto; white-space: pre-wrap; color: #e8eadf; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .value { color: #d8b15c; font-variant-numeric: tabular-nums; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .matrix, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>MediaPipe v1 Web Release Triage</h1>
+    <p>MediaPipe v1.0.0 の JavaScript 変更を、IIFE bundle、Text Embedder Gecko、Privacy Notice、LLM `.litertlm`、running mode cache の5項目として重み付けする自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Migration pressure <input id="pressure" type="range" min="20" max="100" value="68"><span id="pressureValue" class="value">68</span></label>
+    <label>Privacy weight <input id="privacy" type="range" min="0" max="100" value="76"><span id="privacyValue" class="value">76</span></label>
+    <label>Browser mix <select id="browser"><option value="mixed">mixed web app</option><option value="gecko">Gecko-heavy text app</option><option value="kiosk">Chromium kiosk</option><option value="genai">GenAI prototype</option></select><span class="value">profile</span></label>
+    <label>Bundle mode <select id="bundle"><option value="module">module import</option><option value="iife">IIFE script tag</option><option value="hybrid">hybrid fallback</option></select><span class="value">loader</span></label>
+    <label>Release gate <input id="gate" type="range" min="40" max="92" value="72"><span id="gateValue" class="value">72</span></label>
+    <button id="run">Re-score</button>
+    <button id="flip" class="secondary">Stress profile</button>
+    <button id="probe" class="secondary">CDN probe</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Primary-source signals</h2>
+      <div id="signals" class="stack"></div>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="probeChip" class="chip">cdn: not probed</span>
+      <span id="noticeChip" class="chip">notice: visible</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Adoption board</h2>
+        <div class="stageFrame">
+          <p id="summary">Release items are scored by app profile, privacy weight, and loader choice.</p>
+          <div id="matrix" class="matrix"></div>
+        </div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const baseItems = [
+  { id: "iife", label: "IIFE bundles", source: "v1.0.0 JavaScript release note", base: 60, impact: "CDN script-tag fallback and non-build demos become easier to stage." },
+  { id: "gecko", label: "Text Embedder Gecko", source: "v1.0.0 Text Embedder note", base: 58, impact: "Text similarity apps should retest Firefox-like browser paths." },
+  { id: "privacy", label: "Tasks Privacy Notice", source: "v1.0.0 JavaScript release note", base: 72, impact: "On-device UX still needs metrics disclosure and consent copy." },
+  { id: "litertlm", label: ".litertlm Web LLM", source: "v1.0.0 Web LLM note", base: 55, impact: "Model file routing needs task vs litertlm compatibility checks." },
+  { id: "mode", label: "Running mode cache", source: "v1.0.0 VisionTaskRunner note", base: 48, impact: "Vision apps should test IMAGE / VIDEO switching and stale mode errors." }
+];
+const state = { runs: 0, passed: 0, blocked: 0, items: structuredClone(baseItems), lastScore: 0 };
+
+function labelControls() {
+  $("pressureValue").textContent = $("pressure").value;
+  $("privacyValue").textContent = $("privacy").value;
+  $("gateValue").textContent = $("gate").value;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function profileBoost(item) {
+  const browser = $("browser").value;
+  const bundle = $("bundle").value;
+  let boost = 0;
+  if (browser === "gecko" && item.id === "gecko") boost += 26;
+  if (browser === "genai" && item.id === "litertlm") boost += 25;
+  if (browser === "kiosk" && item.id === "mode") boost += 12;
+  if (bundle === "iife" && item.id === "iife") boost += 24;
+  if (bundle === "hybrid" && (item.id === "iife" || item.id === "mode")) boost += 12;
+  if (item.id === "privacy") boost += Number($("privacy").value) * .25;
+  return boost;
+}
+
+function scoreItem(item, index) {
+  const pressure = Number($("pressure").value);
+  const wave = Math.sin((state.runs + 1) * .7 + index) * 6;
+  return Math.max(0, Math.min(100, item.base * .62 + pressure * .28 + profileBoost(item) + wave));
+}
+
+function runScore() {
+  state.runs += 1;
+  state.items = baseItems.map((item, index) => ({ ...item, score: scoreItem(item, index) }));
+  state.lastScore = Math.round(state.items.reduce((sum, item) => sum + item.score, 0) / state.items.length);
+  state.passed += state.lastScore >= Number($("gate").value) ? 1 : 0;
+  state.blocked += state.items.filter((item) => item.score < 50).length;
+  log(`release triage run ${state.runs}: readiness ${state.lastScore}, gate ${$("gate").value}`);
+  render();
+}
+
+function classFor(score) {
+  if (score >= 76) return "pass";
+  if (score >= 56) return "warn";
+  return "bad";
+}
+
+function render() {
+  const gate = Number($("gate").value);
+  $("summary").textContent = `readiness ${state.lastScore} / gate ${gate} / ${$("browser").value} / ${$("bundle").value}`;
+  $("routeChip").textContent = state.lastScore >= gate ? "route: adopt with checks" : "route: hold for retest";
+  $("routeChip").className = state.lastScore >= gate ? "chip pass" : "chip warn";
+  $("noticeChip").className = Number($("privacy").value) > 70 ? "chip pass" : "chip warn";
+  $("noticeChip").textContent = Number($("privacy").value) > 70 ? "notice: high priority" : "notice: needs copy";
+  $("signals").innerHTML = baseItems.map((item) => `<div class="tile"><strong>${item.label}</strong><small>${item.source}</small><small>${item.impact}</small></div>`).join("");
+  $("matrix").innerHTML = state.items.map((item, index) => {
+    const score = Math.round(item.score ?? scoreItem(item, index));
+    const x = 25 + (index % 2) * 46;
+    const y = 30 + Math.floor(index / 2) * 32;
+    return `<div class="cell ${classFor(score)}">
+      <span class="pulse" style="left:${x}%; top:${y}%; width:${70 + score}px"></span>
+      <h3>${item.label}</h3>
+      <div class="bar"><span style="width:${score}%"></span></div>
+      <div class="score">${score}</div>
+      <small>${item.impact}</small>
+    </div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Readiness", state.lastScore],
+    ["Runs", state.runs],
+    ["Passed", state.passed],
+    ["Low items", state.items.filter((item) => (item.score ?? 0) < 56).length]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+async function probeCdn() {
+  $("probeChip").textContent = "cdn: probing...";
+  $("probeChip").className = "chip warn";
+  const url = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs";
+  try {
+    const response = await fetch(url, { method: "HEAD", cache: "no-store" });
+    $("probeChip").textContent = `cdn: ${response.status}`;
+    $("probeChip").className = response.ok ? "chip pass" : "chip bad";
+    log(`HEAD ${url} -> ${response.status}`);
+  } catch (error) {
+    $("probeChip").textContent = "cdn: blocked";
+    $("probeChip").className = "chip bad";
+    log(`CDN probe failed: ${error.message}`);
+  }
+}
+
+$("run").addEventListener("click", runScore);
+$("flip").addEventListener("click", () => {
+  $("browser").value = $("browser").value === "genai" ? "gecko" : "genai";
+  $("bundle").value = $("bundle").value === "iife" ? "hybrid" : "iife";
+  log("stress profile toggled between GenAI and Gecko paths");
+  runScore();
+});
+$("probe").addEventListener("click", probeCdn);
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { runs: 0, passed: 0, blocked: 0, items: structuredClone(baseItems), lastScore: 0 });
+  log("reset");
+  runScore();
+});
+document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { labelControls(); runScore(); }));
+labelControls();
+runScore();
+</script>
+</body>
+</html>

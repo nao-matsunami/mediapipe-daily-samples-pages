@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM Rewind Context Budget Sandbox</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #121312; color: #f3f0e7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(145deg, rgba(81, 160, 178, .18), transparent 38%), linear-gradient(320deg, rgba(214, 156, 81, .16), transparent 42%), #121312; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(243, 240, 231, .14); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #51a0b2; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d2d6ce; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(243, 240, 231, .22); background: #f3f0e7; color: #121312; padding: 8px 12px; }
+    button { cursor: pointer; }
+    button.secondary, select { background: rgba(18, 19, 18, .9); color: #f3f0e7; }
+    input[type="range"] { width: 100%; accent-color: #51a0b2; }
+    label { display: grid; gap: 6px; color: #f3f0e7; font-size: .92rem; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(243, 240, 231, .15); background: rgba(18, 19, 18, .9); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 345px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .chip { display: inline-block; border: 1px solid rgba(243, 240, 231, .24); padding: 5px 8px; color: #dce1dc; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(81, 160, 178, .82); background: rgba(81, 160, 178, .14); }
+    .warn { border-color: rgba(214, 156, 81, .82); background: rgba(214, 156, 81, .13); }
+    .bad { border-color: rgba(220, 97, 86, .82); background: rgba(220, 97, 86, .13); }
+    .value { color: #d69c51; font-variant-numeric: tabular-nums; }
+    .timeline { display: grid; gap: 9px; margin-top: 12px; }
+    .turn { border: 1px solid rgba(243, 240, 231, .13); background: #181c1c; padding: 10px; display: grid; gap: 6px; }
+    .turn header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0; border: 0; }
+    .turn strong { color: #f3f0e7; }
+    .stageFrame { min-height: 390px; border: 1px solid rgba(243, 240, 231, .13); background: #070909; padding: 14px; overflow: hidden; }
+    .tokens { display: grid; grid-template-columns: repeat(48, minmax(0, 1fr)); gap: 3px; height: 170px; align-items: end; margin-top: 18px; }
+    .tok { min-height: 5px; background: #202727; position: relative; }
+    .tok span { position: absolute; inset: auto 0 0; background: #51a0b2; }
+    .rewound span { background: #d69c51; }
+    .dropped span { background: #dc6156; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(243, 240, 231, .13); background: #181c1c; padding: 10px; min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 128px; overflow: auto; white-space: pre-wrap; color: #e9e8de; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .tokens { grid-template-columns: repeat(24, minmax(0, 1fr)); }
+      .stageFrame { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>LLM Rewind Context Budget Sandbox</h1>
+    <p>MediaPipe Web LLM Inference の `.litertlm` 対応と experimental `disableRewinding` から発想した、長い会話 context の保持・巻き戻し・要約落としを比較する派生ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Context limit <input id="limit" type="range" min="900" max="5200" step="100" value="2800"><span id="limitValue" class="value">2800 tok</span></label>
+    <label>New prompt <input id="prompt" type="range" min="80" max="900" step="20" value="360"><span id="promptValue" class="value">360 tok</span></label>
+    <label>Summary rate <input id="summaryRate" type="range" min="10" max="80" value="38"><span id="summaryValue" class="value">38%</span></label>
+    <label>Rewind policy <select id="policy"><option value="auto">auto rewind</option><option value="disabled">disableRewinding</option><option value="summary">summarize first</option></select><span class="value">policy</span></label>
+    <label>Model file <select id="model"><option value="task">web .task</option><option value="litertlm">web .litertlm</option></select><span class="value">file</span></label>
+    <button id="add">Add turn</button>
+    <button id="burst" class="secondary">Burst 3 turns</button>
+    <button id="trim" class="secondary">Summarize old</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Conversation turns</h2>
+      <p>実 LLM は読み込まず、token budget と rewind 方針だけを操作します。大きなモデルや長文入力の前に、UI がいつ警告し、いつ要約へ逃がすかを決めるための小さな計器です。</p>
+      <span id="policyChip" class="chip">policy: waiting</span>
+      <span id="fileChip" class="chip">model: .task</span>
+      <span id="riskChip" class="chip">risk: ok</span>
+      <div id="timeline" class="timeline"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Context pressure</h2>
+        <div class="stageFrame">
+          <p id="summary">Add a turn to simulate long-context pressure.</p>
+          <div id="tokens" class="tokens"></div>
+        </div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const seedTurns = [
+  { title: "system and safety prompt", tokens: 420, kind: "kept" },
+  { title: "user asks for local document summary", tokens: 510, kind: "kept" },
+  { title: "assistant drafts answer with citations", tokens: 620, kind: "kept" },
+  { title: "user adds image and audio context", tokens: 560, kind: "kept" }
+];
+const state = { turns: structuredClone(seedTurns), runs: 0, rewound: 0, dropped: 0, summarized: 0 };
+
+function labels() {
+  $("limitValue").textContent = `${$("limit").value} tok`;
+  $("promptValue").textContent = `${$("prompt").value} tok`;
+  $("summaryValue").textContent = `${$("summaryRate").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function totals() {
+  const kept = state.turns.reduce((sum, turn) => sum + turn.tokens, 0);
+  const next = Number($("prompt").value);
+  const limit = Number($("limit").value);
+  return { kept, next, limit, projected: kept + next, pressure: (kept + next) / limit };
+}
+
+function applyPolicy() {
+  state.runs += 1;
+  const policy = $("policy").value;
+  const total = totals();
+  if (total.projected <= total.limit) return;
+  if (policy === "disabled") {
+    state.rewound += 1;
+    log("disableRewinding path: prompt remains over budget, warning only");
+    return;
+  }
+  if (policy === "summary") {
+    summarizeOld();
+    return;
+  }
+  const oldest = state.turns.find((turn) => turn.kind === "kept");
+  if (oldest) {
+    oldest.kind = "rewound";
+    oldest.tokens = Math.round(oldest.tokens * .32);
+    state.rewound += 1;
+    log(`auto rewind compressed: ${oldest.title}`);
+  }
+}
+
+function addTurn() {
+  const tokenCount = Number($("prompt").value) + Math.round(Math.random() * 110 - 30);
+  const title = $("model").value === "litertlm" ? "multimodal .litertlm prompt" : "web .task text prompt";
+  state.turns.push({ title: `${title} #${state.turns.length + 1}`, tokens: Math.max(80, tokenCount), kind: "kept" });
+  log(`added ${tokenCount} token turn`);
+  applyPolicy();
+  render();
+}
+
+function summarizeOld() {
+  const rate = Number($("summaryRate").value) / 100;
+  let changed = 0;
+  state.turns = state.turns.map((turn, index) => {
+    if (index < Math.max(1, state.turns.length - 3) && turn.kind !== "summary") {
+      changed += 1;
+      return { ...turn, tokens: Math.max(60, Math.round(turn.tokens * rate)), kind: "summary" };
+    }
+    return turn;
+  });
+  state.summarized += changed;
+  log(`summarized ${changed} old turns at ${Math.round(rate * 100)}%`);
+}
+
+function renderTokens(total) {
+  const bars = [];
+  let remaining = total.projected;
+  for (let i = 0; i < 48; i += 1) {
+    const height = Math.max(8, Math.min(100, (remaining / total.limit) * 100 + Math.sin(i * .8 + state.runs) * 14));
+    const ratio = i / 48;
+    const cls = ratio > total.limit / Math.max(total.projected, 1) ? "dropped" : (ratio > .72 ? "rewound" : "");
+    bars.push(`<span class="tok ${cls}"><span style="height:${height}%"></span></span>`);
+    remaining -= total.limit / 48;
+  }
+  $("tokens").innerHTML = bars.join("");
+}
+
+function render() {
+  const total = totals();
+  const over = total.projected - total.limit;
+  $("summary").textContent = `projected ${total.projected} tokens / limit ${total.limit} / ${over > 0 ? `${over} over` : "within budget"}`;
+  $("policyChip").textContent = `policy: ${$("policy").value}`;
+  $("policyChip").className = $("policy").value === "disabled" && over > 0 ? "chip bad" : "chip pass";
+  $("fileChip").textContent = `model: ${$("model").value === "litertlm" ? ".litertlm" : ".task"}`;
+  $("fileChip").className = $("model").value === "litertlm" ? "chip warn" : "chip pass";
+  $("riskChip").textContent = over > 0 ? "risk: context overflow" : "risk: ok";
+  $("riskChip").className = over > 0 ? "chip bad" : "chip pass";
+  $("timeline").innerHTML = state.turns.slice(-8).map((turn) => `<div class="turn ${turn.kind}">
+    <header><strong>${turn.title}</strong><span class="value">${turn.tokens}</span></header>
+    <small>${turn.kind}</small>
+  </div>`).join("");
+  renderTokens(total);
+  $("meters").innerHTML = [
+    ["Projected", total.projected],
+    ["Limit", total.limit],
+    ["Rewound", state.rewound],
+    ["Summaries", state.summarized]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+$("add").addEventListener("click", addTurn);
+$("burst").addEventListener("click", () => { addTurn(); addTurn(); addTurn(); });
+$("trim").addEventListener("click", () => { summarizeOld(); render(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { turns: structuredClone(seedTurns), runs: 0, rewound: 0, dropped: 0, summarized: 0 });
+  log("reset");
+  render();
+});
+document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { labels(); applyPolicy(); render(); }));
+labels();
+render();
+</script>
+</body>
+</html>

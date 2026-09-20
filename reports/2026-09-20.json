@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-20",
+  "category": "MediaPipe / Google AI Edge / Web ML / Release Operations",
+  "headline": "MediaPipe v1.0.0 の Web 変更を導入判断ボードにする",
+  "headlineEn": "Turning MediaPipe v1.0.0 Web changes into an adoption triage board",
+  "summary": "MediaPipe v1.0.0 release notes、Google AI Edge の Web setup / LLM Inference guide、npm の tasks-vision / tasks-genai、mediapipe-samples-web を確認し、v1.0.0 の JavaScript 変更を運用判断に落とす自作サンプルを2本追加しました。本命は IIFE bundle、Text Embedder Gecko、Privacy Notice、`.litertlm`、running mode cache を重み付けする release triage、派生は Web LLM の context budget と rewind / disableRewinding / 要約方針を試す sandbox です。",
+  "summaryEn": "After checking the MediaPipe v1.0.0 release notes, Google AI Edge Web setup and LLM Inference guides, npm package pages for tasks-vision and tasks-genai, and mediapipe-samples-web, this adds two original samples that translate v1.0.0 JavaScript changes into operational decisions. The main sample weights IIFE bundles, Text Embedder Gecko support, Privacy Notice, `.litertlm`, and running-mode caching; the derivative tests Web LLM context budget with rewind, disableRewinding, and summarization policies.",
+  "keyTopics": [
+    "MediaPipe v1.0.0 の JavaScript release note には IIFE bundles、Tasks Privacy Notice、Text Embedder for Web の Gecko 対応、InteractiveSegmenter method export、Web LLM Inference の `.litertlm` 対応、experimental `disableRewinding`、VisionTaskRunner の running mode cache が含まれる。",
+    "Google AI Edge の Web setup guide は vision / text / audio / genai の各 package と、npm install / CDN script tag の両方を案内しているため、IIFE / ESM / CDN path の導入前 probe が重要になる。",
+    "LLM Inference Web guide は maintenance-only mode と LiteRT-LM JavaScript API への移行推奨を明記しているため、Web LLM の新機能は移行計画と一緒に扱う必要がある。",
+    "npm では `@mediapipe/tasks-vision` が 1.0.1 latest、`@mediapipe/tasks-genai` が 0.10.29 latest として見え、MediaPipe 本体 release と各 JS package version を同一視しない運用が必要になる。",
+    "mediapipe-samples-web は vision / audio / text のブラウザ内 demo を横断的に確認でき、公開サイトでは参照リンクにとどめ、自作サンプル側で release triage と context budget を表現した。"
+  ],
+  "keyTopicsEn": [
+    "The MediaPipe v1.0.0 JavaScript release notes include IIFE bundles, a Tasks Privacy Notice, Gecko support for Text Embedder on Web, InteractiveSegmenter method exports, `.litertlm` support for Web LLM Inference, the experimental `disableRewinding` flag, and running-mode caching in VisionTaskRunner.",
+    "The Google AI Edge Web setup guide documents separate vision, text, audio, and genai packages and both npm and CDN script-tag paths, making IIFE / ESM / CDN probes important before adoption.",
+    "The LLM Inference Web guide states that the API is in maintenance-only mode and recommends migrating Web projects to LiteRT-LM JavaScript API, so Web LLM changes should be evaluated alongside migration planning.",
+    "npm currently shows `@mediapipe/tasks-vision` latest as 1.0.1 and `@mediapipe/tasks-genai` latest as 0.10.29, so MediaPipe core releases and individual JavaScript package versions should not be treated as identical.",
+    "mediapipe-samples-web remains a useful cross-task browser reference for vision, audio, and text demos, while today's public cards center on original release-triage and context-budget samples."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: MediaPipe v1 Web Release Triage",
+      "url": "../outputs/2026-09-20_mediapipe_v1_web_release_triage.html"
+    },
+    {
+      "label": "Today's derivative sample: LLM Rewind Context Budget Sandbox",
+      "url": "../outputs/2026-09-20_llm_rewind_context_budget_sandbox.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.0.0 release notes",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-vision"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-genai",
+      "url": "https://www.npmjs.com/package/%40mediapipe/tasks-genai"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-20-mediapipe-v1-web-release-triage.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe v1.0.0 の Web 向け release note を単なる更新一覧ではなく、実装前の triage board として扱うことです。IIFE bundles は build pipeline なしの検証や script tag fallback、Text Embedder の Gecko 対応は browser support、Privacy Notice は同意 UI、`.litertlm` と `disableRewinding` は Web LLM の model file / context policy、running mode cache は Vision task の IMAGE / VIDEO 切替テストに直結します。",
+      "bodyEn": "Today's notable angle is treating the MediaPipe v1.0.0 Web release notes not as a passive changelog, but as a pre-implementation triage board. IIFE bundles map to buildless demos and script-tag fallback, Gecko support for Text Embedder maps to browser support, the Privacy Notice maps to consent UI, `.litertlm` and `disableRewinding` map to Web LLM model-file and context policies, and running-mode caching maps to IMAGE / VIDEO switching tests for Vision tasks."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `MediaPipe v1 Web Release Triage` は、アプリ profile、bundle mode、privacy weight、release gate を動かすと、5つの Web 変更項目の優先度が再計算されます。派生の `LLM Rewind Context Budget Sandbox` は、長い会話 context が token limit を超えそうな時に、auto rewind、disableRewinding、summarize first を切り替え、Web LLM の UI がいつ警告し、いつ要約に逃がすべきかを見せます。",
+      "bodyEn": "The main sample, `MediaPipe v1 Web Release Triage`, recalculates the priority of five Web changes as you adjust app profile, bundle mode, privacy weight, and release gate. The derivative, `LLM Rewind Context Budget Sandbox`, switches between auto rewind, disableRewinding, and summarize-first when long conversation context approaches the token limit, showing when a Web LLM UI should warn or summarize."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは release item、source type、browser profile、bundle mode、privacy priority、CDN probe status、readiness score、token limit、prompt token count、rewind count、summary count、overflow risk です。MediaPipe Tasks Vision / Text / Audio、tasks-genai、LiteRT-LM、WebGPU adapter probe、IndexedDB、service worker、Playwright smoke test、release note diff watcher と組み合わせると、更新ごとに必要な動作確認を自動で選ぶ小さな release cockpit にできます。",
+      "bodyEn": "The samples can collect release items, source type, browser profile, bundle mode, privacy priority, CDN probe status, readiness scores, token limits, prompt token counts, rewind counts, summary counts, and overflow risk. Combined with MediaPipe Tasks Vision / Text / Audio, tasks-genai, LiteRT-LM, WebGPU adapter probes, IndexedDB, service workers, Playwright smoke tests, and release-note diff watchers, this can become a small release cockpit that automatically chooses required checks for each update."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "導入時は本体 release と個別 JS package の version を分けて確認し、CDN path は `@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs` のように pin します。IIFE と ESM の両方を使う場合は global export 名、WASM path、CORS、worker 内 import を別々に probe します。LLM Inference は maintenance-only の案内が出ているため、新規 Web LLM は LiteRT-LM への移行余地、`.task` / `.litertlm` の model file routing、WebGPU compatibility、long-context policy を先に決めるのが安全です。",
+      "bodyEn": "For adoption, check the core release and individual JavaScript package versions separately, and pin CDN paths such as `@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs`. If both IIFE and ESM are used, probe global export names, WASM paths, CORS, and worker imports separately. Since LLM Inference is documented as maintenance-only, new Web LLM work should first decide the LiteRT-LM migration path, `.task` / `.litertlm` model routing, WebGPU compatibility, and long-context policy."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は MediaPipe release notes、`@mediapipe/tasks-vision` / text / audio / genai の npm latest と nightly、Google AI Edge の setup guide と Privacy Notice 表記、LiteRT-LM JavaScript API の Web guide、mediapipe-samples-web の worker / bundle 差分を見ます。特に v1.0.0 以後の IIFE bundle 名と export map、Firefox 系 Text Embedder smoke test、LLM `.litertlm` sample の有無を継続確認します。",
+      "bodyEn": "Next, watch MediaPipe release notes, npm latest and nightly tags for `@mediapipe/tasks-vision` / text / audio / genai, the Google AI Edge setup guide and Privacy Notice wording, the LiteRT-LM JavaScript Web guide, and worker / bundle diffs in mediapipe-samples-web. The specific follow-ups are IIFE bundle names and export maps after v1.0.0, Firefox-family Text Embedder smoke tests, and whether an LLM `.litertlm` sample appears."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`MediaPipe v1 Web Release Triage` で Browser mix を `Gecko-heavy text app`、Bundle mode を `IIFE script tag` に変えると、Text Embedder Gecko と IIFE bundle の優先度が上がります。派生サンプルでは Rewind policy を `disableRewinding` にして Burst 3 turns を押すと、context overflow を警告だけで抱える状態が見え、`summarize first` に戻すと古い turn が圧縮されます。",
+      "bodyEn": "In `MediaPipe v1 Web Release Triage`, switch Browser mix to `Gecko-heavy text app` and Bundle mode to `IIFE script tag` to raise the priority of Text Embedder Gecko support and IIFE bundles. In the derivative sample, set Rewind policy to `disableRewinding` and press Burst 3 turns to see context overflow held as a warning; switch back to `summarize first` to compress older turns."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: MediaPipe v1.0.0 release notes、Google AI Edge Web setup / LLM Inference guide、npm tasks-vision / tasks-genai、mediapipe-samples-web を確認。設計: 公式デモ一覧ではなく、release note を自作の導入判断 UI と context budget UI に変換。実装: 本命 HTML に5項目の release signal、profile boost、privacy weight、CDN HEAD probe、readiness gate を追加。派生 HTML に token limit、prompt size、auto rewind / disableRewinding / summarize first、`.task` / `.litertlm` file selector を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the MediaPipe v1.0.0 release notes, Google AI Edge Web setup and LLM Inference guides, npm tasks-vision / tasks-genai pages, and mediapipe-samples-web. Design: instead of listing official demos, translate release notes into original adoption-triage and context-budget UIs. Implementation: added five release signals, profile boosts, privacy weight, CDN HEAD probe, and readiness gate to the main HTML. Added token limit, prompt size, auto rewind / disableRewinding / summarize-first policies, and `.task` / `.litertlm` file selector to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for top, day, and sample pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Audio / Text Embedder を feature vector と cache routing として扱いました。今日はもう一段メタに寄せ、MediaPipe 自体の Web release をアプリ導入判断へ変換しました。これで日次サンプルの流れは、個別 task の推論 UI だけでなく、version pin、bundle path、browser support、privacy copy、LLM context policy まで含む Web ML 運用の小さな型に広がります。",
+      "bodyEn": "Recent entries treated Audio and Text Embedder as feature-vector and cache-routing systems. Today steps one level up and converts the MediaPipe Web release itself into app-adoption decisions. This expands the daily sample track from individual task inference UIs into a small Web ML operations pattern covering version pins, bundle paths, browser support, privacy copy, and LLM context policy."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `MediaPipe v1 Web Release Triage` です。実際に動く部分は、5つの release item、browser / bundle profile、privacy weight、readiness score、CDN probe、adopt / hold route です。次に足すなら実 package manifest の export map 検査、IIFE / ESM import 比較、Firefox 実機 smoke test、Privacy Notice checklist、VisionTaskRunner runningMode 切替テストを足します。派生試作は `LLM Rewind Context Budget Sandbox` で、実際に動く部分は context limit、prompt token、auto rewind、disableRewinding、summarize first、`.task` / `.litertlm` selector、overflow risk meter です。次に足すなら実 `@mediapipe/tasks-genai` load、WebGPU adapter probe、model file header check、LiteRT-LM 移行 checklist、IndexedDB summary cache を足します。",
+      "bodyEn": "The selected main prototype is `MediaPipe v1 Web Release Triage`. The working parts are five release items, browser / bundle profiles, privacy weight, readiness score, CDN probe, and adopt / hold routing. Next additions should include package-manifest export-map checks, IIFE / ESM import comparisons, Firefox device smoke tests, a Privacy Notice checklist, and VisionTaskRunner runningMode switching tests. The derivative prototype is `LLM Rewind Context Budget Sandbox`; the working parts are context limit, prompt tokens, auto rewind, disableRewinding, summarize-first, `.task` / `.litertlm` selector, and overflow-risk meter. Next additions should include real `@mediapipe/tasks-genai` loading, WebGPU adapter probe, model-file header checks, LiteRT-LM migration checklist, and IndexedDB summary cache.",
+      "links": [
+        {
+          "label": "Open MediaPipe v1 Web Release Triage",
+          "url": "../outputs/2026-09-20_mediapipe_v1_web_release_triage.html"
+        },
+        {
+          "label": "Open LLM Rewind Context Budget Sandbox",
+          "url": "../outputs/2026-09-20_llm_rewind_context_budget_sandbox.html"
+        }
+      ]
+    }
+  ]
+}
