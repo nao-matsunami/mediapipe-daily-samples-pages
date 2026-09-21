@@ -1,0 +1,118 @@
+{
+  "date": "2026-09-21",
+  "category": "MediaPipe / Google AI Edge / Text Tasks / Web ML",
+  "headline": "Language Detector の信頼度を UI ルートへ変換する",
+  "headlineEn": "Turning Language Detector confidence into UI routes",
+  "summary": "Google AI Edge の Web setup guide、Language Detector Web guide、MediaPipe release notes、mediapipe-samples-web を確認し、Language Detector の `maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` を実装前に試す自作サンプルを2本追加しました。本命は言語候補の信頼度で UI ルートを切り替える confidence router、派生は allowlist / denylist 方針と設定衝突を可視化する policy playground です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, Language Detector Web guide, MediaPipe release notes, and mediapipe-samples-web, this adds two original samples for testing Language Detector `maxResults`, `scoreThreshold`, `categoryAllowlist`, and `categoryDenylist` before implementation. The main sample is a confidence router that maps language candidates to UI routes; the derivative is a policy playground for allowlist / denylist behavior and configuration conflicts.",
+  "keyTopics": [
+    "Google AI Edge の Web setup guide は MediaPipe Tasks の vision / text / audio / genai package と CDN bundle を分けて説明しており、Language Detector は `@mediapipe/tasks-text` 側の導入対象になる。",
+    "Language Detector Web guide は `FilesetResolver.forTextTasks()`、`LanguageDetector.createFromOptions()`、`detect(inputText)` を示し、Web では文字列入力を task 側で前処理して候補言語を返す。",
+    "設定項目として `maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` があり、allowlist と denylist は同時指定できないため UI 設定にも衝突 guard が必要になる。",
+    "MediaPipe v1.0.0 の JavaScript 変更では IIFE bundles と Tasks Privacy Notice が出ているため、text task でも bundle path、ローカル処理説明、metrics disclosure を導入チェックに含めたい。",
+    "公式 mediapipe-samples-web は Language Detection を含む Text demos の参考になるが、公開カードでは公式デモ一覧ではなく、信頼度 routing と policy design の自作サンプルを中心にした。"
+  ],
+  "keyTopicsEn": [
+    "The Google AI Edge Web setup guide separates MediaPipe Tasks packages and CDN bundles for vision, text, audio, and genai, so Language Detector belongs to the `@mediapipe/tasks-text` adoption path.",
+    "The Language Detector Web guide shows `FilesetResolver.forTextTasks()`, `LanguageDetector.createFromOptions()`, and `detect(inputText)`, with string preprocessing handled inside the task.",
+    "The task exposes `maxResults`, `scoreThreshold`, `categoryAllowlist`, and `categoryDenylist`; allowlist and denylist are mutually exclusive, so UI configuration needs a conflict guard.",
+    "MediaPipe v1.0.0 JavaScript changes include IIFE bundles and the Tasks Privacy Notice, so text-task adoption should include bundle-path checks, local-processing copy, and metrics disclosure.",
+    "The official mediapipe-samples-web Language Detection demo is useful as a reference, but today's public cards center on original confidence-routing and policy-design samples."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Language Detector Confidence Router",
+      "url": "../outputs/2026-09-21_language_detector_confidence_router.html"
+    },
+    {
+      "label": "Today's derivative sample: Language Policy Allowlist Playground",
+      "url": "../outputs/2026-09-21_language_policy_allowlist_playground.html"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: Language detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/text/language_detector/web_js"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-21-language-detector-confidence-router.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Language Detector を「言語を当てる demo」ではなく、UI routing の前段として扱うことです。候補言語の信頼度が高ければローカライズ済み UI に直接流し、低ければ翻訳待ちや人手レビューへ回す。`maxResults` は曖昧さをどこまで表示するか、`scoreThreshold` は自動処理の境界、allowlist / denylist は市場やサポート体制の制約として効きます。",
+      "bodyEn": "Today's angle is treating Language Detector not as a simple language-guessing demo, but as a front end to UI routing. High-confidence candidates go directly to localized UI, while low-confidence text moves to translation or human review. `maxResults` controls how much ambiguity is shown, `scoreThreshold` sets the automation boundary, and allowlist / denylist settings encode market or support constraints."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Language Detector Confidence Router` は、入力文、score threshold、max results、allowlist profile、ambiguity boost を動かすと候補言語と route が更新されます。派生の `Language Policy Allowlist Playground` は、allowlist / denylist / no filter、market preset、confidence floor、novelty penalty を切り替え、どの問い合わせが direct、low-confidence、filtered、config-error になるかを見せます。",
+      "bodyEn": "The main sample, `Language Detector Confidence Router`, updates candidate languages and routes as you adjust input text, score threshold, max results, allowlist profile, and ambiguity boost. The derivative, `Language Policy Allowlist Playground`, switches allowlist / denylist / no-filter modes, market presets, confidence floor, and novelty penalty to show which messages become direct, low-confidence, filtered, or config-error routes."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは入力テキスト、候補言語、score、threshold、maxResults、allowlist / denylist mode、route、review count、market preset、設定衝突です。Language Detector と Text Classifier、Text Embedder、LLM summarizer、翻訳 API、IndexedDB、support inbox、Privacy Notice copy、Playwright smoke test を組み合わせると、ブラウザ内で個人情報を外へ出さずに一次 routing を行い、必要な時だけ翻訳や人手確認へ進む軽量な多言語 triage にできます。",
+      "bodyEn": "The samples can collect input text, candidate languages, scores, thresholds, maxResults, allowlist / denylist mode, route, review count, market preset, and configuration conflicts. Combined with Language Detector, Text Classifier, Text Embedder, an LLM summarizer, translation APIs, IndexedDB, support inboxes, Privacy Notice copy, and Playwright smoke tests, this becomes a lightweight multilingual triage layer that routes locally in the browser before escalating to translation or human review."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `@mediapipe/tasks-text` の version と CDN path を pin し、`FilesetResolver.forTextTasks()` の WASM path と modelAssetPath を別々に確認します。`scoreThreshold` は model metadata の既定 threshold を上書きできるため、UI の自動応答や翻訳起動の境界として扱います。`categoryAllowlist` と `categoryDenylist` は同時指定できないので、設定画面では片方を選ぶ segmented control にし、保存前に conflict guard を入れるのが安全です。",
+      "bodyEn": "For production, pin the `@mediapipe/tasks-text` version and CDN path, and check the `FilesetResolver.forTextTasks()` WASM path separately from the modelAssetPath. Since `scoreThreshold` can override the model metadata threshold, it can serve as the boundary for automated UI responses or translation launch. Because `categoryAllowlist` and `categoryDenylist` are mutually exclusive, configuration UI should choose one mode with a segmented control and validate conflicts before saving."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-text` の latest / nightly、Language Detector model の公開パス、Google AI Edge の Text task docs、mediapipe-samples-web の text demos、MediaPipe release notes の Text / JavaScript 差分、Tasks Privacy Notice の文言を見ます。特に `text_bundle.js` / `text_bundle.mjs` の読み込み経路、IIFE bundle の global export、Firefox 系での text task smoke test を継続確認します。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-text` latest / nightly tags, public Language Detector model paths, Google AI Edge Text task docs, text demos in mediapipe-samples-web, Text / JavaScript changes in MediaPipe release notes, and Tasks Privacy Notice wording. Specific follow-ups are `text_bundle.js` / `text_bundle.mjs` loading paths, IIFE global exports, and Firefox-family text-task smoke tests."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Language Detector Confidence Router` で Preset を `short ambiguous` にし、Score threshold を 0.70 以上へ上げると、人手レビューへ落ちる状態が見えます。Allowlist を `ja,en,es` にすると候補の出方も変わります。派生サンプルでは Policy mode を `allowlist`、Market preset を `Japan launch` にしてから Toggle conflict を押すと、allowlist と denylist の同時指定を禁止すべき理由が `config-error` として見えます。",
+      "bodyEn": "In `Language Detector Confidence Router`, switch Preset to `short ambiguous` and raise Score threshold above 0.70 to see the human-review route. Changing Allowlist to `ja,en,es` also changes the candidate set. In the derivative sample, set Policy mode to `allowlist`, Market preset to `Japan launch`, then press Toggle conflict to see why simultaneous allowlist and denylist settings should surface as `config-error`."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Web setup guide、Language Detector Web guide、MediaPipe releases、mediapipe-samples-web を確認。設計: 公式 demo の再実装ではなく、信頼度 routing と設定 policy を自作 UI にする。実装: 本命 HTML に入力文、threshold、maxResults、allowlist、候補 score、route、import probe を追加。派生 HTML に allowlist / denylist mode、market preset、confidence floor、novelty penalty、config conflict を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Web setup guide, Language Detector Web guide, MediaPipe releases, and mediapipe-samples-web. Design: instead of rebuilding the official demo, create original UIs for confidence routing and configuration policy. Implementation: added input text, threshold, maxResults, allowlist, candidate scores, routes, and import probe to the main HTML. Added allowlist / denylist mode, market preset, confidence floor, novelty penalty, and config conflict to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the GitHub Pages top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Text Embedder の similarity と MediaPipe v1 Web release triage を扱いました。今日は Text task のもう一つの入口として Language Detector を取り上げ、推論結果をそのまま表示するのではなく、プロダクト内の route decision に変換しました。これで daily samples は、vision / audio / text / release operations に加えて、多言語 UX の最小設計までカバーできます。",
+      "bodyEn": "Recent entries covered Text Embedder similarity and MediaPipe v1 Web release triage. Today picks up Language Detector as another Text task entry point and converts inference output into product route decisions rather than merely displaying it. This expands the daily samples across vision, audio, text, release operations, and minimal multilingual UX design."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Language Detector Confidence Router` です。実際に動く部分は、合成言語スコア、threshold、maxResults、allowlist、候補表示、UI route、tasks-text import probe です。次に足すなら実 `LanguageDetector.detect()`、公式 model path、per-market threshold preset、翻訳起動、Privacy Notice checklist、route log の IndexedDB 保存を足します。派生試作は `Language Policy Allowlist Playground` で、実際に動く部分は allowlist / denylist / no filter、market preset、confidence floor、novelty penalty、config-error 表示です。次に足すなら実設定 JSON の export、denylist audit、A/B threshold 比較、support inbox mock、Text Classifier との二段判定を足します。",
+      "bodyEn": "The selected main prototype is `Language Detector Confidence Router`. The working parts are synthetic language scores, threshold, maxResults, allowlist, candidate display, UI routes, and a tasks-text import probe. Next additions should include real `LanguageDetector.detect()`, official model paths, per-market threshold presets, translation launch, a Privacy Notice checklist, and IndexedDB route logs. The derivative prototype is `Language Policy Allowlist Playground`; the working parts are allowlist / denylist / no-filter modes, market presets, confidence floor, novelty penalty, and config-error display. Next additions should include settings JSON export, denylist audit, A/B threshold comparison, support inbox mocks, and a two-stage decision with Text Classifier.",
+      "links": [
+        {
+          "label": "Open Language Detector Confidence Router",
+          "url": "../outputs/2026-09-21_language_detector_confidence_router.html"
+        },
+        {
+          "label": "Open Language Policy Allowlist Playground",
+          "url": "../outputs/2026-09-21_language_policy_allowlist_playground.html"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Language Policy Allowlist Playground</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #121414; color: #f3efe6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(145deg, rgba(97, 166, 214, .14), transparent 34%), linear-gradient(330deg, rgba(230, 172, 85, .15), transparent 42%), #121414; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(243, 239, 230, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #61a6d6; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d4d8d1; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(243, 239, 230, .22); background: #f3efe6; color: #121414; padding: 8px 12px; }
+    button { cursor: pointer; }
+    button.secondary, select { background: rgba(18, 20, 20, .9); color: #f3efe6; }
+    input[type="range"] { width: 100%; accent-color: #61a6d6; }
+    label { display: grid; gap: 6px; color: #f3efe6; font-size: .92rem; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(243, 239, 230, .15); background: rgba(18, 20, 20, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stack, .queue { display: grid; gap: 10px; }
+    .tile, .lane, .meter { border: 1px solid rgba(243, 239, 230, .13); background: #171d1e; padding: 10px; }
+    .tile small, .lane small { color: #bec8c3; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(243, 239, 230, .24); padding: 5px 8px; color: #dfe4dd; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(97, 166, 214, .85); background: rgba(97, 166, 214, .13); }
+    .warn { border-color: rgba(230, 172, 85, .82); background: rgba(230, 172, 85, .13); }
+    .bad { border-color: rgba(220, 95, 88, .82); background: rgba(220, 95, 88, .13); }
+    .stageFrame { min-height: 386px; border: 1px solid rgba(243, 239, 230, .13); background: #080a0b; padding: 14px; }
+    .lane { display: grid; grid-template-columns: 64px minmax(0, 1fr) 84px; gap: 10px; align-items: center; }
+    .code { color: #f3efe6; font-weight: 700; font-size: 1.08rem; }
+    .bar { height: 9px; background: rgba(243, 239, 230, .1); overflow: hidden; margin: 5px 0; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #61a6d6, #e6ac55); }
+    .route { text-align: right; font-size: .78rem; color: #f3efe6; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 126px; overflow: auto; white-space: pre-wrap; color: #e8eadf; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .value { color: #e6ac55; font-variant-numeric: tabular-nums; }
+    @media (max-width: 880px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .lane { grid-template-columns: 54px minmax(0, 1fr) 72px; }
+      .stageFrame { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Language Policy Allowlist Playground</h1>
+    <p>Language Detector の `categoryAllowlist` / `categoryDenylist` は同時指定できない前提で、検出候補をどのプロダクトポリシーへ流すかを試す派生ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Policy mode <select id="policy"><option value="allow">allowlist</option><option value="deny">denylist</option><option value="none">no filter</option></select><span class="value">mode</span></label>
+    <label>Market preset <select id="market"><option value="global">global</option><option value="jp">Japan launch</option><option value="eu">EU support</option><option value="asia">Asia pilot</option></select><span class="value">scope</span></label>
+    <label>Confidence floor <input id="floor" type="range" min="25" max="90" value="52"><span id="floorValue" class="value">0.52</span></label>
+    <label>Novelty penalty <input id="novelty" type="range" min="0" max="60" value="20"><span id="noveltyValue" class="value">0.20</span></label>
+    <label>Snippet batch <select id="batch"><option value="support">support inbox</option><option value="docs">docs comments</option><option value="mixed">mixed short notes</option></select><span class="value">queue</span></label>
+    <button id="simulate">Simulate queue</button>
+    <button id="conflict" class="secondary">Toggle conflict</button>
+    <button id="shuffle" class="secondary">Shuffle scores</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Policy checklist</h2>
+      <div class="stack">
+        <div class="tile"><strong>Allowlist</strong><small>Only listed language codes can pass to direct UI routes.</small></div>
+        <div class="tile"><strong>Denylist</strong><small>Blocked codes move to translation or manual review.</small></div>
+        <div class="tile"><strong>Conflict guard</strong><small>Allowlist and denylist should not be active together.</small></div>
+      </div>
+      <span id="policyChip" class="chip">policy: ready</span>
+      <span id="conflictChip" class="chip">conflict: off</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Language route queue</h2>
+        <div class="stageFrame">
+          <p id="summary">Run the queue to inspect filtered language routes.</p>
+          <div id="queue" class="queue"></div>
+        </div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const batches = {
+  support: [
+    { code: "en", text: "Camera permission failed after update", base: .82 },
+    { code: "ja", text: "モデルの読み込みが失敗しました", base: .78 },
+    { code: "es", text: "No puedo abrir la demo de audio", base: .7 },
+    { code: "fr", text: "La detection de langue est instable", base: .64 }
+  ],
+  docs: [
+    { code: "de", text: "Die Anleitung braucht ein Beispiel", base: .68 },
+    { code: "en", text: "Add a threshold table to the docs", base: .76 },
+    { code: "ja", text: "allowlist の説明を増やす", base: .66 },
+    { code: "zh", text: "需要更多浏览器说明", base: .61 }
+  ],
+  mixed: [
+    { code: "ko", text: "확인 부탁합니다", base: .48 },
+    { code: "en", text: "ok thanks", base: .45 },
+    { code: "fr", text: "merci", base: .42 },
+    { code: "ja", text: "了解", base: .44 }
+  ]
+};
+const markets = {
+  global: { allow: ["en", "ja", "es", "fr", "de", "ko", "zh"], deny: [] },
+  jp: { allow: ["ja", "en"], deny: ["fr", "de"] },
+  eu: { allow: ["en", "fr", "de", "es"], deny: ["ja", "ko", "zh"] },
+  asia: { allow: ["ja", "ko", "zh", "en"], deny: ["fr", "de"] }
+};
+const state = { runs: 0, direct: 0, review: 0, conflict: false, lanes: [] };
+
+function labels() {
+  $("floorValue").textContent = (Number($("floor").value) / 100).toFixed(2);
+  $("noveltyValue").textContent = (Number($("novelty").value) / 100).toFixed(2);
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2000);
+}
+
+function decide(item, index) {
+  const market = markets[$("market").value];
+  const floor = Number($("floor").value) / 100;
+  const novelty = Number($("novelty").value) / 100;
+  const score = Math.max(.05, Math.min(.98, item.base + Math.sin((state.runs + 1) * .54 + index) * .07 - (item.base < .55 ? novelty : 0)));
+  let policyPass = true;
+  if ($("policy").value === "allow") policyPass = market.allow.includes(item.code);
+  if ($("policy").value === "deny") policyPass = !market.deny.includes(item.code);
+  if (state.conflict) policyPass = false;
+  const confidencePass = score >= floor;
+  const route = state.conflict ? "config-error" : policyPass && confidencePass ? "direct" : policyPass ? "low-confidence" : "filtered";
+  return { ...item, score, route, policyPass, confidencePass };
+}
+
+function simulate(reason = "manual") {
+  state.runs += 1;
+  state.lanes = batches[$("batch").value].map(decide);
+  state.direct += state.lanes.filter((lane) => lane.route === "direct").length;
+  state.review += state.lanes.filter((lane) => lane.route !== "direct").length;
+  log(`simulate(${reason}) direct=${state.lanes.filter((lane) => lane.route === "direct").length} review=${state.lanes.filter((lane) => lane.route !== "direct").length}`);
+  render();
+}
+
+function classFor(route) {
+  if (route === "direct") return "pass";
+  if (route === "config-error" || route === "filtered") return "bad";
+  return "warn";
+}
+
+function render() {
+  const market = markets[$("market").value];
+  $("policyChip").textContent = `${$("policy").value}: ${( $("policy").value === "deny" ? market.deny : market.allow).join(",") || "none"}`;
+  $("policyChip").className = state.conflict ? "chip bad" : "chip pass";
+  $("conflictChip").textContent = state.conflict ? "conflict: allow+deny" : "conflict: off";
+  $("conflictChip").className = state.conflict ? "chip bad" : "chip pass";
+  $("summary").textContent = `${$("market").value} / ${$("policy").value} / floor ${(Number($("floor").value) / 100).toFixed(2)}`;
+  $("queue").innerHTML = state.lanes.map((lane) => `<div class="lane ${classFor(lane.route)}"><span class="code">${lane.code}</span><div><strong>${lane.text}</strong><div class="bar"><span style="width:${Math.round(lane.score * 100)}%"></span></div><small>policy ${lane.policyPass ? "pass" : "block"} / confidence ${lane.confidencePass ? "pass" : "low"}</small></div><span class="route">${lane.route}</span></div>`).join("");
+  $("meters").innerHTML = [
+    ["Runs", state.runs],
+    ["Direct", state.direct],
+    ["Review", state.review],
+    ["Batch", state.lanes.length]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+$("simulate").addEventListener("click", () => simulate("click"));
+$("conflict").addEventListener("click", () => { state.conflict = !state.conflict; log(`conflict guard ${state.conflict ? "on" : "off"}`); simulate("conflict"); });
+$("shuffle").addEventListener("click", () => { batches[$("batch").value].forEach((item) => { item.base = Math.max(.36, Math.min(.9, item.base + (Math.random() - .5) * .18)); }); simulate("shuffle"); });
+$("reset").addEventListener("click", () => { Object.assign(state, { runs: 0, direct: 0, review: 0, conflict: false, lanes: [] }); log("reset"); simulate("reset"); });
+document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { labels(); simulate("control"); }));
+labels();
+simulate("initial");
+</script>
+</body>
+</html>

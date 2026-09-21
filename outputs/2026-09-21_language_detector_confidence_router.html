@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Language Detector Confidence Router</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111414; color: #f5f0e7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(76, 176, 159, .17), transparent 36%), linear-gradient(315deg, rgba(226, 183, 92, .14), transparent 42%), #111414; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 240, 231, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.7rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #4cb09f; font-size: 1rem; letter-spacing: 0; }
+    h3 { margin: 0; font-size: .95rem; letter-spacing: 0; }
+    p { margin: 0; color: #d3d8cf; line-height: 1.62; }
+    button, textarea, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(245, 240, 231, .22); background: #f5f0e7; color: #111414; padding: 8px 12px; }
+    button { cursor: pointer; }
+    button.secondary, select, textarea { background: rgba(17, 20, 20, .9); color: #f5f0e7; }
+    textarea { width: 100%; min-height: 126px; resize: vertical; border: 1px solid rgba(245, 240, 231, .18); padding: 10px; line-height: 1.5; }
+    label { display: grid; gap: 6px; color: #f5f0e7; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #4cb09f; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 240, 231, .15); background: rgba(17, 20, 20, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 350px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .meter, .candidate { border: 1px solid rgba(245, 240, 231, .13); background: #171d1d; padding: 10px; }
+    .tile small, .candidate small { color: #bdc8c0; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(245, 240, 231, .24); padding: 5px 8px; color: #dfe5dc; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(76, 176, 159, .8); background: rgba(76, 176, 159, .14); }
+    .warn { border-color: rgba(226, 183, 92, .82); background: rgba(226, 183, 92, .13); }
+    .bad { border-color: rgba(219, 98, 88, .82); background: rgba(219, 98, 88, .13); }
+    .stageFrame { min-height: 384px; border: 1px solid rgba(245, 240, 231, .13); background: #080a0a; padding: 14px; }
+    .candidates { display: grid; gap: 10px; margin-top: 14px; }
+    .candidate { display: grid; grid-template-columns: 86px minmax(0, 1fr) 74px; gap: 10px; align-items: center; }
+    .code { color: #f5f0e7; font-weight: 700; font-size: 1.15rem; }
+    .bar { height: 10px; background: rgba(245, 240, 231, .1); overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #4cb09f, #e2b75c); }
+    .score { text-align: right; color: #f5f0e7; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 128px; overflow: auto; white-space: pre-wrap; color: #e8eadf; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .value { color: #e2b75c; font-variant-numeric: tabular-nums; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .candidate { grid-template-columns: 64px minmax(0, 1fr) 64px; }
+      .stageFrame { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Language Detector Confidence Router</h1>
+    <p>MediaPipe Language Detector の `detect()`、`maxResults`、`scoreThreshold`、allowlist を想定し、多言語テキストの候補をどの UI ルートへ流すかを合成スコアで試す自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Score threshold <input id="threshold" type="range" min="20" max="92" value="58"><span id="thresholdValue" class="value">0.58</span></label>
+    <label>Max results <input id="maxResults" type="range" min="1" max="5" value="3"><span id="maxResultsValue" class="value">3</span></label>
+    <label>Allowlist <select id="allowlist"><option value="all">all languages</option><option value="product">ja,en,es</option><option value="support">en,fr,de</option><option value="asia">ja,ko,zh</option></select><span class="value">filter</span></label>
+    <label>Ambiguity boost <input id="ambiguity" type="range" min="0" max="55" value="18"><span id="ambiguityValue" class="value">0.18</span></label>
+    <label>Preset <select id="preset"><option value="mixed">mixed app note</option><option value="ja">Japanese UI copy</option><option value="es">Spanish support</option><option value="short">short ambiguous</option></select><span class="value">text</span></label>
+    <button id="detect">Detect route</button>
+    <button id="burst" class="secondary">Burst 4 snippets</button>
+    <button id="probe" class="secondary">Import probe</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Routing notes</h2>
+      <div class="stack">
+        <div class="tile"><strong>Confidence gate</strong><small>`scoreThreshold` below the top result keeps uncertain copy in a review lane.</small></div>
+        <div class="tile"><strong>Max results</strong><small>`maxResults` limits how much ambiguity the UI exposes to users.</small></div>
+        <div class="tile"><strong>Allowlist</strong><small>Support surfaces can restrict detected language codes before routing.</small></div>
+      </div>
+      <span id="importChip" class="chip">tasks-text: not probed</span>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="privacyChip" class="chip">local text: simulated</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Detection board</h2>
+        <label>Input text<textarea id="inputText">このブラウザ内サンプルでは、Language Detector の候補スコアを使ってローカライズ済み UI、翻訳待ち、または人手レビューへ振り分けます。</textarea></label>
+        <div class="stageFrame">
+          <p id="summary">Run detection to score language candidates.</p>
+          <div id="candidates" class="candidates"></div>
+        </div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const presets = {
+  mixed: "このブラウザ内サンプルでは、Language Detector の候補スコアを使ってローカライズ済み UI、翻訳待ち、または人手レビューへ振り分けます。",
+  ja: "手のランドマークと音声分類の結果を同じ画面で確認し、必要な説明文だけを日本語で表示します。",
+  es: "La interfaz de soporte detecta el idioma del mensaje y decide si debe abrir traduccion o responder directamente.",
+  short: "ok merci thanks 了解"
+};
+const languageHints = {
+  ja: ["この", "です", "ます", "日本語", "手", "画面", "音声", "確認", "了解"],
+  en: ["the", "and", "browser", "text", "support", "thanks", "route", "local", "score"],
+  es: ["la", "el", "idioma", "mensaje", "interfaz", "traduccion", "responder", "directamente"],
+  fr: ["merci", "bonjour", "langue", "interface", "repondre"],
+  de: ["und", "sprache", "erkennen", "antwort"],
+  ko: ["안녕", "한국어", "확인"],
+  zh: ["中文", "语言", "检测"]
+};
+const routes = { ja: "localized-ja", en: "default-en", es: "translate-es", fr: "support-fr", de: "support-de", ko: "asia-review", zh: "asia-review" };
+const state = { runs: 0, accepted: 0, review: 0, last: [] };
+
+function labels() {
+  $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+  $("maxResultsValue").textContent = $("maxResults").value;
+  $("ambiguityValue").textContent = (Number($("ambiguity").value) / 100).toFixed(2);
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/).filter(Boolean);
+}
+
+function allowedCodes() {
+  const mode = $("allowlist").value;
+  if (mode === "product") return ["ja", "en", "es"];
+  if (mode === "support") return ["en", "fr", "de"];
+  if (mode === "asia") return ["ja", "ko", "zh"];
+  return Object.keys(languageHints);
+}
+
+function scoreLanguages(text) {
+  const tokens = tokenize(text);
+  const ambiguity = Number($("ambiguity").value) / 100;
+  const all = Object.entries(languageHints).map(([code, hints], index) => {
+    const hits = hints.reduce((sum, hint) => sum + (text.toLowerCase().includes(hint) ? 1 : 0), 0);
+    const scriptBoost = code === "ja" && /[\u3040-\u30ff\u3400-\u9fff]/.test(text) ? 2.6 : 0;
+    const latinBoost = ["en", "es", "fr", "de"].includes(code) && /[a-z]/i.test(text) ? .8 : 0;
+    const shortPenalty = tokens.length < 5 ? .3 : 0;
+    const wave = Math.sin((state.runs + 1) * .61 + index * .9) * ambiguity;
+    return { code, score: Math.max(0.01, hits * .24 + scriptBoost + latinBoost + wave - shortPenalty) };
+  });
+  const total = all.reduce((sum, item) => sum + item.score, 0) || 1;
+  return all
+    .map((item) => ({ ...item, score: item.score / total }))
+    .filter((item) => allowedCodes().includes(item.code))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Number($("maxResults").value));
+}
+
+function runDetection(reason = "manual") {
+  state.runs += 1;
+  const threshold = Number($("threshold").value) / 100;
+  state.last = scoreLanguages($("inputText").value);
+  const top = state.last[0] || { code: "none", score: 0 };
+  const pass = top.score >= threshold;
+  state.accepted += pass ? 1 : 0;
+  state.review += pass ? 0 : 1;
+  log(`detect(${reason}) top=${top.code} score=${top.score.toFixed(3)} route=${pass ? routes[top.code] : "human-review"}`);
+  render();
+}
+
+function render() {
+  const threshold = Number($("threshold").value) / 100;
+  const top = state.last[0] || { code: "none", score: 0 };
+  const pass = top.score >= threshold;
+  $("routeChip").textContent = pass ? `route: ${routes[top.code] || "accept"}` : "route: human-review";
+  $("routeChip").className = pass ? "chip pass" : "chip warn";
+  $("summary").textContent = `top ${top.code} ${top.score.toFixed(3)} / threshold ${threshold.toFixed(2)} / allowlist ${$("allowlist").value}`;
+  $("candidates").innerHTML = state.last.map((item) => {
+    const cls = item.score >= threshold ? "pass" : "warn";
+    return `<div class="candidate ${cls}"><span class="code">${item.code}</span><div><div class="bar"><span style="width:${Math.round(item.score * 100)}%"></span></div><small>${routes[item.code] || "candidate"}</small></div><span class="score">${item.score.toFixed(3)}</span></div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Runs", state.runs],
+    ["Accepted", state.accepted],
+    ["Review", state.review],
+    ["Candidates", state.last.length]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+async function probeImport() {
+  $("importChip").textContent = "tasks-text: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@latest/text_bundle.mjs");
+    $("importChip").textContent = mod.LanguageDetector ? "tasks-text: LanguageDetector ok" : "tasks-text: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-text latest bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-text: import blocked";
+    $("importChip").className = "chip bad";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+
+$("detect").addEventListener("click", () => runDetection("click"));
+$("burst").addEventListener("click", () => {
+  const snippets = [presets.ja, presets.es, "merci, le probleme est dans la camera", presets.short];
+  snippets.forEach((text, index) => {
+    $("inputText").value = text;
+    runDetection(`burst-${index + 1}`);
+  });
+});
+$("probe").addEventListener("click", probeImport);
+$("reset").addEventListener("click", () => { Object.assign(state, { runs: 0, accepted: 0, review: 0, last: [] }); log("reset"); runDetection("reset"); });
+$("preset").addEventListener("input", () => { $("inputText").value = presets[$("preset").value]; runDetection("preset"); });
+document.querySelectorAll("input, select, textarea").forEach((el) => el.addEventListener("input", () => { labels(); runDetection("control"); }));
+labels();
+runDetection("initial");
+</script>
+</body>
+</html>
