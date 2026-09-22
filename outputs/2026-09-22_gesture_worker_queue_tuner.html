@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Worker Queue Tuner</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0d1116; color: #f7f3ea; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(67, 160, 208, .18), transparent 34%), linear-gradient(315deg, rgba(240, 178, 84, .16), transparent 40%), #0d1116; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 243, 234, .14); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #71c7f0; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cfd7dc; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(247, 243, 234, .22); background: #f7f3ea; color: #0d1116; padding: 8px 12px; }
+    button.secondary, select { background: rgba(13, 17, 22, .92); color: #f7f3ea; }
+    label { display: grid; gap: 6px; color: #f7f3ea; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #71c7f0; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(247, 243, 234, .14); background: rgba(13, 17, 22, .86); }
+    .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(247, 243, 234, .14); background: rgba(13, 17, 22, .88); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .metric, .frame { border: 1px solid rgba(247, 243, 234, .12); background: #151c24; padding: 10px; }
+    .tile small { display: block; margin-top: 4px; color: #bcc9cf; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(247, 243, 234, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #e9edf0; font-size: .78rem; }
+    .pass { border-color: rgba(100, 207, 153, .8); background: rgba(100, 207, 153, .13); }
+    .warn { border-color: rgba(240, 178, 84, .85); background: rgba(240, 178, 84, .13); }
+    .bad { border-color: rgba(232, 104, 93, .85); background: rgba(232, 104, 93, .13); }
+    .stageFrame { min-height: 420px; border: 1px solid rgba(247, 243, 234, .12); background: #070a0e; padding: 12px; display: grid; gap: 10px; align-content: start; }
+    .frames { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; }
+    .frame { min-height: 62px; padding: 7px; font-variant-numeric: tabular-nums; overflow: hidden; }
+    .frame strong { display: block; font-size: .78rem; }
+    .frame span { display: block; margin-top: 4px; color: #cfd7dc; font-size: .72rem; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.28rem; font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: rgba(247, 243, 234, .1); overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #71c7f0, #f0b254); }
+    .log { margin-top: 14px; height: 128px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .value { color: #f0b254; font-variant-numeric: tabular-nums; }
+    @media (max-width: 900px) { .toolbar, .layout, .metrics { grid-template-columns: 1fr; } .frames { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Gesture Worker Queue Tuner</h1>
+    <p>MediaPipe Gesture Recognizer / Hand Landmarker の同期 `recognizeForVideo()` / `detectForVideo()` を worker に寄せる前提で、フレーム投入、queue 上限、古い結果の破棄、UI 応答性を合成イベントで試す自作サンプルです。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Frame rate <input id="fps" type="range" min="12" max="60" value="30"><span id="fpsValue" class="value">30 fps</span></label>
+    <label>Inference cost <input id="cost" type="range" min="8" max="90" value="34"><span id="costValue" class="value">34 ms</span></label>
+    <label>Queue limit <input id="limit" type="range" min="1" max="8" value="3"><span id="limitValue" class="value">3</span></label>
+    <label>Stale window <input id="stale" type="range" min="40" max="260" value="130"><span id="staleValue" class="value">130 ms</span></label>
+    <label>Policy <select id="policy"><option value="drop-old">drop oldest</option><option value="drop-new">drop newest</option><option value="block-ui">main thread</option></select><span class="value">scheduler</span></label>
+    <button id="start">Start</button>
+    <button id="step" class="secondary">Step 24 frames</button>
+    <button id="probe" class="secondary">Import probe</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Design focus</h2>
+      <div class="stack">
+        <div class="tile"><strong>Worker queue</strong><small>Camera frames can arrive faster than synchronous task inference can finish.</small></div>
+        <div class="tile"><strong>Freshness gate</strong><small>Gesture UI should prefer recent results over perfectly processing every frame.</small></div>
+        <div class="tile"><strong>Policy contrast</strong><small>Main-thread mode shows why worker handoff matters for visible responsiveness.</small></div>
+      </div>
+      <span id="importChip" class="chip">tasks-vision: not probed</span>
+      <span id="healthChip" class="chip">health: idle</span>
+      <span class="chip">model: simulated</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Frame scheduler</h2>
+        <div class="stageFrame">
+          <p id="summary">Start the simulation to enqueue synthetic camera frames.</p>
+          <div class="bar"><span id="uiBar" style="width:100%"></span></div>
+          <div id="frames" class="frames"></div>
+        </div>
+        <div id="metrics" class="metrics"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const state = { running: false, timer: 0, clock: 0, nextId: 1, workerFreeAt: 0, queue: [], shown: [], sent: 0, processed: 0, dropped: 0, stale: 0, blockedMs: 0, uiScore: 100 };
+
+function labels() {
+  $("fpsValue").textContent = `${$("fps").value} fps`;
+  $("costValue").textContent = `${$("cost").value} ms`;
+  $("limitValue").textContent = $("limit").value;
+  $("staleValue").textContent = `${$("stale").value} ms`;
+}
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+function frameGesture(id) {
+  return ["Open_Palm", "Thumb_Up", "Victory", "Closed_Fist", "Pointing_Up"][id % 5];
+}
+function enqueueFrame() {
+  const frame = { id: state.nextId++, born: state.clock, gesture: frameGesture(state.nextId), cost: Number($("cost").value) + Math.round(Math.sin(state.nextId * .7) * 7) };
+  state.sent += 1;
+  if ($("policy").value === "block-ui") {
+    state.blockedMs += frame.cost;
+    state.clock += frame.cost;
+    finishFrame(frame, true);
+    return;
+  }
+  if (state.queue.length >= Number($("limit").value)) {
+    state.dropped += 1;
+    if ($("policy").value === "drop-old") state.queue.shift();
+    else { log(`drop newest #${frame.id}`); return; }
+  }
+  state.queue.push(frame);
+  log(`enqueue #${frame.id} ${frame.gesture}`);
+}
+function pumpWorker() {
+  if ($("policy").value === "block-ui") return;
+  if (state.clock < state.workerFreeAt || !state.queue.length) return;
+  const frame = state.queue.shift();
+  state.workerFreeAt = state.clock + frame.cost;
+  setTimeout(() => finishFrame(frame, false), frame.cost);
+}
+function finishFrame(frame, mainThread) {
+  const age = state.clock - frame.born;
+  const isStale = age > Number($("stale").value);
+  if (isStale) state.stale += 1;
+  else state.processed += 1;
+  state.shown.unshift({ ...frame, age, status: isStale ? "stale" : mainThread ? "main" : "fresh" });
+  state.shown = state.shown.slice(0, 24);
+  log(`${isStale ? "stale" : "accept"} #${frame.id} ${frame.gesture} age=${age}ms`);
+  render();
+}
+function tick(manual = false) {
+  const interval = Math.round(1000 / Number($("fps").value));
+  state.clock += interval;
+  enqueueFrame();
+  pumpWorker();
+  state.uiScore = Math.max(4, 100 - (state.queue.length * 12) - Math.min(70, state.blockedMs / 20));
+  if (!manual) render();
+}
+function step(count = 24) {
+  for (let i = 0; i < count; i += 1) tick(true);
+  render();
+}
+function render() {
+  const total = Math.max(1, state.sent);
+  const health = state.uiScore > 70 ? "smooth" : state.uiScore > 38 ? "warning" : "blocked";
+  $("healthChip").textContent = `health: ${health}`;
+  $("healthChip").className = `chip ${health === "smooth" ? "pass" : health === "warning" ? "warn" : "bad"}`;
+  $("summary").textContent = `queue ${state.queue.length}/${$("limit").value} / sent ${state.sent} / accepted ${state.processed} / stale ${state.stale}`;
+  $("uiBar").style.width = `${state.uiScore}%`;
+  $("frames").innerHTML = state.shown.map((frame) => `<div class="frame ${frame.status === "fresh" ? "pass" : frame.status === "main" ? "warn" : "bad"}"><strong>#${frame.id} ${frame.gesture}</strong><span>${frame.status} / ${frame.age}ms</span></div>`).join("");
+  $("metrics").innerHTML = [
+    ["Sent", state.sent],
+    ["Accepted", state.processed],
+    ["Dropped", state.dropped],
+    ["Stale", state.stale],
+    ["Queue", state.queue.length],
+    ["UI score", Math.round(state.uiScore)],
+    ["Accept rate", `${Math.round(state.processed / total * 100)}%`],
+    ["Blocked", `${state.blockedMs}ms`]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+async function probeImport() {
+  $("importChip").textContent = "tasks-vision: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs");
+    $("importChip").textContent = mod.GestureRecognizer ? "tasks-vision: GestureRecognizer ok" : "tasks-vision: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-vision latest bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-vision: import blocked";
+    $("importChip").className = "chip bad";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+$("start").addEventListener("click", () => {
+  state.running = !state.running;
+  $("start").textContent = state.running ? "Pause" : "Start";
+  if (state.running) state.timer = setInterval(() => tick(), Math.round(1000 / Number($("fps").value)));
+  else clearInterval(state.timer);
+});
+$("step").addEventListener("click", () => step(24));
+$("probe").addEventListener("click", probeImport);
+$("reset").addEventListener("click", () => { clearInterval(state.timer); Object.assign(state, { running: false, timer: 0, clock: 0, nextId: 1, workerFreeAt: 0, queue: [], shown: [], sent: 0, processed: 0, dropped: 0, stale: 0, blockedMs: 0, uiScore: 100 }); $("start").textContent = "Start"; log("reset"); render(); });
+document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { labels(); render(); }));
+labels(); render();
+</script>
+</body>
+</html>

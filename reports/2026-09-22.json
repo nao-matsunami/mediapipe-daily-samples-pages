@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-22",
+  "category": "MediaPipe / Google AI Edge / Gesture Recognizer / Web ML",
+  "headline": "Gesture Recognizer の worker queue を先に設計する",
+  "headlineEn": "Designing the Gesture Recognizer worker queue first",
+  "summary": "Google AI Edge の Web setup guide、Gesture Recognizer Web guide、Hand Landmarker Web guide、Gesture Recognizer task guide、MediaPipe releases、mediapipe-samples-web を確認し、同期的な `recognizeForVideo()` / `detectForVideo()` を camera loop で扱う前の自作サンプルを2本追加しました。本命は frame rate、推論 cost、queue 上限、stale window、drop policy を動かす worker queue tuner、派生は返ってきた結果を timestamp と confidence で accept / defer / reject に分ける stale result journal です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, Gesture Recognizer Web guide, Hand Landmarker Web guide, Gesture Recognizer task guide, MediaPipe releases, and mediapipe-samples-web, this adds two original samples for planning synchronous `recognizeForVideo()` / `detectForVideo()` calls in a camera loop. The main sample is a worker queue tuner for frame rate, inference cost, queue limit, stale window, and drop policy; the derivative is a stale result journal that classifies returned results as accept / defer / reject by timestamp and confidence.",
+  "keyTopics": [
+    "Google AI Edge の Web setup guide は vision task を `@mediapipe/tasks-vision` として導入し、CDN bundle と BaseOptions の `modelAssetPath` / `Delegate` を確認する流れを示している。",
+    "Gesture Recognizer Web guide は `recognize()` と `recognizeForVideo()` を使い、video loop では timestamp を見ながら1フレームずつ処理する例を示している。",
+    "同 guide は `recognize()` / `recognizeForVideo()` が同期的に UI thread を block するため、camera frame では web worker で別 thread に逃がせると説明している。",
+    "Gesture Recognizer task guide は score threshold、category allowlist / denylist、canned / custom classifier options、handedness、image landmarks、world landmarks を整理している。",
+    "Hand Landmarker Web guide も `detect()` / `detectForVideo()` の同期 block と worker 化を明記しており、Gesture と Hand の両方で queue / stale-result 設計を共通化できる。"
+  ],
+  "keyTopicsEn": [
+    "The Google AI Edge Web setup guide routes vision tasks through `@mediapipe/tasks-vision` and calls out CDN bundles plus BaseOptions such as `modelAssetPath` and `Delegate`.",
+    "The Gesture Recognizer Web guide uses `recognize()` and `recognizeForVideo()` and shows a video loop that processes one timestamped frame at a time.",
+    "The same guide notes that `recognize()` / `recognizeForVideo()` run synchronously and block the UI thread, recommending web workers for camera-frame inference.",
+    "The Gesture Recognizer task guide details score thresholds, category allowlists / denylists, canned / custom classifier options, handedness, image landmarks, and world landmarks.",
+    "The Hand Landmarker Web guide makes the same synchronous blocking and worker guidance explicit for `detect()` / `detectForVideo()`, so queue and stale-result policy can be shared across Hand and Gesture tasks."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Worker Queue Tuner",
+      "url": "../outputs/2026-09-22_gesture_worker_queue_tuner.html"
+    },
+    {
+      "label": "Today's derivative sample: Stale Result Journal",
+      "url": "../outputs/2026-09-22_stale_result_journal.html"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer"
+    },
+    {
+      "label": "Google AI Edge: Hand Landmarker guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe-samples-web gesture recognizer",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/gesture-recognizer.ts"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-22-gesture-worker-queue-tuner.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Gesture Recognizer を「認識結果を画面に出す demo」ではなく、camera loop と UI thread の間に置く scheduler として見ることです。公式 guide は video frame を timestamp 付きで処理する例と、同期呼び出しが UI thread を block する注意を出しています。ここを最初に設計すると、実モデルをつなぐ前に drop oldest / drop newest / main-thread 実行の違い、stale 結果を採用する危険、queue 上限の妥当性を検討できます。",
+      "bodyEn": "Today's notable angle is treating Gesture Recognizer not as a result-display demo, but as a scheduler between the camera loop and the UI thread. The official guide shows timestamped video-frame processing and warns that synchronous calls can block the UI thread. Designing this layer first lets us compare drop-oldest, drop-newest, and main-thread policies, stale-result risk, and queue limits before connecting a real model."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Gesture Worker Queue Tuner` は frame rate、inference cost、queue limit、stale window、policy を変えると、投入済み frame、accepted / dropped / stale、UI score が更新されます。派生の `Stale Result Journal` は結果が返ってきた後の処理だけに絞り、deadline と confidence floor を動かして、accept / defer / reject の判断がどう変わるかを journal と metrics で見せます。",
+      "bodyEn": "The main sample, `Gesture Worker Queue Tuner`, updates submitted frames, accepted / dropped / stale counts, and UI score as frame rate, inference cost, queue limit, stale window, and policy change. The derivative, `Stale Result Journal`, focuses only on returned-result handling and shows how deadline and confidence floor affect accept / defer / reject decisions."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは frame timestamp、queue length、inference cost、result age、gesture label、confidence、drop reason、stale reason、UI score です。Gesture Recognizer、Hand Landmarker、Holistic Landmarker、ImageBitmap transfer、Worker、OffscreenCanvas、PerformanceObserver、IndexedDB、WebRTC stats、Playwright smoke test と組み合わせると、ブラウザや端末ごとの推論負荷を見ながら、UI が固まらない hand / gesture interaction の実装基準を作れます。",
+      "bodyEn": "The samples can accumulate frame timestamps, queue length, inference cost, result age, gesture labels, confidence, drop reasons, stale reasons, and UI score. Combined with Gesture Recognizer, Hand Landmarker, Holistic Landmarker, ImageBitmap transfer, Workers, OffscreenCanvas, PerformanceObserver, IndexedDB, WebRTC stats, and Playwright smoke tests, this can become a practical standard for hand / gesture interactions that avoid freezing the UI across browsers and devices."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `@mediapipe/tasks-vision` の version と `vision_bundle.mjs`、WASM path、modelAssetPath を pin し、main thread では camera capture と表示だけを残します。worker へ送る frame は ImageBitmap にして、処理後に close する方針にします。`recognizeForVideo(videoFrame, timestamp)` / `detectForVideo(videoFrame, timestamp)` の前後で `performance.now()` を測り、結果には入力 timestamp、完了時刻、推論 cost、score を付けて UI へ返します。UI 側では deadline 超過の結果を表示に使わない guard が要ります。",
+      "bodyEn": "For production, pin the `@mediapipe/tasks-vision` version, `vision_bundle.mjs`, WASM path, and modelAssetPath, leaving only camera capture and rendering on the main thread. Frames sent to the worker should be ImageBitmaps and closed after processing. Measure `performance.now()` around `recognizeForVideo(videoFrame, timestamp)` / `detectForVideo(videoFrame, timestamp)`, then return input timestamp, completion time, inference cost, and score to the UI. The UI should guard against displaying results that exceed its deadline."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-vision` の latest / nightly、MediaPipe release notes の JavaScript / task runner 変更、mediapipe-samples-web の camera loop 実装、Gesture / Hand docs の runningMode 表記、worker transfer と OffscreenCanvas 周りのブラウザ差、GitHub issues の WebGL / WASM / worker 関連を見ます。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-vision` latest / nightly builds, JavaScript / task-runner changes in MediaPipe release notes, camera-loop implementations in mediapipe-samples-web, runningMode wording in Gesture / Hand docs, browser differences around worker transfer and OffscreenCanvas, and GitHub issues related to WebGL / WASM / workers."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Gesture Worker Queue Tuner` で inference cost を 70ms 以上、frame rate を 60fps にしてから Policy を `main thread` と `drop oldest` で切り替えると、UI score と stale count の違いが見えます。派生サンプルでは Deadline を 90ms、Jitter を高め、Confidence floor を 0.70 へ上げると、期限切れ reject と低信頼度 defer の境界がはっきり出ます。",
+      "bodyEn": "In `Gesture Worker Queue Tuner`, raise inference cost above 70 ms and frame rate to 60 fps, then switch Policy between `main thread` and `drop oldest` to see differences in UI score and stale count. In the derivative sample, set Deadline to 90 ms, increase Jitter, and raise Confidence floor to 0.70 to make the reject-vs-defer boundary visible."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Web setup、Gesture Recognizer Web、Gesture task overview、Hand Landmarker Web、MediaPipe releases、mediapipe-samples-web を確認。設計: 公式 demo の再実装ではなく、推論 loop の queue / freshness 設計を自作 UI にする。実装: 本命 HTML に synthetic frame scheduler、queue policy、stale window、import probe、UI health を追加。派生 HTML に deadline、jitter、confidence floor、accept / defer / reject journal を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked Web setup, Gesture Recognizer Web, the Gesture task overview, Hand Landmarker Web, MediaPipe releases, and mediapipe-samples-web. Design: instead of reimplementing the official demo, create original UI for inference-loop queue and freshness policy. Implementation: added a synthetic frame scheduler, queue policy, stale window, import probe, and UI health to the main HTML. Added deadline, jitter, confidence floor, and accept / defer / reject journaling to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the GitHub Pages top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Text tasks と release operations を扱いました。今日は Vision tasks に戻り、Hand / Gesture 系の実装で毎回問題になる main-thread block と stale result を独立した設計対象にしました。これで daily samples は、認識精度や見た目だけでなく、実運用で効く frame scheduling、worker handoff、freshness policy まで横断できます。",
+      "bodyEn": "Recent entries focused on Text tasks and release operations. Today returns to Vision tasks and isolates main-thread blocking and stale results, recurring issues in Hand / Gesture implementations, as first-class design concerns. This expands the daily samples beyond recognition accuracy and visuals into operational frame scheduling, worker handoff, and freshness policy."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Gesture Worker Queue Tuner` です。実際に動く部分は synthetic camera frame、queue 上限、drop oldest / drop newest / main-thread policy、stale window、UI score、tasks-vision import probe です。次に足すなら実 Worker、ImageBitmap transfer、実 `GestureRecognizer.recognizeForVideo()`、実 `HandLandmarker.detectForVideo()`、per-device preset、queue metrics export を足します。派生試作は `Stale Result Journal` で、実際に動く部分は deadline、jitter、confidence floor、accept / defer / reject 判定、journal metrics です。次に足すなら実 result timestamp、gesture command hysteresis、landmark overlay suppression、IndexedDB 保存、Playwright による stale guard テストを足します。",
+      "bodyEn": "The selected main prototype is `Gesture Worker Queue Tuner`. The working pieces are synthetic camera frames, queue limits, drop-oldest / drop-newest / main-thread policies, stale window, UI score, and a tasks-vision import probe. Next additions should include a real Worker, ImageBitmap transfer, real `GestureRecognizer.recognizeForVideo()`, real `HandLandmarker.detectForVideo()`, per-device presets, and queue-metric export. The derivative prototype is `Stale Result Journal`; the working pieces are deadline, jitter, confidence floor, accept / defer / reject decisions, and journal metrics. Next additions should include real result timestamps, gesture-command hysteresis, landmark-overlay suppression, IndexedDB persistence, and Playwright stale-guard tests.",
+      "links": [
+        {
+          "label": "Open Gesture Worker Queue Tuner",
+          "url": "../outputs/2026-09-22_gesture_worker_queue_tuner.html"
+        },
+        {
+          "label": "Open Stale Result Journal",
+          "url": "../outputs/2026-09-22_stale_result_journal.html"
+        }
+      ]
+    }
+  ]
+}
