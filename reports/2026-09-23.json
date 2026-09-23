@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-23",
+  "category": "MediaPipe / Google AI Edge / Interactive Segmenter / Web ML",
+  "headline": "Interactive Segmenter は stroke protocol から設計する",
+  "headlineEn": "Design Interactive Segmenter from the stroke protocol first",
+  "summary": "Google AI Edge の Web setup、Interactive Segmenter API、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm @mediapipe/tasks-vision を確認し、Interactive Segmenter を実モデルにつなぐ前の自作サンプルを2本追加しました。本命は positive / negative / box / lasso の入力を合成マスクに反映する Stroke Arbitrator、派生は pointermove の点列を request 前に圧縮して replay できる Stroke Replay Compressor です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, Interactive Segmenter API docs, MediaPipe Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and npm @mediapipe/tasks-vision, this adds two original samples for planning Interactive Segmenter before connecting a real model. The main sample is a Stroke Arbitrator that applies positive / negative / box / lasso inputs to a synthetic mask; the derivative is a Stroke Replay Compressor that reduces pointermove point streams before request replay.",
+  "keyTopics": [
+    "Google AI Edge の Web setup は `@mediapipe/tasks-vision`、CDN bundle、WASM fileset、`BaseOptions` の model path / delegate を確認する入口になる。",
+    "Interactive Segmenter の API は user interaction を `RegionOfInterest` として渡し、category mask または confidence mask を得る考え方を示している。",
+    "MediaPipe Tasks Vision Web README は Web 版 Interactive Segmenter の `setImage()` と `segment()`、`BrushMode.POSITIVE`、stroke points、`isCompleted` を使う最小例を示している。",
+    "mediapipe-samples-web の Interactive Segmenter 実装は、pointer events、accumulated strokes、worker request、古い request の invalidation、前回 mask bitmap の close を含む実運用寄りの構成になっている。",
+    "npm `@mediapipe/tasks-vision` は v1.x 系の Web package として公開され、公式モデル URL、WASM path、bundle import の pinning を日次サンプル側でも意識する必要がある。"
+  ],
+  "keyTopicsEn": [
+    "The Google AI Edge Web setup guide remains the entry point for `@mediapipe/tasks-vision`, CDN bundles, WASM filesets, and `BaseOptions` model path / delegate choices.",
+    "The Interactive Segmenter API represents user interaction as a `RegionOfInterest` and returns category or confidence masks.",
+    "The MediaPipe Tasks Vision Web README shows the minimal Web flow for `setImage()`, `segment()`, `BrushMode.POSITIVE`, stroke points, and `isCompleted`.",
+    "The mediapipe-samples-web Interactive Segmenter implementation includes production-shaped concerns: pointer events, accumulated strokes, worker requests, stale request invalidation, and closing the previous mask bitmap.",
+    "npm `@mediapipe/tasks-vision` is available as a v1.x Web package, so daily samples should keep version pinning, model URLs, WASM paths, and bundle imports explicit."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Interactive Segmenter Stroke Arbitrator",
+      "url": "../outputs/2026-09-23_interactive_segmenter_stroke_arbitrator.html"
+    },
+    {
+      "label": "Today's derivative sample: Stroke Replay Compressor",
+      "url": "../outputs/2026-09-23_stroke_replay_compressor.html"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge API: InteractiveSegmenter",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/InteractiveSegmenter"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web interactive segmenter",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/interactive-segmenter.ts"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-23-interactive-segmenter-stroke-arbitrator.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Interactive Segmenter を「クリックしたらマスクが出る demo」ではなく、ユーザーの修正意図を stroke protocol として扱うことです。公式 Web README は `BrushMode.POSITIVE` の stroke points と `isCompleted` を渡す最小例を示し、mediapipe-samples-web は accumulated strokes、worker、request invalidation、mask bitmap close まで含んでいます。つまり実装の面白さはモデル呼び出しだけでなく、positive / negative / box / lasso の順序、古い request の破棄、点列の圧縮にあります。",
+      "bodyEn": "Today's notable angle is treating Interactive Segmenter not as a click-to-mask demo, but as a stroke protocol for user correction intent. The official Web README shows a minimal `BrushMode.POSITIVE` stroke with points and `isCompleted`, while mediapipe-samples-web includes accumulated strokes, workers, request invalidation, and closing mask bitmaps. The interesting implementation work is therefore not just model invocation, but the ordering of positive / negative / box / lasso instructions, stale request rejection, and point-stream compression."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Interactive Segmenter Stroke Arbitrator` は、canvas 上の合成物体に positive / negative / box / lasso を重ね、negative weight、threshold、soft edge を動かすとマスク範囲が変わります。派生の `Stroke Replay Compressor` は、pointermove の生点列と圧縮後点列を並べ、spacing と corner keep を調整しながら payload 削減率と replay しやすさを見ます。",
+      "bodyEn": "The main sample, `Interactive Segmenter Stroke Arbitrator`, layers positive / negative / box / lasso instructions on synthetic canvas objects and updates the mask as negative weight, threshold, and soft edge change. The derivative, `Stroke Replay Compressor`, compares raw pointermove streams with compressed point streams and exposes payload reduction and replay behavior as spacing and corner retention change."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは stroke mode、normalized points、isCompleted、request id、mask threshold、negative weight、payload size、圧縮率、mask area、古い request の破棄理由です。Interactive Segmenter、Image Segmenter、Object Detector、Canvas、Worker、OffscreenCanvas、ImageBitmap、Pointer Events、IndexedDB、Playwright、WebCodecs と組み合わせると、ユーザー修正つき segmentation UI の品質と負荷を同時に追跡できます。",
+      "bodyEn": "The samples can accumulate stroke modes, normalized points, `isCompleted`, request IDs, mask thresholds, negative weights, payload size, compression ratios, mask area, and stale-request rejection reasons. Combined with Interactive Segmenter, Image Segmenter, Object Detector, Canvas, Workers, OffscreenCanvas, ImageBitmap, Pointer Events, IndexedDB, Playwright, and WebCodecs, they can track both quality and load for user-correctable segmentation UIs."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実モデル接続時は `@mediapipe/tasks-vision` と WASM path、interactive segmentation model URL を pin し、main thread は pointer capture と overlay 描画に寄せます。stroke は `{ brushMode, point, isCompleted }` の配列として request id と一緒に worker へ渡し、返却時に現在の request id と違う mask は描画しません。前回の mask bitmap を持つ場合は新しい mask を描く前に close し、pointermove は spacing / corner 条件で間引いてから送ると replay と保存が軽くなります。",
+      "bodyEn": "When connecting the real model, pin `@mediapipe/tasks-vision`, the WASM path, and the interactive segmentation model URL, and keep pointer capture plus overlay rendering on the main thread. Send strokes as `{ brushMode, point, isCompleted }` arrays with a request ID to a worker, and ignore returned masks whose request ID no longer matches. If a previous mask bitmap exists, close it before drawing a new mask. Compress pointermove streams by spacing and corner rules before sending them to keep replay and persistence lightweight."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-vision` latest / nightly、MediaPipe release notes の Interactive Segmenter / task runner 変更、mediapipe-samples-web の worker と stroke 実装、GitHub issues の WebGL / OffscreenCanvas / ImageBitmap close 関連、Google AI Edge docs の Web setup と model URL 更新を見ます。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-vision` latest / nightly builds, Interactive Segmenter and task-runner changes in MediaPipe release notes, worker and stroke implementation changes in mediapipe-samples-web, GitHub issues around WebGL / OffscreenCanvas / ImageBitmap close, and updates to Google AI Edge Web setup and model URLs."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Interactive Segmenter Stroke Arbitrator` で Seed strokes を押し、Negative weight を 90%、Mask threshold を 60% 以上にすると、除外 stroke が target と distractor の境界をどう削るかが見えます。派生サンプルでは Point spacing を 26px、Corner keep を 30deg 付近にすると、曲がり角を残しつつ payload を大きく削れる境界が見えます。",
+      "bodyEn": "In `Interactive Segmenter Stroke Arbitrator`, press Seed strokes and raise Negative weight to 90% and Mask threshold above 60% to see how exclusion strokes carve the boundary between target and distractor. In the derivative sample, set Point spacing near 26 px and Corner keep near 30 degrees to find the boundary where payload drops while corners remain recognizable."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Web setup、Interactive Segmenter API、Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認。設計: 公式 demo の再掲ではなく、stroke 入力、request payload、古い mask の扱いを自作 UI にする。実装: 本命 HTML に synthetic mask scorer、positive / negative / box / lasso、import probe、payload metrics を追加。派生 HTML に noisy pointer stream、spacing / corner compression、request batch、replay を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked Web setup, the Interactive Segmenter API, the Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and the npm package. Design: create original UI for stroke input, request payload, and stale-mask handling rather than reposting the official demo. Implementation: added a synthetic mask scorer, positive / negative / box / lasso modes, an import probe, and payload metrics to the main HTML. Added noisy pointer streams, spacing / corner compression, request batching, and replay to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the GitHub Pages top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Gesture / Hand の worker queue と stale result を扱いました。今日はその設計を Interactive Segmenter に移し、camera frame ではなく stroke と mask を対象にしました。これで日次サンプルの流れは、推論の速さだけでなく、ユーザー入力の編集性、payload、replay、worker 結果の鮮度まで広がります。",
+      "bodyEn": "Recent entries focused on Gesture / Hand worker queues and stale results. Today moves that design lens to Interactive Segmenter, targeting strokes and masks instead of camera frames. This expands the daily sample track from inference speed to editability, payload, replay, and worker-result freshness."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Interactive Segmenter Stroke Arbitrator` です。実際に動く部分は positive / negative / box / lasso 描画、negative weight、mask threshold、soft edge、synthetic mask area、payload metrics、tasks-vision import probe です。次に足すなら実 `InteractiveSegmenter.setImage()` / `segment()`、worker request id、mask bitmap close counter、normalized point export を足します。派生試作は `Stroke Replay Compressor` で、実際に動く部分は raw pointer stream、spacing / corner based compression、batch request estimate、compressed stroke replay です。次に足すなら実 worker への転送、IndexedDB 保存、compression preset、Playwright による request payload regression を足します。",
+      "bodyEn": "The selected main prototype is `Interactive Segmenter Stroke Arbitrator`. The working pieces are positive / negative / box / lasso drawing, negative weight, mask threshold, soft edge, synthetic mask area, payload metrics, and a tasks-vision import probe. Next additions should include real `InteractiveSegmenter.setImage()` / `segment()`, worker request IDs, a mask bitmap close counter, and normalized point export. The derivative prototype is `Stroke Replay Compressor`; the working pieces are raw pointer streams, spacing / corner based compression, batch request estimates, and compressed stroke replay. Next additions should include real worker transfer, IndexedDB persistence, compression presets, and Playwright request-payload regression tests.",
+      "links": [
+        {
+          "label": "Open Interactive Segmenter Stroke Arbitrator",
+          "url": "../outputs/2026-09-23_interactive_segmenter_stroke_arbitrator.html"
+        },
+        {
+          "label": "Open Stroke Replay Compressor",
+          "url": "../outputs/2026-09-23_stroke_replay_compressor.html"
+        }
+      ]
+    }
+  ]
+}

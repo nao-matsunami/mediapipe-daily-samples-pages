@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stroke Replay Compressor</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111318; color: #f4efe6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(136, 174, 241, .16), transparent 32%), linear-gradient(330deg, rgba(117, 210, 183, .18), transparent 38%), #111318; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 36px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(244, 239, 230, .14); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #88aef1; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d3d7dc; line-height: 1.6; }
+    button, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(244, 239, 230, .22); background: #f4efe6; color: #111318; padding: 8px 12px; }
+    button.secondary, select { background: rgba(17, 19, 24, .94); color: #f4efe6; }
+    label { display: grid; gap: 6px; color: #f4efe6; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #88aef1; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(244, 239, 230, .14); background: rgba(17, 19, 24, .9); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(244, 239, 230, .14); background: rgba(17, 19, 24, .9); padding: 14px; }
+    .boards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    canvas { width: 100%; aspect-ratio: 4 / 3; min-height: 310px; border: 1px solid rgba(244, 239, 230, .14); background: #07090d; touch-action: none; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .metric { border: 1px solid rgba(244, 239, 230, .12); background: #181e27; padding: 10px; }
+    .tile small { display: block; margin-top: 5px; color: #c7cdd4; line-height: 1.45; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.28rem; font-variant-numeric: tabular-nums; }
+    .value { color: #75d2b7; font-variant-numeric: tabular-nums; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 239, 230, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #e9edf1; font-size: .78rem; }
+    .pass { border-color: rgba(117, 210, 183, .82); background: rgba(117, 210, 183, .14); }
+    .warn { border-color: rgba(238, 184, 95, .85); background: rgba(238, 184, 95, .13); }
+    .bad { border-color: rgba(232, 104, 93, .85); background: rgba(232, 104, 93, .13); }
+    .log { height: 132px; margin-top: 14px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) { .toolbar, .layout, .boards, .metrics { grid-template-columns: 1fr; } canvas { min-height: 280px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Stroke Replay Compressor</h1>
+    <p>Interactive Segmenter に送る stroke 点列を、request ごとにどこまで間引けるかを見る派生サンプルです。形を残しつつ payload、worker 待ち、再送 replay の負荷を下げる境界を探します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Point spacing <input id="spacing" type="range" min="4" max="42" value="18"><span id="spacingValue" class="value">18 px</span></label>
+    <label>Corner keep <input id="corner" type="range" min="10" max="80" value="38"><span id="cornerValue" class="value">38 deg</span></label>
+    <label>Replay speed <input id="speed" type="range" min="1" max="12" value="5"><span id="speedValue" class="value">5x</span></label>
+    <label>Request batch <input id="batch" type="range" min="1" max="8" value="3"><span id="batchValue" class="value">3 strokes</span></label>
+    <label>Mode <select id="mode"><option value="trace">trace</option><option value="lasso">lasso</option></select><span class="value">draw input</span></label>
+    <button id="demo">Load demo</button>
+    <button id="replay" class="secondary">Replay</button>
+    <button id="clear" class="secondary">Clear</button>
+  </section>
+
+  <div class="layout">
+    <section>
+      <div class="stage">
+        <h2>Raw vs compressed request</h2>
+        <div class="boards">
+          <canvas id="raw" width="620" height="465"></canvas>
+          <canvas id="compressed" width="620" height="465"></canvas>
+        </div>
+        <div id="metrics" class="metrics"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+    <aside class="panel">
+      <h2>Why this matters</h2>
+      <div class="stack">
+        <div class="tile"><strong>Pointer noise</strong><small>連続 pointermove をそのまま送ると、同じ形でも request payload が膨らみます。</small></div>
+        <div class="tile"><strong>Replay safety</strong><small>worker が古い request を捨てたあと、最新 stroke だけを再送できる形式にします。</small></div>
+        <div class="tile"><strong>Corner preserve</strong><small>直線区間は減らし、曲がり角や lasso の閉じ目は残す方針です。</small></div>
+      </div>
+      <span id="qualityChip" class="chip pass">quality: ready</span>
+      <span class="chip">target: InteractiveSegmenter</span>
+    </aside>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const raw = $("raw");
+const compressed = $("compressed");
+const rawCtx = raw.getContext("2d");
+const cmpCtx = compressed.getContext("2d");
+const state = { strokes: [], draft: null, drawing: false, replayIndex: 0, replayTimer: 0 };
+
+function labels() {
+  $("spacingValue").textContent = `${$("spacing").value} px`;
+  $("cornerValue").textContent = `${$("corner").value} deg`;
+  $("speedValue").textContent = `${$("speed").value}x`;
+  $("batchValue").textContent = `${$("batch").value} strokes`;
+}
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 1800);
+}
+function pointer(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: (event.clientX - rect.left) / rect.width * canvas.width, y: (event.clientY - rect.top) / rect.height * canvas.height };
+}
+function angle(a, b, c) {
+  const ab = Math.atan2(a.y - b.y, a.x - b.x);
+  const cb = Math.atan2(c.y - b.y, c.x - b.x);
+  let deg = Math.abs((ab - cb) * 180 / Math.PI);
+  if (deg > 180) deg = 360 - deg;
+  return 180 - deg;
+}
+function compress(points) {
+  if (points.length <= 2) return points;
+  const spacing = Number($("spacing").value);
+  const corner = Number($("corner").value);
+  const kept = [points[0]];
+  let last = points[0];
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const p = points[i];
+    const d = Math.hypot(p.x - last.x, p.y - last.y);
+    const turn = angle(points[i - 1], p, points[i + 1]);
+    if (d >= spacing || turn >= corner) {
+      kept.push(p);
+      last = p;
+    }
+  }
+  kept.push(points.at(-1));
+  return kept;
+}
+function compressedStrokes() {
+  return state.strokes.map((stroke) => ({ ...stroke, points: compress(stroke.points) }));
+}
+function drawGrid(ctx, label) {
+  ctx.clearRect(0, 0, raw.width, raw.height);
+  const grad = ctx.createLinearGradient(0, 0, raw.width, raw.height);
+  grad.addColorStop(0, "#141b22");
+  grad.addColorStop(1, "#0b0d10");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, raw.width, raw.height);
+  ctx.strokeStyle = "rgba(244,239,230,.08)";
+  for (let x = 0; x < raw.width; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, raw.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < raw.height; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(raw.width, y);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#f4efe6";
+  ctx.font = "16px system-ui";
+  ctx.fillText(label, 14, 26);
+}
+function drawStrokeSet(ctx, strokes, replayLimit = Infinity) {
+  let visible = 0;
+  for (const [index, stroke] of strokes.entries()) {
+    const points = stroke.points.slice(0, Math.max(0, Math.min(stroke.points.length, replayLimit - visible)));
+    visible += points.length;
+    if (points.length < 1) continue;
+    ctx.save();
+    ctx.strokeStyle = index % 2 ? "#75d2b7" : "#88aef1";
+    ctx.fillStyle = index % 2 ? "rgba(117,210,183,.16)" : "rgba(136,174,241,.15)";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    if (stroke.mode === "lasso" && points.length === stroke.points.length) {
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.stroke();
+    for (const p of points) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#f4efe6";
+      ctx.fill();
+    }
+    ctx.restore();
+    if (visible >= replayLimit) break;
+  }
+}
+function render(replayLimit = Infinity) {
+  const cmp = compressedStrokes();
+  drawGrid(rawCtx, "raw pointer stream");
+  drawGrid(cmpCtx, "compressed request");
+  drawStrokeSet(rawCtx, [...state.strokes, state.draft].filter(Boolean), replayLimit);
+  drawStrokeSet(cmpCtx, cmp, replayLimit);
+  const rawPoints = state.strokes.reduce((sum, stroke) => sum + stroke.points.length, 0);
+  const cmpPoints = cmp.reduce((sum, stroke) => sum + stroke.points.length, 0);
+  const batch = Number($("batch").value);
+  const requests = Math.ceil(state.strokes.length / batch);
+  const reduction = rawPoints ? Math.round((1 - cmpPoints / rawPoints) * 100) : 0;
+  const quality = reduction > 82 ? "risk" : reduction > 62 ? "tight" : "safe";
+  $("qualityChip").textContent = `quality: ${quality}`;
+  $("qualityChip").className = `chip ${quality === "safe" ? "pass" : quality === "tight" ? "warn" : "bad"}`;
+  $("metrics").innerHTML = [
+    ["Raw points", rawPoints],
+    ["Compressed", cmpPoints],
+    ["Reduction", `${Math.max(0, reduction)}%`],
+    ["Requests", requests],
+    ["Payload raw", `${Math.round(rawPoints * 20 / 1024 * 10) / 10} KB`],
+    ["Payload cmp", `${Math.round(cmpPoints * 20 / 1024 * 10) / 10} KB`],
+    ["Batch", batch],
+    ["Strokes", state.strokes.length]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+function loadDemo() {
+  const wave = Array.from({ length: 96 }, (_, i) => ({ x: 64 + i * 5.2, y: 150 + Math.sin(i * .23) * 42 + Math.sin(i * .07) * 18 }));
+  const loop = Array.from({ length: 118 }, (_, i) => {
+    const t = i / 118 * Math.PI * 2;
+    return { x: 330 + Math.cos(t) * (138 + Math.sin(t * 3) * 24), y: 300 + Math.sin(t) * (86 + Math.cos(t * 2) * 16) };
+  });
+  const zig = Array.from({ length: 54 }, (_, i) => ({ x: 92 + i * 8, y: 365 + (i % 8 < 4 ? -28 : 28) + Math.sin(i) * 5 }));
+  state.strokes = [{ mode: "trace", points: wave }, { mode: "lasso", points: loop }, { mode: "trace", points: zig }];
+  log("loaded noisy pointer streams");
+  render();
+}
+function replay() {
+  clearInterval(state.replayTimer);
+  const total = compressedStrokes().reduce((sum, stroke) => sum + stroke.points.length, 0);
+  state.replayIndex = 0;
+  state.replayTimer = setInterval(() => {
+    state.replayIndex += Number($("speed").value);
+    render(state.replayIndex);
+    if (state.replayIndex >= total) {
+      clearInterval(state.replayTimer);
+      log("replay finished");
+    }
+  }, 50);
+}
+raw.addEventListener("pointerdown", (event) => {
+  state.drawing = true;
+  state.draft = { mode: $("mode").value, points: [pointer(raw, event)] };
+  raw.setPointerCapture(event.pointerId);
+  render();
+});
+raw.addEventListener("pointermove", (event) => {
+  if (!state.drawing || !state.draft) return;
+  state.draft.points.push(pointer(raw, event));
+  render();
+});
+raw.addEventListener("pointerup", () => {
+  if (!state.draft) return;
+  state.strokes.push(state.draft);
+  log(`captured ${state.draft.mode} stroke with ${state.draft.points.length} points`);
+  state.draft = null;
+  state.drawing = false;
+  render();
+});
+$("demo").addEventListener("click", loadDemo);
+$("replay").addEventListener("click", replay);
+$("clear").addEventListener("click", () => { clearInterval(state.replayTimer); state.strokes = []; state.draft = null; log("cleared strokes"); render(); });
+document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { labels(); render(); }));
+labels();
+loadDemo();
+</script>
+</body>
+</html>

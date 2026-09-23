@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interactive Segmenter Stroke Arbitrator</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101316; color: #f6f1e8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 18% 16%, rgba(81, 178, 151, .22), transparent 30%), radial-gradient(circle at 80% 10%, rgba(238, 184, 95, .18), transparent 32%), #101316; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 36px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(246, 241, 232, .14); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #75d2b7; letter-spacing: 0; }
+    p { margin: 0; color: #d3d8d5; line-height: 1.6; }
+    button, select, input { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(246, 241, 232, .22); background: #f6f1e8; color: #101316; padding: 8px 12px; }
+    button.secondary, select { background: rgba(16, 19, 22, .94); color: #f6f1e8; }
+    label { display: grid; gap: 6px; color: #f6f1e8; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #75d2b7; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(246, 241, 232, .14); background: rgba(16, 19, 22, .88); }
+    .layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(246, 241, 232, .14); background: rgba(16, 19, 22, .9); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .metric { border: 1px solid rgba(246, 241, 232, .12); background: #171d20; padding: 10px; }
+    .tile small { display: block; margin-top: 5px; color: #c4ceca; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(246, 241, 232, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #e9eeee; font-size: .78rem; }
+    .pass { border-color: rgba(117, 210, 183, .82); background: rgba(117, 210, 183, .14); }
+    .warn { border-color: rgba(238, 184, 95, .85); background: rgba(238, 184, 95, .13); }
+    .bad { border-color: rgba(232, 104, 93, .85); background: rgba(232, 104, 93, .13); }
+    .canvasWrap { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
+    canvas { width: 100%; aspect-ratio: 4 / 3; min-height: 360px; border: 1px solid rgba(246, 241, 232, .14); background: #07090a; touch-action: none; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.28rem; font-variant-numeric: tabular-nums; }
+    .value { color: #eeb85f; font-variant-numeric: tabular-nums; }
+    .log { height: 136px; margin-top: 14px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) { .toolbar, .layout, .canvasWrap, .metrics { grid-template-columns: 1fr; } canvas { min-height: 300px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Interactive Segmenter Stroke Arbitrator</h1>
+    <p>MediaPipe Interactive Segmenter の RegionOfInterest / stroke 入力を実モデル接続前に設計する自作サンプルです。positive / negative / box / lasso の指示を重ね、どの領域が採用されるかを合成マスクで確認します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Brush mode
+      <select id="mode">
+        <option value="positive">positive stroke</option>
+        <option value="negative">negative stroke</option>
+        <option value="box">box region</option>
+        <option value="lasso">lasso region</option>
+      </select>
+      <span class="value">ROI input</span>
+    </label>
+    <label>Stroke radius <input id="radius" type="range" min="8" max="72" value="34"><span id="radiusValue" class="value">34 px</span></label>
+    <label>Negative weight <input id="negative" type="range" min="20" max="100" value="72"><span id="negativeValue" class="value">72%</span></label>
+    <label>Mask threshold <input id="threshold" type="range" min="18" max="86" value="48"><span id="thresholdValue" class="value">48%</span></label>
+    <label>Soft edge <input id="soft" type="range" min="6" max="44" value="22"><span id="softValue" class="value">22 px</span></label>
+    <button id="seed">Seed strokes</button>
+    <button id="probe" class="secondary">Import probe</button>
+    <button id="clear" class="secondary">Clear</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Protocol notes</h2>
+      <div class="stack">
+        <div class="tile"><strong>Interaction first</strong><small>公式 API は ROI 付き segmentation を扱える。ここでは stroke order と conflict 解決だけを可視化します。</small></div>
+        <div class="tile"><strong>Negative guard</strong><small>除外 stroke は mask を削るだけでなく、次の positive stroke の優先度も変えます。</small></div>
+        <div class="tile"><strong>Request payload</strong><small>実接続時は points、brushMode、isCompleted を worker へ渡し、古い request id を破棄します。</small></div>
+      </div>
+      <span id="importChip" class="chip">tasks-vision: not probed</span>
+      <span id="statusChip" class="chip pass">mask: ready</span>
+      <span class="chip">model: simulated</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Stroke canvas</h2>
+        <div class="canvasWrap">
+          <canvas id="canvas" width="880" height="660" aria-label="Interactive segmenter stroke simulation"></canvas>
+          <div class="stack" id="legend"></div>
+        </div>
+        <div id="metrics" class="metrics"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const canvas = $("canvas");
+const ctx = canvas.getContext("2d");
+const state = { strokes: [], draft: null, dragStart: null, drawing: false, sample: null };
+
+function labels() {
+  $("radiusValue").textContent = `${$("radius").value} px`;
+  $("negativeValue").textContent = `${$("negative").value}%`;
+  $("thresholdValue").textContent = `${$("threshold").value}%`;
+  $("softValue").textContent = `${$("soft").value} px`;
+}
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+function pointer(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) / rect.width * canvas.width,
+    y: (event.clientY - rect.top) / rect.height * canvas.height
+  };
+}
+function addSeed() {
+  state.strokes = [
+    { mode: "positive", points: [{ x: 352, y: 258 }, { x: 402, y: 300 }, { x: 466, y: 306 }], radius: 46 },
+    { mode: "negative", points: [{ x: 528, y: 256 }, { x: 570, y: 278 }], radius: 38 },
+    { mode: "lasso", points: [{ x: 260, y: 392 }, { x: 358, y: 362 }, { x: 466, y: 406 }, { x: 418, y: 512 }, { x: 292, y: 500 }], radius: 22 },
+    { mode: "box", points: [{ x: 568, y: 378 }, { x: 732, y: 538 }], radius: 18 }
+  ];
+  log("seeded four ROI instructions");
+  render();
+}
+function drawScene() {
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  grad.addColorStop(0, "#172226");
+  grad.addColorStop(.55, "#11161a");
+  grad.addColorStop(1, "#27201a");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const objects = [
+    [360, 300, 150, 100, "#75d2b7", "target A"],
+    [610, 292, 108, 80, "#e8685d", "distractor"],
+    [350, 452, 180, 110, "#eeb85f", "target B"],
+    [650, 470, 150, 126, "#88aef1", "region C"]
+  ];
+  for (const [x, y, w, h, color, label] of objects) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(x) * .08);
+    ctx.fillStyle = color + "33";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    roundedRect(-w / 2, -h / 2, w, h, 22);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f6f1e8";
+    ctx.font = "15px system-ui";
+    ctx.fillText(label, -w / 2 + 14, 5);
+    ctx.restore();
+  }
+}
+function roundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function scoreAt(x, y) {
+  let score = .08 + .16 * Math.sin(x * .015) * Math.cos(y * .012);
+  const soft = Number($("soft").value);
+  const negWeight = Number($("negative").value) / 100;
+  for (const stroke of state.strokes) {
+    if (stroke.mode === "box") {
+      const [a, b] = stroke.points;
+      const inside = x >= Math.min(a.x, b.x) && x <= Math.max(a.x, b.x) && y >= Math.min(a.y, b.y) && y <= Math.max(a.y, b.y);
+      if (inside) score += .45;
+      continue;
+    }
+    if (stroke.mode === "lasso" && pointInPoly({ x, y }, stroke.points)) score += .38;
+    for (const point of stroke.points) {
+      const d = Math.hypot(x - point.x, y - point.y);
+      const influence = Math.max(0, 1 - d / (stroke.radius + soft));
+      if (stroke.mode === "positive") score += influence * .5;
+      if (stroke.mode === "negative") score -= influence * .58 * negWeight;
+    }
+  }
+  return Math.max(0, Math.min(1, score));
+}
+function pointInPoly(point, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    const intersect = ((yi > point.y) !== (yj > point.y)) && point.x < (xj - xi) * (point.y - yi) / (yj - yi + .00001) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function drawMask() {
+  const step = 10;
+  const threshold = Number($("threshold").value) / 100;
+  let active = 0;
+  for (let y = 0; y < canvas.height; y += step) {
+    for (let x = 0; x < canvas.width; x += step) {
+      const s = scoreAt(x + step / 2, y + step / 2);
+      if (s >= threshold) {
+        active += 1;
+        ctx.fillStyle = `rgba(117, 210, 183, ${Math.min(.72, .16 + s * .54)})`;
+        ctx.fillRect(x, y, step + 1, step + 1);
+      }
+    }
+  }
+  return active * step * step;
+}
+function drawStrokes() {
+  const all = [...state.strokes, state.draft].filter(Boolean);
+  for (const stroke of all) {
+    const color = stroke.mode === "negative" ? "#e8685d" : stroke.mode === "box" ? "#88aef1" : stroke.mode === "lasso" ? "#eeb85f" : "#75d2b7";
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color + "22";
+    ctx.lineWidth = Math.max(3, stroke.radius / 6);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (stroke.mode === "box" && stroke.points.length > 1) {
+      const [a, b] = stroke.points;
+      ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    } else {
+      ctx.beginPath();
+      stroke.points.forEach((p, index) => index ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      if (stroke.mode === "lasso" && stroke.points.length > 2) {
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.stroke();
+      for (const p of stroke.points) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+}
+function render() {
+  drawScene();
+  const area = drawMask();
+  drawStrokes();
+  const counts = state.strokes.reduce((acc, stroke) => {
+    acc[stroke.mode] = (acc[stroke.mode] || 0) + 1;
+    return acc;
+  }, {});
+  const points = state.strokes.reduce((sum, stroke) => sum + stroke.points.length, 0);
+  $("metrics").innerHTML = [
+    ["Instructions", state.strokes.length],
+    ["Points", points],
+    ["Mask area", `${Math.round(area / (canvas.width * canvas.height) * 100)}%`],
+    ["Payload", `${Math.round(points * 20 + state.strokes.length * 36)} B`],
+    ["Positive", counts.positive || 0],
+    ["Negative", counts.negative || 0],
+    ["Box", counts.box || 0],
+    ["Lasso", counts.lasso || 0]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("legend").innerHTML = state.strokes.map((stroke, index) => `<div class="tile"><strong>#${index + 1} ${stroke.mode}</strong><small>${stroke.points.length} points / radius ${stroke.radius}px / isCompleted true</small></div>`).join("") || `<div class="tile"><strong>No strokes</strong><small>Canvas に描くか Seed strokes を押してください。</small></div>`;
+}
+async function probeImport() {
+  $("importChip").textContent = "tasks-vision: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.mjs");
+    $("importChip").textContent = mod.InteractiveSegmenter ? "tasks-vision: InteractiveSegmenter ok" : "tasks-vision: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-vision latest bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-vision: import blocked";
+    $("importChip").className = "chip bad";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+canvas.addEventListener("pointerdown", (event) => {
+  const p = pointer(event);
+  const mode = $("mode").value;
+  state.drawing = true;
+  state.dragStart = p;
+  state.draft = { mode, points: [p], radius: Number($("radius").value) };
+  canvas.setPointerCapture(event.pointerId);
+  render();
+});
+canvas.addEventListener("pointermove", (event) => {
+  if (!state.drawing || !state.draft) return;
+  const p = pointer(event);
+  if (state.draft.mode === "box") state.draft.points = [state.dragStart, p];
+  else if (Math.hypot(p.x - state.draft.points.at(-1).x, p.y - state.draft.points.at(-1).y) > 12) state.draft.points.push(p);
+  render();
+});
+canvas.addEventListener("pointerup", () => {
+  if (!state.draft) return;
+  state.strokes.push(state.draft);
+  log(`commit ${state.draft.mode} with ${state.draft.points.length} points`);
+  state.draft = null;
+  state.drawing = false;
+  render();
+});
+$("seed").addEventListener("click", addSeed);
+$("probe").addEventListener("click", probeImport);
+$("clear").addEventListener("click", () => { state.strokes = []; state.draft = null; log("cleared strokes"); render(); });
+document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { labels(); render(); }));
+labels();
+addSeed();
+</script>
+</body>
+</html>
