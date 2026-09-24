@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mask Confidence Compositor</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0b1114; color: #f4f7f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(75, 195, 160, .16), transparent 34%), linear-gradient(315deg, rgba(236, 181, 78, .14), transparent 38%), #0b1114; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(244, 247, 244, .14); }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.8rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #75dcbc; letter-spacing: 0; }
+    p { margin: 0; color: #cbd4d0; line-height: 1.62; }
+    button, select, input { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(244, 247, 244, .22); background: #f4f7f4; color: #0b1114; padding: 8px 12px; }
+    button.secondary, select { background: rgba(11, 17, 20, .94); color: #f4f7f4; }
+    label { display: grid; gap: 6px; color: #f4f7f4; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #75dcbc; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(244, 247, 244, .14); background: rgba(11, 17, 20, .88); }
+    .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(244, 247, 244, .14); background: rgba(11, 17, 20, .91); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .metric { border: 1px solid rgba(244, 247, 244, .12); background: #121a1e; padding: 10px; }
+    .tile small { display: block; margin-top: 5px; color: #b8c5c0; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 247, 244, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #edf3ef; font-size: .78rem; }
+    .pass { border-color: rgba(117, 220, 188, .82); background: rgba(117, 220, 188, .14); }
+    .warn { border-color: rgba(236, 181, 78, .85); background: rgba(236, 181, 78, .13); }
+    .canvasWrap { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; align-items: start; }
+    canvas { width: 100%; aspect-ratio: 4 / 3; min-height: 360px; border: 1px solid rgba(244, 247, 244, .14); background: #07090a; touch-action: none; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+    .value { color: #ecb54e; font-variant-numeric: tabular-nums; }
+    .log { height: 130px; margin-top: 14px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) { .toolbar, .layout, .canvasWrap, .metrics { grid-template-columns: 1fr; } canvas { min-height: 300px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Mask Confidence Compositor</h1>
+    <p>MediaPipe Image Segmenter の CATEGORY_MASK / CONFIDENCE_MASK を実モデル接続前に検証する自作サンプルです。合成フレーム上で confidence threshold、edge feather、category palette、処理予算を動かし、マスクを UI に重ねる前の判断を確認します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Mask view
+      <select id="view">
+        <option value="confidence">confidence mask</option>
+        <option value="category">category mask</option>
+        <option value="hybrid">hybrid composite</option>
+      </select>
+      <span class="value">simulated output</span>
+    </label>
+    <label>Confidence threshold <input id="threshold" type="range" min="12" max="88" value="46"><span id="thresholdValue" class="value">46%</span></label>
+    <label>Edge feather <input id="feather" type="range" min="0" max="42" value="18"><span id="featherValue" class="value">18 px</span></label>
+    <label>Frame budget <input id="budget" type="range" min="6" max="34" value="16"><span id="budgetValue" class="value">16 ms</span></label>
+    <label>Overlay alpha <input id="alpha" type="range" min="18" max="92" value="70"><span id="alphaValue" class="value">70%</span></label>
+    <button id="step">Step frame</button>
+    <button id="animate" class="secondary">Animate</button>
+    <button id="probe" class="secondary">Import probe</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Segmenter checklist</h2>
+      <div class="stack">
+        <div class="tile"><strong>CATEGORY_MASK</strong><small>uint8 category id の想定。表示は palette と category priority で決めます。</small></div>
+        <div class="tile"><strong>CONFIDENCE_MASK</strong><small>各ピクセルの確信度として扱い、threshold と feather で UI に向く境界へ整えます。</small></div>
+        <div class="tile"><strong>Video loop</strong><small>実接続時は segmentForVideo の同期コストを worker / cadence / stale result で吸収します。</small></div>
+      </div>
+      <span id="importChip" class="chip">tasks-vision: not probed</span>
+      <span id="budgetChip" class="chip pass">budget: ready</span>
+      <span class="chip">model: simulated</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Mask compositor</h2>
+        <div class="canvasWrap">
+          <canvas id="canvas" width="880" height="660" aria-label="Image segmenter mask compositor simulation"></canvas>
+          <div class="stack" id="legend"></div>
+        </div>
+        <div id="metrics" class="metrics"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const canvas = $("canvas");
+const ctx = canvas.getContext("2d");
+const state = { frame: 0, running: false, lastCost: 0, dropped: 0 };
+
+const cats = [
+  { id: 1, name: "person", color: [117, 220, 188], cx: .42, cy: .48, rx: .18, ry: .32 },
+  { id: 2, name: "hair", color: [236, 181, 78], cx: .42, cy: .22, rx: .13, ry: .10 },
+  { id: 3, name: "clothing", color: [123, 162, 234], cx: .43, cy: .67, rx: .22, ry: .16 },
+  { id: 4, name: "background detail", color: [232, 111, 94], cx: .72, cy: .48, rx: .13, ry: .20 }
+];
+
+function labels() {
+  $("thresholdValue").textContent = `${$("threshold").value}%`;
+  $("featherValue").textContent = `${$("feather").value} px`;
+  $("budgetValue").textContent = `${$("budget").value} ms`;
+  $("alphaValue").textContent = `${$("alpha").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function confidence(cat, nx, ny) {
+  const wobble = Math.sin(state.frame * .06 + nx * 8) * .015 + Math.cos(state.frame * .04 + ny * 7) * .012;
+  const dx = (nx - cat.cx - wobble) / cat.rx;
+  const dy = (ny - cat.cy + wobble) / cat.ry;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  return Math.max(0, Math.min(1, 1 - d + .08 * Math.sin((nx + ny) * 24 + state.frame * .05)));
+}
+
+function bestCategory(nx, ny) {
+  let best = { cat: null, score: 0 };
+  for (const cat of cats) {
+    const score = confidence(cat, nx, ny);
+    if (score > best.score) best = { cat, score };
+  }
+  return best;
+}
+
+function drawScene() {
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  grad.addColorStop(0, "#17242a");
+  grad.addColorStop(.6, "#12161a");
+  grad.addColorStop(1, "#241d17");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width * .42, canvas.height * .46);
+  ctx.fillStyle = "rgba(117, 220, 188, .18)";
+  ctx.strokeStyle = "rgba(244, 247, 244, .48)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 22, 124, 210, .03, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "rgba(236, 181, 78, .32)";
+  ctx.beginPath();
+  ctx.ellipse(0, -156, 98, 74, -.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(123, 162, 234, .26)";
+  ctx.fillRect(-156, 104, 312, 120);
+  ctx.restore();
+  ctx.fillStyle = "rgba(232, 111, 94, .20)";
+  ctx.fillRect(canvas.width * .64, canvas.height * .26, 170, 290);
+  ctx.fillStyle = "#f4f7f4";
+  ctx.font = "15px system-ui";
+  ctx.fillText("synthetic source frame", 22, 32);
+}
+
+function drawMask() {
+  const threshold = Number($("threshold").value) / 100;
+  const feather = Number($("feather").value) / 100;
+  const alpha = Number($("alpha").value) / 100;
+  const view = $("view").value;
+  const step = 8;
+  let active = 0;
+  const start = performance.now();
+  for (let y = 0; y < canvas.height; y += step) {
+    for (let x = 0; x < canvas.width; x += step) {
+      const nx = (x + step / 2) / canvas.width;
+      const ny = (y + step / 2) / canvas.height;
+      const { cat, score } = bestCategory(nx, ny);
+      if (!cat) continue;
+      const edge = Math.max(0, Math.min(1, (score - threshold) / Math.max(.01, feather)));
+      const show = view === "category" ? score > .12 : edge > 0;
+      if (!show) continue;
+      active += 1;
+      const a = view === "category" ? .42 * alpha : Math.min(.82, (.12 + edge * .72) * alpha);
+      const tint = view === "confidence" ? [117, 220, 188] : cat.color;
+      ctx.fillStyle = `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${a})`;
+      ctx.fillRect(x, y, step + 1, step + 1);
+    }
+  }
+  state.lastCost = performance.now() - start + 4.8 + active * .0009;
+  return active * step * step;
+}
+
+function renderLegend() {
+  const html = cats.map((cat) => `<div class="tile"><strong>${cat.name}</strong><small>category ${cat.id} / palette rgb(${cat.color.join(", ")})</small></div>`).join("");
+  $("legend").innerHTML = html;
+}
+
+function renderMetrics(area) {
+  const budget = Number($("budget").value);
+  const ok = state.lastCost <= budget;
+  if (!ok) state.dropped += 1;
+  $("budgetChip").className = `chip ${ok ? "pass" : "warn"}`;
+  $("budgetChip").textContent = ok ? "budget: pass" : "budget: over";
+  $("metrics").innerHTML = [
+    ["Mask area", `${Math.round(area / (canvas.width * canvas.height) * 100)}%`],
+    ["Estimated cost", `${state.lastCost.toFixed(1)} ms`],
+    ["Frame budget", `${budget} ms`],
+    ["Rejected frames", state.dropped]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+function render() {
+  labels();
+  drawScene();
+  const area = drawMask();
+  renderLegend();
+  renderMetrics(area);
+}
+
+function tick() {
+  if (!state.running) return;
+  state.frame += 1;
+  render();
+  requestAnimationFrame(tick);
+}
+
+async function probeImport() {
+  const chip = $("importChip");
+  chip.textContent = "tasks-vision: probing";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+    chip.textContent = mod.ImageSegmenter ? "tasks-vision: ImageSegmenter export found" : "tasks-vision: module loaded";
+    chip.className = "chip pass";
+    log("dynamic import resolved from jsDelivr pin");
+  } catch (error) {
+    chip.textContent = "tasks-vision: blocked/offline";
+    chip.className = "chip warn";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+
+["threshold", "feather", "budget", "alpha", "view"].forEach((id) => $(id).addEventListener("input", render));
+$("step").addEventListener("click", () => { state.frame += 5; render(); log("stepped simulated video frame"); });
+$("animate").addEventListener("click", () => {
+  state.running = !state.running;
+  $("animate").textContent = state.running ? "Pause" : "Animate";
+  log(state.running ? "animation started" : "animation paused");
+  tick();
+});
+$("probe").addEventListener("click", probeImport);
+render();
+log("ready: tune mask view before model hookup");
+</script>
+</body>
+</html>

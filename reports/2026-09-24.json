@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-24",
+  "category": "MediaPipe / Google AI Edge / Image Segmenter / Web ML",
+  "headline": "Image Segmenter は mask confidence と lifecycle を分けて設計する",
+  "headlineEn": "Design Image Segmenter around mask confidence and lifecycle separately",
+  "summary": "Google AI Edge の Image Segmenter guide / Web guide、Web setup、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm @mediapipe/tasks-vision を確認し、自作サンプルを2本追加しました。本命は category / confidence mask を UI に合成する前の threshold、feather、palette、frame budget を触る Mask Confidence Compositor、派生は worker から返る mask bitmap の request id、stale rejection、close discipline を検証する Mask Bitmap Lifecycle Sentinel です。",
+  "summaryEn": "After checking the Google AI Edge Image Segmenter guide / Web guide, Web setup, MediaPipe Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and npm @mediapipe/tasks-vision, this adds two original samples. The main sample is a Mask Confidence Compositor for tuning threshold, feather, palette, and frame budget before compositing category / confidence masks into UI. The derivative is a Mask Bitmap Lifecycle Sentinel for testing request IDs, stale-result rejection, and close discipline for mask bitmaps returned from a worker.",
+  "keyTopics": [
+    "Image Segmenter は predefined categories に基づいて画像領域を分け、人物・髪・顔・肌・衣服などの用途で category mask または confidence mask を扱える。",
+    "Web guide は Node / browser で Image Segmenter を使う入口を示し、一般 setup は `@mediapipe/tasks-vision`、CDN bundle、WASM fileset、model path の確認点になる。",
+    "Tasks Vision Web README と公式サンプル群は Image Segmenter / Interactive Segmenter の最小接続を確認する一次情報として使えるが、日次公開カードは自作の検証 UI を中心にする。",
+    "2026年7月の MediaPipe v1.0.0 release notes では Web / JavaScript 側の更新も続いており、tasks-vision の pinning と release 追跡を日次サンプル側で継続する必要がある。",
+    "昨日の stroke protocol から今日の mask compositor へつなぐと、入力設計、mask confidence、描画予算、mask bitmap lifecycle を一連の Web ML UI として見られる。"
+  ],
+  "keyTopicsEn": [
+    "Image Segmenter separates image regions based on predefined categories and can work with category masks or confidence masks for uses such as people, hair, face, skin, and clothing segmentation.",
+    "The Web guide provides the entry point for using Image Segmenter in Node / browser apps, while the general setup guide anchors `@mediapipe/tasks-vision`, CDN bundles, WASM filesets, and model paths.",
+    "The Tasks Vision Web README and official sample collection are primary references for minimal Image Segmenter / Interactive Segmenter wiring, but the daily public cards should center original validation UIs.",
+    "The July 2026 MediaPipe v1.0.0 release notes show continued Web / JavaScript updates, so tasks-vision pinning and release tracking remain part of the daily workflow.",
+    "Connecting yesterday's stroke protocol to today's mask compositor makes input design, mask confidence, rendering budget, and mask bitmap lifecycle visible as one Web ML UI flow."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Mask Confidence Compositor",
+      "url": "../outputs/2026-09-24_mask_confidence_compositor.html"
+    },
+    {
+      "label": "Today's derivative sample: Mask Bitmap Lifecycle Sentinel",
+      "url": "../outputs/2026-09-24_mask_bitmap_lifecycle_sentinel.html"
+    },
+    {
+      "label": "Google AI Edge: Image segmentation guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter"
+    },
+    {
+      "label": "Google AI Edge: Image segmentation guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-24-mask-confidence-compositor.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Image Segmenter の結果をただ塗るのではなく、category mask と confidence mask を UI 合成前の別レイヤーとして扱うことです。公式 guide は predefined categories による領域分割と、category / confidence mask の出力を説明しています。昨日の Interactive Segmenter stroke protocol は「どこを取りたいか」の入力設計でしたが、今日は「返ってきた mask をどう信用し、いつ描き、いつ捨てるか」の設計です。",
+      "bodyEn": "Today's notable angle is treating Image Segmenter output not as a paint overlay, but as separate category-mask and confidence-mask layers before UI composition. The official guide describes segmentation by predefined categories and outputs such as category and confidence masks. Yesterday's Interactive Segmenter stroke protocol addressed how users express what they want; today focuses on how to trust, draw, and retire the returned mask."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Mask Confidence Compositor` は、合成フレーム上の人物・髪・服・背景 detail を category / confidence / hybrid 表示で重ね、confidence threshold、edge feather、overlay alpha、frame budget を動かせます。派生の `Mask Bitmap Lifecycle Sentinel` は、worker から遅れて返る複数 mask を request id で並べ、古い結果の拒否、前回 bitmap の close、未 close 圧力を見ます。",
+      "bodyEn": "The main sample, `Mask Confidence Compositor`, overlays person / hair / clothing / background-detail regions on a synthetic frame and exposes category, confidence, and hybrid views with confidence threshold, edge feather, overlay alpha, and frame budget controls. The derivative, `Mask Bitmap Lifecycle Sentinel`, lines up delayed worker-style mask returns by request ID and tracks stale-result rejection, closing the previous bitmap, and unclosed-resource pressure."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは category id、confidence threshold、mask area、estimated frame cost、budget overflow、request id、accepted / stale result、close count、open bitmap bytes です。Image Segmenter、Interactive Segmenter、Canvas、Worker、OffscreenCanvas、ImageBitmap、WebCodecs、Pointer Events、IndexedDB、Playwright と組み合わせると、修正可能な segmentation UI の品質、遅延、リソース寿命をまとめて観察できます。",
+      "bodyEn": "The samples can accumulate category IDs, confidence thresholds, mask area, estimated frame cost, budget overflows, request IDs, accepted / stale results, close counts, and open bitmap bytes. Combined with Image Segmenter, Interactive Segmenter, Canvas, Workers, OffscreenCanvas, ImageBitmap, WebCodecs, Pointer Events, IndexedDB, and Playwright, they can observe quality, latency, and resource lifetime for correctable segmentation UIs."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実モデル接続時は `@mediapipe/tasks-vision`、WASM fileset、model URL を pin し、`outputCategoryMask` と `outputConfidenceMasks` のどちらを UI が必要とするかを先に決めます。video loop では segmentForVideo の同期コストを直接 main thread に積み続けず、cadence、worker、request id、stale result rejection を入れます。ImageBitmap や mask resource は次の mask を current にする前に明示的に破棄した扱いにし、mask area と open bytes をログに残すと回帰検知しやすくなります。",
+      "bodyEn": "When connecting the real model, pin `@mediapipe/tasks-vision`, the WASM fileset, and the model URL, then decide whether the UI needs `outputCategoryMask`, `outputConfidenceMasks`, or both. In video loops, do not keep stacking synchronous `segmentForVideo` work on the main thread; add cadence, a worker boundary, request IDs, and stale-result rejection. Treat ImageBitmap or mask resources as explicitly retired before making the next mask current, and log mask area plus open bytes for easier regression detection."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-vision` latest / nightly、MediaPipe release notes の Image Segmenter / task runner 変更、mediapipe-samples-web の image segmentation / interactive segmentation 実装、GitHub issues の Web bundle provenance、OffscreenCanvas、ImageBitmap、mask lifecycle 関連を見ます。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-vision` latest / nightly builds, Image Segmenter and task-runner changes in MediaPipe release notes, image segmentation / interactive segmentation implementations in mediapipe-samples-web, and GitHub issues around Web bundle provenance, OffscreenCanvas, ImageBitmap, and mask lifecycle."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Mask Confidence Compositor` で hybrid composite を選び、Confidence threshold を 55% 前後、Edge feather を 12px 前後にすると、領域の芯だけを保ちながら柔らかい UI overlay にする調整が見えます。派生サンプルでは Requests per burst を 6、Worker jitter を 700ms 以上にして、古い request がどれだけ拒否されるかを見てください。",
+      "bodyEn": "In `Mask Confidence Compositor`, choose hybrid composite and set Confidence threshold near 55% with Edge feather near 12 px to see how to keep the core region while producing a soft UI overlay. In the derivative sample, raise Requests per burst to 6 and Worker jitter above 700 ms to see how many older requests are rejected."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Segmenter guide / Web guide、Web setup、Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認。設計: 公式 demo の再掲ではなく、mask confidence と lifecycle の小さな自作検証 UI にする。実装: 本命 HTML に synthetic category/confidence scorer、threshold、feather、palette、budget metrics、import probe を追加。派生 HTML に request burst、jitter、stale rejection、close discipline、open bitmap bytes を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Segmenter guide / Web guide, Web setup, Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and the npm package. Design: build small original validation UIs for mask confidence and lifecycle rather than reposting official demos. Implementation: added synthetic category/confidence scoring, threshold, feather, palette, budget metrics, and an import probe to the main HTML. Added request bursts, jitter, stale rejection, close discipline, and open bitmap bytes to the derivative HTML. Validation: check JSON parse, gallery build, publish command, and HTTP 200 responses for the GitHub Pages top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Gesture / Hand の worker queue、Interactive Segmenter の stroke protocol を扱いました。今日は同じ「同期 Web inference を UI に安全に乗せる」流れを Image Segmenter の mask 出力に広げました。これで入力、推論結果、描画、破棄までの一周が揃い、明日以降は実モデル接続や WebCodecs / IndexedDB 連携に進めます。",
+      "bodyEn": "Recent entries covered Gesture / Hand worker queues and the Interactive Segmenter stroke protocol. Today extends the same theme of safely placing synchronous Web inference into UI to Image Segmenter mask output. This completes a loop from input to inference output, rendering, and retirement, making future real-model wiring plus WebCodecs / IndexedDB integration easier."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Mask Confidence Compositor` です。実際に動く部分は category / confidence / hybrid 表示、confidence threshold、edge feather、overlay alpha、frame budget、mask area、tasks-vision import probe です。次に足すなら実 `ImageSegmenter.createFromOptions()`、`segmentForVideo()`、`outputCategoryMask` / `outputConfidenceMasks` 切り替え、worker 転送、Playwright での budget regression を足します。派生試作は `Mask Bitmap Lifecycle Sentinel` で、実際に動く部分は request burst、worker jitter、stale result rejection、previous bitmap close discipline、open bitmap bytes です。次に足すなら実 ImageBitmap transfer、mask close counter、IndexedDB session log、古い mask を描かない visual diff を足します。",
+      "bodyEn": "The selected main prototype is `Mask Confidence Compositor`. The working pieces are category / confidence / hybrid views, confidence threshold, edge feather, overlay alpha, frame budget, mask area, and a tasks-vision import probe. Next additions should include real `ImageSegmenter.createFromOptions()`, `segmentForVideo()`, `outputCategoryMask` / `outputConfidenceMasks` switching, worker transfer, and Playwright budget regression checks. The derivative prototype is `Mask Bitmap Lifecycle Sentinel`; the working pieces are request bursts, worker jitter, stale-result rejection, previous-bitmap close discipline, and open bitmap bytes. Next additions should include real ImageBitmap transfer, a mask close counter, IndexedDB session logs, and visual diffs that prove stale masks are never drawn.",
+      "links": [
+        {
+          "label": "Open Mask Confidence Compositor",
+          "url": "../outputs/2026-09-24_mask_confidence_compositor.html"
+        },
+        {
+          "label": "Open Mask Bitmap Lifecycle Sentinel",
+          "url": "../outputs/2026-09-24_mask_bitmap_lifecycle_sentinel.html"
+        }
+      ]
+    }
+  ]
+}
