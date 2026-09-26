@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-25",
+  "category": "MediaPipe / Google AI Edge / Text Classifier / Web ML",
+  "headline": "Text Classifier は同期 classify をキューとポリシーで受け止める",
+  "headlineEn": "Handle synchronous Text Classifier calls with queues and policy adapters",
+  "summary": "Google AI Edge の TextClassifier JavaScript API、tasks-text package / FilesetResolver、mediapipe-samples-web の Text Classifier worker、MediaPipe releases、Tasks Web README の Privacy Notice、npm @mediapipe/tasks-text を確認し、自作サンプルを2本追加しました。本命は同期 classify() を連打入力から守る Text Classifier Queue Guard、派生は category score を allow / hold / review / block に変換する Text Policy Score Tuner です。",
+  "summaryEn": "After checking the Google AI Edge TextClassifier JavaScript API, tasks-text package / FilesetResolver, the mediapipe-samples-web Text Classifier worker, MediaPipe releases, the Tasks Web README privacy notice, and npm @mediapipe/tasks-text, this adds two original samples. The main sample is Text Classifier Queue Guard for protecting synchronous classify() from rapid input. The derivative is Text Policy Score Tuner for mapping category scores into allow / hold / review / block actions.",
+  "keyTopics": [
+    "TextClassifier の JavaScript API は `classify(text)` が同期的に結果を返すため、Web UI では入力連打、stale result、処理予算を明示的に扱う必要がある。",
+    "tasks-text package には FilesetResolver、LanguageDetector、TextClassifier、TextEmbedder が含まれ、FilesetResolver は Text tasks 用 WASM fileset の入口になる。",
+    "TextClassifier の `setOptions()` は一部 option の更新に対応しており、scoreThreshold や maxResults を UI から動かす設計に向いている。",
+    "mediapipe-samples-web の Text Classifier worker は model buffer、delegate、maxResults、scoreThreshold、timestamp 付き result posting の接続例として参考になる。",
+    "MediaPipe Tasks Web README の Privacy Notice は、入力処理はオンデバイスで行われる一方、metrics と consent 説明を設計に含める必要があることを示している。"
+  ],
+  "keyTopicsEn": [
+    "The TextClassifier JavaScript API returns from `classify(text)` synchronously, so Web UIs need explicit handling for rapid input, stale results, and processing budgets.",
+    "The tasks-text package includes FilesetResolver, LanguageDetector, TextClassifier, and TextEmbedder, with FilesetResolver as the entry point for Text task WASM filesets.",
+    "TextClassifier `setOptions()` supports partial option updates, making scoreThreshold and maxResults natural UI controls.",
+    "The mediapipe-samples-web Text Classifier worker is a useful reference for model buffers, delegates, maxResults, scoreThreshold, and timestamped result posting.",
+    "The MediaPipe Tasks Web README privacy notice clarifies that input processing happens on-device while metrics and consent still need to be designed into the app."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Text Classifier Queue Guard",
+      "url": "../outputs/2026-09-25_text_classifier_queue_guard.html"
+    },
+    {
+      "label": "Today's derivative sample: Text Policy Score Tuner",
+      "url": "../outputs/2026-09-25_text_policy_score_tuner.html"
+    },
+    {
+      "label": "Google AI Edge: TextClassifier JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.textclassifier"
+    },
+    {
+      "label": "Google AI Edge: tasks-text package",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text"
+    },
+    {
+      "label": "Google AI Edge: FilesetResolver for Text tasks",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-text.filesetresolver"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web text-classifier.worker.ts",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/text-classifier.worker.ts"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-text",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-text"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-25-text-classifier-queue-guard.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Text Classifier を「テキストを入れるとラベルが返る」だけで終わらせず、同期 `classify()` を Web UI の待ち行列、処理予算、古い結果の拒否、ユーザー向け policy action へ接続することです。公式 API は TextClassifier、FilesetResolver、setOptions の入口を示し、公式サンプル worker は timestamp 付きで結果を返す構成を見せています。日次サンプルでは実モデルではなく、自作の分類シミュレータで運用面を先に触れるようにしました。",
+      "bodyEn": "Today's notable angle is not stopping at text-in / label-out, but connecting synchronous `classify()` calls to a Web UI queue, processing budget, stale-result rejection, and user-facing policy actions. The official API documents TextClassifier, FilesetResolver, and setOptions, while the official sample worker shows timestamped result posting. The daily samples use an original classifier simulator so the operational surface can be tested before wiring a real model."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Text Classifier Queue Guard` は、入力テキストを job として enqueue し、score threshold、maxResults、queue limit、budget per job を動かして、処理済み、stale、drop、over-budget を見ます。派生の `Text Policy Score Tuner` は分類 category score を allow / hold / review / block に変換し、privacy weight と ambiguity margin を触って、あいまいな分類を人間レビューへ戻す境界を確認します。",
+      "bodyEn": "The main sample, `Text Classifier Queue Guard`, enqueues input text as jobs and exposes score threshold, maxResults, queue limit, and budget per job while showing processed, stale, dropped, and over-budget states. The derivative, `Text Policy Score Tuner`, maps category scores to allow / hold / review / block actions and lets privacy weight plus ambiguity margin move uncertain classifications back to human review."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは job id、input length、enqueue time、active id、classify cost、score threshold、maxResults、category score、stale / dropped / accepted、policy action、audit row です。Text Classifier、Language Detector、Text Embedder、Worker、IndexedDB、BroadcastChannel、Web Locks、LLM の説明文生成、ダッシュボードと組み合わせると、オンデバイス text UI の待ち行列、判定理由、監査ログを一体で設計できます。",
+      "bodyEn": "The samples can accumulate job IDs, input length, enqueue time, active ID, classify cost, score threshold, maxResults, category scores, stale / dropped / accepted states, policy actions, and audit rows. Combined with Text Classifier, Language Detector, Text Embedder, Workers, IndexedDB, BroadcastChannel, Web Locks, LLM-generated explanations, and dashboards, they can design queueing, decision rationale, and audit logging for on-device text UIs."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実モデル接続時は `@mediapipe/tasks-text` と WASM path を pin し、`FilesetResolver.forTextTasks()` と `TextClassifier.createFromOptions()` の初期化を worker 内へ閉じ込めます。UI は classify の戻りを直接信じず、request id / timestamp / active id を照合して古い結果を捨てます。`setOptions()` で threshold や maxResults を変える場合は、すべての履歴を再分類するのではなく、現在表示中または未処理 job だけに絞るとコストを読みやすくできます。",
+      "bodyEn": "When wiring the real model, pin `@mediapipe/tasks-text` and the WASM path, then keep `FilesetResolver.forTextTasks()` and `TextClassifier.createFromOptions()` inside a worker. The UI should not trust classify returns directly; compare request IDs, timestamps, and active IDs to reject old results. When changing threshold or maxResults through `setOptions()`, reclassify only the currently displayed or pending jobs instead of the entire history to keep costs understandable."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-text` latest / nightly、MediaPipe release notes の JavaScript / task runner 変更、mediapipe-samples-web の text worker 実装、Text Embedder との組み合わせ、Language Detector の allowlist / denylist、Privacy Notice と metrics consent の更新を見ます。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-text` latest / nightly builds, JavaScript / task-runner changes in MediaPipe release notes, text worker implementations in mediapipe-samples-web, combinations with Text Embedder, Language Detector allowlists / denylists, and updates to privacy notice or metrics consent guidance."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Text Classifier Queue Guard` で Burst 6 を押し、Queue limit を 3、Budget per job を 20ms 前後に下げると、入力連打時に drop と stale がどう出るか見えます。派生サンプルでは Privacy weight を高めて Example A を評価すると、positive ではなく review に寄せる設計が見えます。",
+      "bodyEn": "In `Text Classifier Queue Guard`, press Burst 6, set Queue limit to 3, and lower Budget per job near 20 ms to see dropped and stale jobs appear under rapid input. In the derivative sample, raise Privacy weight and evaluate Example A to see how the design prefers review over a simple positive action."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: TextClassifier API、tasks-text package、FilesetResolver、mediapipe-samples-web、text-classifier worker、MediaPipe releases、npm package、Privacy Notice を確認。設計: 公式 demo の再掲ではなく、同期 classify を UI 運用へ落とす自作検証にする。実装: 本命 HTML に queue、threshold、maxResults、budget、stale rejection、import probe を追加。派生 HTML に policy action、ambiguity margin、privacy weight、audit row を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the TextClassifier API, tasks-text package, FilesetResolver, mediapipe-samples-web, the text-classifier worker, MediaPipe releases, the npm package, and the privacy notice. Design: build original validation UIs for turning synchronous classify calls into UI operations rather than reposting official demos. Implementation: added queueing, threshold, maxResults, budget, stale-result rejection, and an import probe to the main HTML. Added policy actions, ambiguity margin, privacy weight, and audit rows to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and HTTP 200 responses for the GitHub Pages top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は segmentation mask、stroke protocol、worker queue を扱ってきました。今日は同じ「同期 Web inference を UI に安全に乗せる」流れを text task に広げました。Vision / Audio / Text のどれでも、モデル API だけでなく、キュー、stale result、threshold、policy action、説明責任を日次サンプル側で見える形にしておくと、実モデルへ差し替えた時に壊れにくくなります。",
+      "bodyEn": "Recent entries covered segmentation masks, stroke protocols, and worker queues. Today extends the same theme of safely placing synchronous Web inference into UI to text tasks. Across Vision, Audio, and Text, making queues, stale results, thresholds, policy actions, and accountability visible in daily samples makes the later real-model swap less fragile."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Text Classifier Queue Guard` です。実際に動く部分は text job enqueue、Burst 6、score threshold、maxResults、queue limit、budget per job、stale / dropped / done 表示、tasks-text import probe です。次に足すなら実 `TextClassifier.createFromOptions()`、worker 内 model buffer load、`classify()` result adapter、IndexedDB audit log を足します。派生試作は `Text Policy Score Tuner` で、実際に動く部分は category score、allow / hold / review / block 変換、ambiguity margin、privacy weight、audit row です。次に足すなら Language Detector の language confidence、Text Embedder の類似度、LLM による review explanation、自動しきい値 replay を足します。",
+      "bodyEn": "The selected main prototype is `Text Classifier Queue Guard`. The working pieces are text job enqueueing, Burst 6, score threshold, maxResults, queue limit, budget per job, stale / dropped / done states, and a tasks-text import probe. Next additions should include real `TextClassifier.createFromOptions()`, worker-side model-buffer loading, a `classify()` result adapter, and IndexedDB audit logs. The derivative prototype is `Text Policy Score Tuner`; the working pieces are category scores, allow / hold / review / block mapping, ambiguity margin, privacy weight, and audit rows. Next additions should include Language Detector confidence, Text Embedder similarity, LLM-generated review explanations, and automatic threshold replay.",
+      "links": [
+        {
+          "label": "Open Text Classifier Queue Guard",
+          "url": "../outputs/2026-09-25_text_classifier_queue_guard.html"
+        },
+        {
+          "label": "Open Text Policy Score Tuner",
+          "url": "../outputs/2026-09-25_text_policy_score_tuner.html"
+        }
+      ]
+    }
+  ]
+}

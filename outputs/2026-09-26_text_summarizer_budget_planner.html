@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Summarizer Budget Planner</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #081113; color: #f7fbf1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(111, 219, 173, .16), transparent 34%), linear-gradient(315deg, rgba(255, 199, 95, .13), transparent 42%), #081113; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 251, 241, .16); }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.8rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 9px; font-size: 1rem; color: #7de4bc; letter-spacing: 0; }
+    p { margin: 0; color: #cbd7cf; line-height: 1.64; }
+    button, textarea, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(247, 251, 241, .24); background: #f7fbf1; color: #081113; padding: 8px 12px; }
+    button.secondary, select { background: rgba(8, 17, 19, .94); color: #f7fbf1; }
+    textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid rgba(247, 251, 241, .18); background: #111a1d; color: #f7fbf1; padding: 12px; line-height: 1.56; }
+    label { display: grid; gap: 6px; color: #f7fbf1; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #7de4bc; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(247, 251, 241, .14); background: rgba(8, 17, 19, .88); }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(247, 251, 241, .14); background: rgba(8, 17, 19, .91); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .metric, .result { border: 1px solid rgba(247, 251, 241, .12); background: #121c1f; padding: 10px; }
+    .tile small, .result small { display: block; margin-top: 5px; color: #b9c6bf; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(247, 251, 241, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #edf5ef; font-size: .78rem; }
+    .pass { border-color: rgba(125, 228, 188, .82); background: rgba(125, 228, 188, .14); }
+    .warn { border-color: rgba(255, 199, 95, .85); background: rgba(255, 199, 95, .13); }
+    .danger { border-color: rgba(238, 107, 96, .85); background: rgba(238, 107, 96, .13); }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr); gap: 12px; align-items: start; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.16rem; font-variant-numeric: tabular-nums; }
+    .value { color: #ffc75f; font-variant-numeric: tabular-nums; }
+    .bar { height: 10px; background: #263336; margin-top: 8px; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #7de4bc, #ffc75f); }
+    .result { min-height: 260px; }
+    .summary { white-space: pre-wrap; line-height: 1.6; color: #f7fbf1; }
+    .log { height: 128px; margin-top: 14px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 940px) { .toolbar, .layout, .grid, .metrics { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Text Summarizer Budget Planner</h1>
+    <p>MediaPipe Text Summarizer の TLDR / Keypoints と max token budget を、実モデル接続前に UI で検証する自作サンプルです。入力長、推定 prefill / decode、メモリ帯、圧縮率、レビュー要否をまとめて見ます。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Mode
+      <select id="mode">
+        <option value="keypoints">KEYPOINTS</option>
+        <option value="tldr">TLDR</option>
+      </select>
+      <span class="value">summary shape</span>
+    </label>
+    <label>Max tokens <input id="maxTokens" type="range" min="256" max="4096" step="128" value="1408"><span id="maxTokensValue" class="value">1408</span></label>
+    <label>Input words <input id="wordTarget" type="range" min="80" max="2200" step="40" value="620"><span id="wordTargetValue" class="value">620</span></label>
+    <label>Device profile
+      <select id="device">
+        <option value="fast">Pixel-class CPU</option>
+        <option value="mid">mid laptop CPU</option>
+        <option value="low">low-power tablet</option>
+      </select>
+      <span class="value">estimated</span>
+    </label>
+    <label>Compression <input id="compression" type="range" min="8" max="38" value="18"><span id="compressionValue" class="value">18%</span></label>
+    <button id="summarize">Plan summary</button>
+    <button id="sampleShort" class="secondary">Short note</button>
+    <button id="sampleLong" class="secondary">Long note</button>
+    <button id="stress" class="secondary">Stress input</button>
+    <button id="probe" class="secondary">API checklist</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Text Summarizer checklist</h2>
+      <div class="stack">
+        <div class="tile"><strong>TLDR / KEYPOINTS</strong><small>公式 guide の2モードを UI 設計単位として扱い、出力形状ごとのレビュー導線を分けます。</small></div>
+        <div class="tile"><strong>max_num_tokens</strong><small>長文入力では token cap、入力語数、出力長を同時に見て、事前の chunk / truncate を判断します。</small></div>
+        <div class="tile"><strong>Web handoff</strong><small>Web では LLM Inference が maintenance-only なので、LiteRT-LM / Tasks Text の更新を見ながら adapter を分離します。</small></div>
+      </div>
+      <span id="modeChip" class="chip pass">mode: keypoints</span>
+      <span id="budgetChip" class="chip">budget: ready</span>
+      <span class="chip">model: simulated</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Summary budget</h2>
+        <div class="grid">
+          <div class="stack">
+            <textarea id="input" spellcheck="false"></textarea>
+            <div id="metrics" class="metrics"></div>
+          </div>
+          <article class="result">
+            <h2>Generated plan</h2>
+            <div id="summary" class="summary"></div>
+          </article>
+        </div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const snippets = {
+  short: `MediaPipe Tasks are useful when the browser UI needs private, on-device inference. A support dashboard can summarize a user's camera setup note, detect whether the text mentions consent, and keep the raw input on the device. The product team wants a short summary for triage and a separate key-point list for release review.`,
+  long: `The browser vision prototype now includes hand tracking, image segmentation, and text classification. Users like that inference happens locally, but they do not understand the difference between input data and performance metrics. The next release note should explain the local processing boundary, show the model and WASM paths, list whether GPU acceleration is active, and warn when a long document will exceed the model context budget. Product reviewers also want a repeatable way to compare TLDR summaries with key points before a real on-device summarizer is connected.`,
+  stress: `A field report arrived from a QA session with several pages of notes. The first section describes a camera permission prompt, the second section describes a WebGPU fallback, the third section repeats privacy concerns, and the fourth section asks whether a generated summary can be cached. The operator needs a compact summary without sending raw text to a server. The UI should count words, estimate token usage, flag whether max_num_tokens is too small, and record the difference between a 1-2 sentence TLDR and a 3-5 item keypoint summary. `.repeat(7)
+};
+const deviceProfiles = {
+  fast: { prefill: 880, decode: 112, memory: 260 },
+  mid: { prefill: 620, decode: 82, memory: 310 },
+  low: { prefill: 360, decode: 46, memory: 380 }
+};
+
+function words(text) {
+  return text.trim().split(/\s+/).filter(Boolean);
+}
+
+function setLabels() {
+  $("maxTokensValue").textContent = $("maxTokens").value;
+  $("wordTargetValue").textContent = $("wordTarget").value;
+  $("compressionValue").textContent = `${$("compression").value}%`;
+  $("modeChip").textContent = `mode: ${$("mode").value}`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function fitInputToTarget() {
+  const current = words($("input").value);
+  const target = Number($("wordTarget").value);
+  if (!current.length) return;
+  if (current.length > target) {
+    $("input").value = current.slice(0, target).join(" ");
+  } else {
+    const seed = current.join(" ");
+    while (words($("input").value).length < target) $("input").value += ` ${seed}`;
+  }
+}
+
+function extractSentences(text) {
+  return text.replace(/\s+/g, " ").split(/(?<=[.!?。])\s+/).filter(Boolean);
+}
+
+function rankSentences(text) {
+  const terms = ["privacy", "local", "device", "summary", "token", "budget", "model", "gpu", "metrics", "consent", "review", "wasm"];
+  return extractSentences(text).map((sentence, index) => {
+    const lower = sentence.toLowerCase();
+    const score = terms.reduce((sum, term) => sum + (lower.includes(term) ? 1 : 0), 0) + Math.max(0, 4 - index) * .08 + Math.min(sentence.length / 420, .5);
+    return { sentence, score };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function makeSummary(text) {
+  const mode = $("mode").value;
+  const ranked = rankSentences(text);
+  const compression = Number($("compression").value) / 100;
+  const count = mode === "keypoints" ? Math.min(5, Math.max(3, Math.round(words(text).length * compression / 46))) : 2;
+  if (mode === "keypoints") {
+    return ranked.slice(0, count).map((item) => `- ${item.sentence}`).join("\n");
+  }
+  return ranked.slice(0, count).map((item) => item.sentence).join(" ");
+}
+
+function estimate(text, summary) {
+  const inputWords = words(text).length;
+  const outputWords = words(summary).length;
+  const inputTokens = Math.ceil(inputWords * 1.8);
+  const outputTokens = Math.ceil(outputWords * 1.45);
+  const maxTokens = Number($("maxTokens").value);
+  const profile = deviceProfiles[$("device").value];
+  const prefillMs = inputTokens / profile.prefill * 1000;
+  const decodeMs = outputTokens / profile.decode * 1000;
+  const e2e = prefillMs + decodeMs + 160;
+  const fits = inputTokens + outputTokens <= maxTokens;
+  return { inputWords, outputWords, inputTokens, outputTokens, maxTokens, e2e, memory: profile.memory + Math.round(inputWords / 18), fits };
+}
+
+function renderMetrics(values) {
+  const pressure = values.inputTokens + values.outputTokens;
+  $("budgetChip").className = `chip ${values.fits ? "pass" : "danger"}`;
+  $("budgetChip").textContent = values.fits ? "budget: fits" : "budget: split first";
+  $("metrics").innerHTML = [
+    ["Input words", values.inputWords],
+    ["Tokens", `${pressure} / ${values.maxTokens}`],
+    ["Latency", `${Math.round(values.e2e)} ms`],
+    ["Peak memory", `${values.memory} MB`]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong><div class="bar"><span style="width:${Math.min(100, pressure / values.maxTokens * 100)}%"></span></div></div>`).join("");
+}
+
+function runPlan() {
+  const text = $("input").value.trim();
+  if (!text) return;
+  const summary = makeSummary(text);
+  const values = estimate(text, summary);
+  $("summary").textContent = `${summary}\n\nNext: ${values.fits ? "real Text Summarizer adapter can receive this whole input." : "split into chunks before real model inference."}`;
+  renderMetrics(values);
+  log(`${$("mode").value} plan: ${values.inputTokens + values.outputTokens}/${values.maxTokens} tokens, ${Math.round(values.e2e)}ms estimate`);
+}
+
+function setSample(kind) {
+  $("input").value = snippets[kind];
+  $("wordTarget").value = Math.min(2200, Math.max(80, words($("input").value).length));
+  runPlan();
+}
+
+$("summarize").addEventListener("click", runPlan);
+$("sampleShort").addEventListener("click", () => setSample("short"));
+$("sampleLong").addEventListener("click", () => setSample("long"));
+$("stress").addEventListener("click", () => setSample("stress"));
+$("probe").addEventListener("click", () => {
+  log("checklist: Text Summarizer guide -> mode/max_num_tokens; Web LLM -> maintenance-only; tasks-text -> 1.0.1 package boundary");
+});
+["mode", "maxTokens", "wordTarget", "device", "compression"].forEach((id) => $(id).addEventListener("input", () => {
+  setLabels();
+  if (id === "wordTarget") fitInputToTarget();
+  runPlan();
+}));
+
+$("input").value = snippets.long;
+setLabels();
+runPlan();
+</script>
+</body>
+</html>

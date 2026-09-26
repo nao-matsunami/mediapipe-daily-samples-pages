@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-26",
+  "category": "MediaPipe / Google AI Edge / Text Summarizer / Web ML",
+  "headline": "Text Summarizer は Web 接続前に token budget とレビュー境界を見える化する",
+  "headlineEn": "Make token budgets and review boundaries visible before wiring Text Summarizer on Web",
+  "summary": "Google AI Edge の Text summarization guide、Web setup guide、LLM Inference Web guide、MediaPipe releases、mediapipe-samples、mediapipe-samples-web、npm package を確認し、自作サンプルを2本追加しました。本命は TLDR / KEYPOINTS、max token、入力長、推定遅延を扱う Text Summarizer Budget Planner、派生は TextProofreader 系の修正候補を公開前承認へ分ける Text Proofreader Revision Gate です。",
+  "summaryEn": "After checking the Google AI Edge Text summarization guide, Web setup guide, LLM Inference Web guide, MediaPipe releases, mediapipe-samples, mediapipe-samples-web, and npm packages, this adds two original samples. The main sample is Text Summarizer Budget Planner for TLDR / KEYPOINTS, max tokens, input length, and estimated latency. The derivative is Text Proofreader Revision Gate for separating proofreader-style suggestions into publish approvals.",
+  "keyTopics": [
+    "Text summarization guide は TLDR と KEYPOINTS の2モード、`max_num_tokens`、Summarization 200M モデル、入力長による遅延 / メモリ増加を明示している。",
+    "MediaPipe v1.0.0 release notes では TextSummarizer / TextProofreader が Tasks 側に加わり、JavaScript では IIFE bundles、Privacy Notice、Web LLM `.litertlm`、Text Embedder Gecko support などが重要トピックになっている。",
+    "Web LLM Inference guide は LLM Inference API を maintenance-only とし、Web 新規開発では LiteRT-LM JavaScript への移行を推奨しているため、生成系 text UI は adapter を分離しておくのが安全。",
+    "tasks-text の Web package は Language Detector、Text Classifier、Text Embedder が中心なので、今日の公開カードは公式 demo ではなく実モデル接続前の budget / review 操作面に寄せた。",
+    "Privacy Notice はオンデバイス処理と metrics consent を分けて説明する必要があり、summarize / proofread の出力文面にも承認ゲートが要る。"
+  ],
+  "keyTopicsEn": [
+    "The Text summarization guide describes TLDR and KEYPOINTS modes, `max_num_tokens`, the Summarization 200M model, and latency / memory growth by input length.",
+    "MediaPipe v1.0.0 release notes add TextSummarizer / TextProofreader on the Tasks side, while JavaScript highlights include IIFE bundles, the Privacy Notice, Web LLM `.litertlm`, and Text Embedder Gecko support.",
+    "The Web LLM Inference guide marks the LLM Inference API as maintenance-only and recommends LiteRT-LM JavaScript for new Web development, so generated-text UIs should keep adapters isolated.",
+    "The Web tasks-text package still centers Language Detector, Text Classifier, and Text Embedder, so today's public cards focus on original budget / review controls before a real model hookup.",
+    "The Privacy Notice separates on-device input processing from metrics consent, which means summarize / proofread outputs need an approval gate in the UI."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Text Summarizer Budget Planner",
+      "url": "../outputs/2026-09-26_text_summarizer_budget_planner.html"
+    },
+    {
+      "label": "Today's derivative sample: Text Proofreader Revision Gate",
+      "url": "../outputs/2026-09-26_text_proofreader_revision_gate.html"
+    },
+    {
+      "label": "Google AI Edge: Text summarization guide",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/text/text_summarizer"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: LLM Inference guide for Web",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-text",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-text"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-26-text-summarizer-budget-planner.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、生成系 text task を「要約が出る」だけで扱わず、入力長、token cap、出力形状、レビュー承認、privacy copy の境界を UI に出すことです。Text summarization guide は TLDR / KEYPOINTS と `max_num_tokens` を示し、MediaPipe v1.0.0 release notes は TextSummarizer / TextProofreader の追加と Web 側の更新を並べています。日次サンプルでは実モデルを呼ばず、モデル接続前に破綻しやすい運用面を触れる形にしました。",
+      "bodyEn": "Today's notable angle is treating generated-text tasks as more than summary output: input length, token caps, output shape, review approval, and privacy-copy boundaries should be visible in the UI. The Text summarization guide exposes TLDR / KEYPOINTS and `max_num_tokens`, while MediaPipe v1.0.0 release notes place TextSummarizer / TextProofreader additions next to Web updates. The daily samples avoid calling a real model and instead make the fragile operational layer testable first."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Text Summarizer Budget Planner` は、mode、max tokens、入力語数、device profile、圧縮率を動かし、推定 token、latency、memory、split 要否を表示します。派生の `Text Proofreader Revision Gate` は、proofreader 風の修正候補を grammar / meaning / privacy に分け、auto apply してよいものとレビューが必要なものを分離します。",
+      "bodyEn": "The main sample, `Text Summarizer Budget Planner`, exposes mode, max tokens, input words, device profile, and compression ratio while showing estimated tokens, latency, memory, and whether splitting is needed. The derivative, `Text Proofreader Revision Gate`, separates proofreader-style suggestions into grammar, meaning, and privacy categories and distinguishes safe auto-apply edits from review-required changes."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは input words、estimated input / output tokens、mode、compression ratio、device profile、latency estimate、memory estimate、split decision、revision type、risk score、auto-safe flag、privacy approval flag です。Text Summarizer、TextProofreader、Text Classifier、Language Detector、Text Embedder、LiteRT-LM、IndexedDB、監査ログ、ドキュメントCMS、human review queue と組み合わせると、オンデバイス生成 text の公開前パイプラインを作れます。",
+      "bodyEn": "The samples can accumulate input words, estimated input / output tokens, mode, compression ratio, device profile, latency estimate, memory estimate, split decisions, revision type, risk scores, auto-safe flags, and privacy approval flags. Combined with Text Summarizer, TextProofreader, Text Classifier, Language Detector, Text Embedder, LiteRT-LM, IndexedDB, audit logs, document CMSs, and human review queues, they can form a pre-publication pipeline for on-device generated text."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実接続時は生成系 adapter を UI から切り離し、`mode` と `max_num_tokens` を job metadata として保存します。Web では LLM Inference API が maintenance-only とされているため、LiteRT-LM JavaScript、Tasks Text の将来更新、既存 tasks-text package の境界を分けます。privacy や consent を含む文面は、proofread 後でも auto publish せず、人間レビューを通すフラグを残します。",
+      "bodyEn": "When wiring a real model, keep the generated-text adapter separate from the UI and save `mode` plus `max_num_tokens` as job metadata. On Web, because the LLM Inference API is marked maintenance-only, separate LiteRT-LM JavaScript, future Tasks Text updates, and the existing tasks-text package boundary. Copy that contains privacy or consent language should keep a human-review flag even after proofreading."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は MediaPipe release notes の JavaScript / Text task 更新、TextSummarizer / TextProofreader の Web surface、LiteRT-LM JavaScript の package と sample、tasks-text latest / nightly、mediapipe-samples の LLM / text examples、Privacy Notice と metrics consent の変更を見ます。",
+      "bodyEn": "Next, watch JavaScript / Text task updates in MediaPipe release notes, the Web surface for TextSummarizer / TextProofreader, LiteRT-LM JavaScript packages and samples, tasks-text latest / nightly builds, LLM / text examples in mediapipe-samples, and changes to the Privacy Notice or metrics consent guidance."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Text Summarizer Budget Planner` で Stress input を押し、Max tokens を 1024 付近へ下げると、split first 判定と token pressure が見えます。派生サンプルでは Sample A を開き、Privacy weight を上げると、文法修正は auto-safe でも privacy 表現は approval に残る境界が見えます。",
+      "bodyEn": "In `Text Summarizer Budget Planner`, press Stress input and lower Max tokens near 1024 to see the split-first decision and token pressure. In the derivative sample, open Sample A and raise Privacy weight to see grammar edits remain auto-safe while privacy wording stays in approval."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Text summarization guide、Web setup、LLM Inference Web、MediaPipe releases、mediapipe-samples、mediapipe-samples-web、npm package を確認。設計: 公式 demo の再掲ではなく、生成系 text task を公開 UI に乗せる前の budget と review gate を作る。実装: 本命 HTML に mode、max tokens、入力語数、device profile、圧縮率、推定遅延 / メモリを追加。派生 HTML に修正候補、risk score、privacy weight、auto-safe apply を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Text summarization guide, Web setup, LLM Inference Web, MediaPipe releases, mediapipe-samples, mediapipe-samples-web, and npm packages. Design: instead of reposting official demos, build budget and review gates for generated-text tasks before exposing them in a public UI. Implementation: added mode, max tokens, input words, device profile, compression, estimated latency, and memory to the main HTML. Added suggestions, risk scores, privacy weight, and auto-safe apply to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and HTTP 200 responses for the GitHub Pages top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Text Classifier の queue / policy を扱いました。今日は text task の流れを分類から生成・校正へ伸ばし、同期 / 非同期の実装差よりも、オンデバイス推論をプロダクト UI に乗せるときの説明責任に焦点を移しました。Vision / Audio / Text の日次サンプルは、モデル API だけでなく、budget、queue、review、audit を見える化していく方向にまとまっています。",
+      "bodyEn": "The recent entry covered Text Classifier queues and policy mapping. Today extends the text-task track from classification into generation and proofreading, shifting attention from sync / async implementation details to accountability when on-device inference reaches product UI. Across Vision, Audio, and Text, the daily samples are converging on making budgets, queues, review, and audit visible alongside model APIs."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Text Summarizer Budget Planner` です。実際に動く部分は TLDR / KEYPOINTS 切り替え、max token、入力語数、device profile、圧縮率、推定 token / latency / memory、split first 判定です。次に足すなら実 TextSummarizer adapter、chunk merge、LiteRT-LM Web adapter、IndexedDB job log を足します。派生試作は `Text Proofreader Revision Gate` で、実際に動く部分は修正候補抽出、grammar / meaning / privacy 分類、risk score、auto-safe apply、privacy approval flag です。次に足すなら実 TextProofreader result adapter、差分ハイライト、CMS publish approval、reviewer comment export を足します。",
+      "bodyEn": "The selected main prototype is `Text Summarizer Budget Planner`. The working pieces are TLDR / KEYPOINTS switching, max tokens, input words, device profile, compression ratio, estimated tokens / latency / memory, and split-first decisions. Next additions should include a real TextSummarizer adapter, chunk merging, a LiteRT-LM Web adapter, and IndexedDB job logs. The derivative prototype is `Text Proofreader Revision Gate`; the working pieces are suggestion extraction, grammar / meaning / privacy classification, risk scores, auto-safe apply, and privacy approval flags. Next additions should include a real TextProofreader result adapter, diff highlights, CMS publish approval, and reviewer comment export.",
+      "links": [
+        {
+          "label": "Open Text Summarizer Budget Planner",
+          "url": "../outputs/2026-09-26_text_summarizer_budget_planner.html"
+        },
+        {
+          "label": "Open Text Proofreader Revision Gate",
+          "url": "../outputs/2026-09-26_text_proofreader_revision_gate.html"
+        }
+      ]
+    }
+  ]
+}

@@ -33,7 +33,27 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Google AI Edge / Web ML</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Object Detector</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / WASM / Delegate routing</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Holistic Landmarker / Google AI Edge / Web ML</span><span class="badge">MediaPipe Tasks / Image Classifier / Google AI Edge / Web ML</span><span class="badge">MediaPipe Tasks / Image Embedder / Web ML</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Pose Landmarker / Google AI Edge / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Google AI Edge / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Object Detector</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / WASM / Delegate routing</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Holistic Landmarker / Google AI Edge / Web ML</span><span class="badge">MediaPipe Tasks / Image Classifier / Google AI Edge / Web ML</span><span class="badge">MediaPipe Tasks / Image Embedder / Web ML</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Pose Landmarker / Google AI Edge / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-09-14</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer</span></p>
+      <h2>Gesture Recognizer の video stream を詰まらせず UI コマンドへ渡す</h2>
+      <p class="en">Keeping Gesture Recognizer video streams from backing up before UI commands</p>
+      <p>Google AI Edge の Gesture Recognizer Web guide、Web setup guide、Tasks Vision Web README、MediaPipe release notes、npm の @mediapipe/tasks-vision 情報を確認し、video frame の重複除外、同期 block、worker queue、古い結果の破棄を観察する自作サンプルを2本追加しました。本命は gesture stream の backpressure console、派生は canned gesture の score / allowlist / denylist / dwell / cooldown を UI コマンドへ変換する policy sandbox です。</p>
+      <div class="actions">
+        <a href="../days/2026-09-14.html">日付ページ</a>
+        <a href="../outputs/2026-09-14_gesture_stream_backpressure_console.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-09-14_gesture_command_policy_sandbox.html"><span>MediaPipe</span>Gesture Command Policy Sandbox</a></div>
+    </article><article class="card">
+      <p class="meta"><span class="date">2026-09-13</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker</span></p>
+      <h2>Hand Landmarker の normalized 座標を UI 座標と奥行きゲートへ変換する</h2>
+      <p class="en">Converting Hand Landmarker normalized coordinates into UI coordinates and depth gates</p>
+      <p>Google AI Edge の Hand Landmarker Web guide、Face Landmarker Web guide、Web setup guide、NormalizedKeypoint / NormalizedRect API reference、MediaPipe release notes、Tasks Vision Web README を確認し、ランドマーク座標をそのまま描く前に mirror、crop、presence、tracking、z-depth を検証する自作サンプルを2本追加しました。本命は 21 点 hand landmark の座標キャリブレータ、派生は mirrored preview と letterbox による ROI rect のズレを見る probe です。</p>
+      <div class="actions">
+        <a href="../days/2026-09-13.html">日付ページ</a>
+        <a href="../outputs/2026-09-13_hand_landmark_coordinate_calibrator.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-09-13_roi_rect_mirror_letterbox_probe.html"><span>MediaPipe</span>ROI Rect Mirror Letterbox Probe</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-09-12</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Object Detector</span></p>
       <h2>Object Detector の検出リストを ROI の寿命とラベルポリシーへ変換する</h2>
       <p class="en">Turning Object Detector detections into ROI lifetime and label policy</p>
@@ -133,26 +153,6 @@
         <a href="../outputs/2026-09-01_hand_reacquire_threshold_tuner.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-01_hand_depth_dwell_gate.html"><span>MediaPipe</span>Hand Depth Dwell Gate</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-08-31</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span></p>
-      <h2>Gesture Recognizer の同期推論をフレーム予算内に収める最小スケジューラ</h2>
-      <p class="en">A minimal frame scheduler for keeping Gesture Recognizer sync inference within budget</p>
-      <p>Google AI Edge の Gesture Recognizer guide、Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web、legacy Hands pipeline note を参考に、Gesture Recognizer の同期推論を目標FPS、同一フレームskip、疑似UI block、latency meter で観察する自作サンプルを追加しました。派生試作として、認識結果をそのまま操作に使わず、投票窓、最低得票、cooldown でコマンド化する小さなルータも追加しました。</p>
-      <div class="actions">
-        <a href="../days/2026-08-31.html">日付ページ</a>
-        <a href="../outputs/2026-08-31_gesture_recognizer_frame_scheduler.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-08-31_gesture_vote_command_router.html"><span>MediaPipe</span>Gesture Vote Command Router</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-08-30</span><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span></p>
-      <h2>LiteRT-LM JS 移行前に WebGPU とモデル入口を検査する最小 preflight</h2>
-      <p class="en">A minimal WebGPU and model-entry preflight before moving to LiteRT-LM JS</p>
-      <p>Google AI Edge の LiteRT-LM API Overview、LiteRT-LM JS README、MediaPipe LLM Inference Web guide、MediaPipe Web setup、LiteRT.js README、公式 mediapipe-samples-web を参考に、巨大モデルを読み込む前の WebGPU、cross-origin isolation、CDN import、model URL、backend 方針をブラウザ内で確認する自作サンプルを追加しました。派生試作として、実 Engine 作成前の prompt budget、stream chunk、cancel UI を検証する小さなストリーミング設計サンプルも追加しました。</p>
-      <div class="actions">
-        <a href="../days/2026-08-30.html">日付ページ</a>
-        <a href="../outputs/2026-08-30_litert_lm_web_preflight.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-08-30_litert_lm_prompt_stream_budget.html"><span>MediaPipe</span>LiteRT-LM Prompt Stream Budget</a></div>
     </article></div>
   </main>
 </body>

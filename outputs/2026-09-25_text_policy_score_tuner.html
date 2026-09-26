@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Policy Score Tuner</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0b1115; color: #f7faf8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(132, 184, 255, .14), transparent 36%), linear-gradient(315deg, rgba(111, 224, 188, .13), transparent 42%), #0b1115; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 36px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 250, 248, .14); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #84b8ff; letter-spacing: 0; }
+    p { margin: 0; color: #c9d4d0; line-height: 1.62; }
+    button, input, textarea { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 250, 248, .22); background: #f7faf8; color: #0b1115; padding: 8px 12px; }
+    button.secondary { background: rgba(11, 17, 21, .94); color: #f7faf8; }
+    textarea { width: 100%; min-height: 112px; resize: vertical; border: 1px solid rgba(247, 250, 248, .18); background: #121b20; color: #f7faf8; padding: 12px; line-height: 1.55; }
+    label { display: grid; gap: 6px; color: #f7faf8; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #84b8ff; }
+    .toolbar { display: grid; grid-template-columns: repeat(4, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(247, 250, 248, .14); background: rgba(11, 17, 21, .88); }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .panel, .result { border: 1px solid rgba(247, 250, 248, .14); background: rgba(11, 17, 21, .91); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .rule, .metric { border: 1px solid rgba(247, 250, 248, .12); background: #131c22; padding: 10px; }
+    .chip { display: inline-block; border: 1px solid rgba(247, 250, 248, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #eef4f1; font-size: .78rem; }
+    .pass { border-color: rgba(111, 224, 188, .82); background: rgba(111, 224, 188, .14); }
+    .warn { border-color: rgba(245, 178, 75, .85); background: rgba(245, 178, 75, .13); }
+    .danger { border-color: rgba(236, 105, 97, .85); background: rgba(236, 105, 97, .13); }
+    .scores { display: grid; gap: 10px; margin-top: 12px; }
+    .bar { height: 12px; background: #233139; overflow: hidden; margin-top: 8px; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #84b8ff, #6fe0bc); }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+    .value { color: #f5b24b; font-variant-numeric: tabular-nums; }
+    @media (max-width: 860px) { .toolbar, .layout, .metrics { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Text Policy Score Tuner</h1>
+    <p>Text Classifier の category score をそのまま UI に出さず、レビュー、許可、保留、ブロックのアクションへ変換する小さな派生試作です。しきい値と margin を動かして、あいまいな分類を人間レビューに戻す境界を確認します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Allow threshold <input id="allow" type="range" min="35" max="90" value="68"><span id="allowValue" class="value">68%</span></label>
+    <label>Hold threshold <input id="hold" type="range" min="20" max="80" value="46"><span id="holdValue" class="value">46%</span></label>
+    <label>Ambiguity margin <input id="margin" type="range" min="2" max="28" value="12"><span id="marginValue" class="value">12%</span></label>
+    <label>Privacy weight <input id="privacy" type="range" min="0" max="35" value="16"><span id="privacyValue" class="value">+16%</span></label>
+    <button id="exampleA">Example A</button>
+    <button id="exampleB" class="secondary">Example B</button>
+    <button id="exampleC" class="secondary">Example C</button>
+    <button id="evaluate" class="secondary">Evaluate</button>
+  </section>
+
+  <div class="layout">
+    <section class="panel stack">
+      <h2>Input text</h2>
+      <textarea id="input">Please explain whether this browser demo sends camera or text input to Google before I turn it on for students.</textarea>
+      <div class="rule"><strong>Policy mapping</strong><p>privacy / safety が強い時は confidence が高くても説明または review に寄せます。positive が強く、margin が十分なら allow にします。</p></div>
+      <div class="rule"><strong>Next model hook</strong><p>実モデル接続時は TextClassifierResult の classifications[0].categories をこの score adapter に入れ、UI 文言と audit log を分けて保存します。</p></div>
+    </section>
+
+    <section class="result">
+      <h2>Decision surface</h2>
+      <div id="decision"></div>
+      <div id="scores" class="scores"></div>
+      <div id="metrics" class="metrics"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const examples = {
+  A: "Please explain whether this browser demo sends camera or text input to Google before I turn it on for students.",
+  B: "The on-device classifier feels fast and helpful. The labels are clear and I want to publish the sample.",
+  C: "This report contains an unsafe link and repeated spam. Hold it until a reviewer checks the source."
+};
+const classes = [
+  { label: "positive", words: ["fast", "helpful", "clear", "publish", "love", "works"], color: "#6fe0bc" },
+  { label: "privacy", words: ["privacy", "sends", "google", "camera", "text input", "students", "consent"], color: "#84b8ff" },
+  { label: "safety", words: ["unsafe", "spam", "block", "hide", "source"], color: "#ec6961" },
+  { label: "needs_review", words: ["explain", "hold", "reviewer", "checks", "before", "ambiguous"], color: "#f5b24b" }
+];
+
+function labels() {
+  $("allowValue").textContent = `${$("allow").value}%`;
+  $("holdValue").textContent = `${$("hold").value}%`;
+  $("marginValue").textContent = `${$("margin").value}%`;
+  $("privacyValue").textContent = `+${$("privacy").value}%`;
+}
+
+function classify(text) {
+  const lower = text.toLowerCase();
+  return classes.map((item, index) => {
+    const hits = item.words.reduce((sum, word) => sum + (lower.includes(word) ? 1 : 0), 0);
+    const privacyBoost = item.label === "privacy" ? Number($("privacy").value) / 100 : 0;
+    const score = Math.min(.98, .14 + hits * .17 + privacyBoost + Math.min(.12, text.length / 800) + index * .01);
+    return { ...item, score };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function decide(scores) {
+  const [top, second] = scores;
+  const allow = Number($("allow").value) / 100;
+  const hold = Number($("hold").value) / 100;
+  const margin = Number($("margin").value) / 100;
+  const gap = top.score - second.score;
+  if (top.label === "safety" && top.score >= hold) return { action: "block", cls: "danger", note: "safety score exceeds hold threshold", gap };
+  if ((top.label === "privacy" || top.label === "needs_review") && top.score >= hold) return { action: "review", cls: "warn", note: "explain consent / context before allow", gap };
+  if (top.score >= allow && gap >= margin) return { action: "allow", cls: "pass", note: "top label is confident and separated", gap };
+  return { action: "hold", cls: "warn", note: "classification is below threshold or too close", gap };
+}
+
+function render() {
+  labels();
+  const scores = classify($("input").value);
+  const decision = decide(scores);
+  $("decision").innerHTML = `<span class="chip ${decision.cls}">action: ${decision.action}</span><span class="chip">reason: ${decision.note}</span>`;
+  $("scores").innerHTML = scores.map((item) => `<div class="rule"><strong>${item.label}</strong><div class="bar"><span style="width:${Math.round(item.score * 100)}%; background:${item.color}"></span></div><p>${Math.round(item.score * 100)}%</p></div>`).join("");
+  $("metrics").innerHTML = [
+    ["Top label", scores[0].label],
+    ["Margin", `${Math.round(decision.gap * 100)}%`],
+    ["Audit row", `${decision.action}:${scores[0].label}`]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+$("exampleA").addEventListener("click", () => { $("input").value = examples.A; render(); });
+$("exampleB").addEventListener("click", () => { $("input").value = examples.B; render(); });
+$("exampleC").addEventListener("click", () => { $("input").value = examples.C; render(); });
+$("evaluate").addEventListener("click", render);
+$("input").addEventListener("input", render);
+["allow", "hold", "margin", "privacy"].forEach((id) => $(id).addEventListener("input", render));
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Proofreader Revision Gate</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0d1016; color: #fbf8ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(99, 180, 255, .15), transparent 34%), linear-gradient(315deg, rgba(242, 204, 102, .14), transparent 42%), #0d1016; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(251, 248, 239, .16); }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #9ed1ff; letter-spacing: 0; }
+    p { margin: 0; color: #cfd2d9; line-height: 1.62; }
+    button, textarea, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(251, 248, 239, .24); background: #fbf8ef; color: #0d1016; padding: 8px 12px; }
+    button.secondary, select { background: rgba(13, 16, 22, .94); color: #fbf8ef; }
+    textarea { width: 100%; min-height: 190px; resize: vertical; border: 1px solid rgba(251, 248, 239, .18); background: #151923; color: #fbf8ef; padding: 12px; line-height: 1.56; }
+    label { display: grid; gap: 6px; color: #fbf8ef; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #9ed1ff; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(251, 248, 239, .14); background: rgba(13, 16, 22, .88); }
+    .layout { display: grid; grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(251, 248, 239, .14); background: rgba(13, 16, 22, .91); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .metric, .suggestion, .tile { border: 1px solid rgba(251, 248, 239, .12); background: #171c27; padding: 10px; }
+    .suggestion small, .tile small { display: block; margin-top: 5px; color: #bdc4cf; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(251, 248, 239, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #f5f2eb; font-size: .78rem; }
+    .pass { border-color: rgba(158, 209, 255, .82); background: rgba(158, 209, 255, .14); }
+    .warn { border-color: rgba(242, 204, 102, .85); background: rgba(242, 204, 102, .13); }
+    .danger { border-color: rgba(237, 106, 100, .85); background: rgba(237, 106, 100, .13); }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.18rem; font-variant-numeric: tabular-nums; }
+    .diff { white-space: pre-wrap; line-height: 1.6; border: 1px solid rgba(251, 248, 239, .12); background: #111722; padding: 12px; min-height: 180px; }
+    .value { color: #f2cc66; font-variant-numeric: tabular-nums; }
+    .log { height: 120px; margin-top: 14px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) { .toolbar, .layout, .metrics { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Text Proofreader Revision Gate</h1>
+    <p>MediaPipe v1.0.0 release notes に出てきた TextProofreader 系 task を、公開文面へ適用する前の承認ゲートとして触る派生サンプルです。修正量、意味変化、privacy term、レビュー要否を分けます。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Strictness <input id="strictness" type="range" min="20" max="90" value="56"><span id="strictnessValue" class="value">56%</span></label>
+    <label>Meaning guard <input id="meaning" type="range" min="0" max="100" value="62"><span id="meaningValue" class="value">62%</span></label>
+    <label>Privacy weight <input id="privacy" type="range" min="0" max="100" value="70"><span id="privacyValue" class="value">70%</span></label>
+    <label>Locale
+      <select id="locale">
+        <option value="en">English UI copy</option>
+        <option value="ja">Japanese note</option>
+      </select>
+      <span class="value">simulated</span>
+    </label>
+    <label>Action
+      <select id="action">
+        <option value="review">review first</option>
+        <option value="auto">auto apply safe edits</option>
+      </select>
+      <span class="value">gate</span>
+    </label>
+    <button id="proofread">Proofread</button>
+    <button id="sampleA" class="secondary">Sample A</button>
+    <button id="sampleB" class="secondary">Sample B</button>
+    <button id="applySafe" class="secondary">Apply safe</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <section class="stage">
+      <h2>Draft text</h2>
+      <textarea id="input" spellcheck="false"></textarea>
+      <div id="metrics" class="metrics"></div>
+      <span id="gateChip" class="chip">gate: idle</span>
+      <span id="privacyChip" class="chip">privacy: unchecked</span>
+      <span class="chip">model: simulated</span>
+    </section>
+
+    <section class="panel">
+      <h2>Revision queue</h2>
+      <div id="suggestions" class="stack"></div>
+      <h2 style="margin-top:12px">Preview</h2>
+      <div id="preview" class="diff"></div>
+    </section>
+  </div>
+  <div id="log" class="log"></div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const samples = {
+  a: "This feature send the image to local device only, and metrics is collected for improve the task. User should knows the privacy notice before turning on camera analysis.",
+  b: "MediaPipe task run in browser. The summary is more shorter and should not changes meaning. If the copy mention consent, reviewer must approve before publish."
+};
+let lastSuggestions = [];
+
+function setLabels() {
+  $("strictnessValue").textContent = `${$("strictness").value}%`;
+  $("meaningValue").textContent = `${$("meaning").value}%`;
+  $("privacyValue").textContent = `${$("privacy").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 1800);
+}
+
+function findSuggestions(text) {
+  const rules = [
+    { pattern: /\bsend the image to local device only\b/i, replacement: "processes the image on the local device", type: "privacy", risk: 74 },
+    { pattern: /\bmetrics is collected\b/i, replacement: "metrics are collected", type: "grammar", risk: 22 },
+    { pattern: /\bfor improve\b/i, replacement: "to improve", type: "grammar", risk: 18 },
+    { pattern: /\bshould knows\b/i, replacement: "should know", type: "grammar", risk: 16 },
+    { pattern: /\btask run\b/i, replacement: "task runs", type: "grammar", risk: 15 },
+    { pattern: /\bmore shorter\b/i, replacement: "shorter", type: "style", risk: 28 },
+    { pattern: /\bshould not changes meaning\b/i, replacement: "should not change meaning", type: "meaning", risk: 52 },
+    { pattern: /\bIf the copy mention consent\b/i, replacement: "If the copy mentions consent", type: "privacy", risk: 66 }
+  ];
+  return rules.flatMap((rule, index) => {
+    const match = text.match(rule.pattern);
+    if (!match) return [];
+    const privacyBoost = rule.type === "privacy" ? Number($("privacy").value) * .32 : 0;
+    const meaningBoost = rule.type === "meaning" ? Number($("meaning").value) * .25 : 0;
+    const totalRisk = Math.min(100, Math.round(rule.risk + privacyBoost + meaningBoost));
+    const autoSafe = totalRisk < Number($("strictness").value) && rule.type !== "privacy";
+    return [{ id: index + 1, from: match[0], to: rule.replacement, type: rule.type, risk: totalRisk, autoSafe }];
+  });
+}
+
+function applySuggestions(text, suggestions, safeOnly = true) {
+  return suggestions.reduce((next, item) => {
+    if (safeOnly && !item.autoSafe) return next;
+    return next.replace(item.from, item.to);
+  }, text);
+}
+
+function renderMetrics(suggestions) {
+  const risky = suggestions.filter((item) => item.risk >= Number($("strictness").value)).length;
+  const privacy = suggestions.filter((item) => item.type === "privacy").length;
+  const safe = suggestions.filter((item) => item.autoSafe).length;
+  $("metrics").innerHTML = [
+    ["Suggestions", suggestions.length],
+    ["Auto-safe", safe],
+    ["Review", risky],
+    ["Privacy terms", privacy]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("gateChip").className = `chip ${risky ? "warn" : "pass"}`;
+  $("gateChip").textContent = risky ? "gate: review" : "gate: safe";
+  $("privacyChip").className = `chip ${privacy ? "danger" : "pass"}`;
+  $("privacyChip").textContent = privacy ? "privacy: approval" : "privacy: clear";
+}
+
+function renderSuggestions(suggestions) {
+  $("suggestions").innerHTML = suggestions.length ? suggestions.map((item) => {
+    const cls = item.autoSafe ? "pass" : item.type === "privacy" ? "danger" : "warn";
+    return `<article class="suggestion ${cls}"><strong>#${item.id} ${item.type} risk ${item.risk}</strong><small>${item.from} -> ${item.to}</small><small>${item.autoSafe ? "auto-safe" : "review before apply"}</small></article>`;
+  }).join("") : `<div class="tile"><strong>No suggestions</strong><small>しきい値内で公開できる文面です。</small></div>`;
+}
+
+function proofread() {
+  setLabels();
+  const text = $("input").value;
+  lastSuggestions = findSuggestions(text);
+  renderMetrics(lastSuggestions);
+  renderSuggestions(lastSuggestions);
+  const preview = $("action").value === "auto" ? applySuggestions(text, lastSuggestions, true) : applySuggestions(text, lastSuggestions, false);
+  $("preview").textContent = preview;
+  log(`proofread: ${lastSuggestions.length} suggestions, ${lastSuggestions.filter((item) => item.autoSafe).length} auto-safe`);
+}
+
+$("proofread").addEventListener("click", proofread);
+$("sampleA").addEventListener("click", () => { $("input").value = samples.a; proofread(); });
+$("sampleB").addEventListener("click", () => { $("input").value = samples.b; proofread(); });
+$("applySafe").addEventListener("click", () => {
+  $("input").value = applySuggestions($("input").value, lastSuggestions, true);
+  proofread();
+  log("applied auto-safe suggestions only");
+});
+$("reset").addEventListener("click", () => { $("input").value = samples.a; proofread(); });
+["strictness", "meaning", "privacy", "locale", "action"].forEach((id) => $(id).addEventListener("input", proofread));
+
+$("input").value = samples.a;
+setLabels();
+proofread();
+</script>
+</body>
+</html>

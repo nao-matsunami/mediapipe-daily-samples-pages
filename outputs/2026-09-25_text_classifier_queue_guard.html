@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Classifier Queue Guard</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0a1012; color: #f5faf7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(80, 204, 168, .16), transparent 34%), linear-gradient(315deg, rgba(245, 178, 75, .13), transparent 40%), #0a1012; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 38px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 250, 247, .14); }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.8rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #6ee0bc; letter-spacing: 0; }
+    p { margin: 0; color: #c8d3cf; line-height: 1.62; }
+    button, textarea, input, select { font: inherit; }
+    button, select { min-height: 40px; border: 1px solid rgba(245, 250, 247, .22); background: #f5faf7; color: #0a1012; padding: 8px 12px; }
+    button.secondary, select { background: rgba(10, 16, 18, .94); color: #f5faf7; }
+    textarea { width: 100%; min-height: 126px; resize: vertical; border: 1px solid rgba(245, 250, 247, .18); background: #11191c; color: #f5faf7; padding: 12px; line-height: 1.55; }
+    label { display: grid; gap: 6px; color: #f5faf7; font-size: .9rem; }
+    input[type="range"] { width: 100%; accent-color: #6ee0bc; }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; border: 1px solid rgba(245, 250, 247, .14); background: rgba(10, 16, 18, .88); }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage, .log { border: 1px solid rgba(245, 250, 247, .14); background: rgba(10, 16, 18, .91); padding: 14px; }
+    .stack { display: grid; gap: 10px; }
+    .tile, .metric, .job { border: 1px solid rgba(245, 250, 247, .12); background: #121a1d; padding: 10px; }
+    .tile small, .job small { display: block; margin-top: 5px; color: #b7c3bf; line-height: 1.45; }
+    .chip { display: inline-block; border: 1px solid rgba(245, 250, 247, .24); padding: 5px 8px; margin: 8px 8px 0 0; color: #edf4f0; font-size: .78rem; }
+    .pass { border-color: rgba(110, 224, 188, .82); background: rgba(110, 224, 188, .14); }
+    .warn { border-color: rgba(245, 178, 75, .85); background: rgba(245, 178, 75, .13); }
+    .danger { border-color: rgba(235, 105, 95, .85); background: rgba(235, 105, 95, .13); }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 12px; align-items: start; }
+    .queue { display: grid; gap: 8px; max-height: 430px; overflow: auto; }
+    .bar { height: 10px; background: #243236; margin-top: 8px; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #6ee0bc, #f5b24b); }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 1.22rem; font-variant-numeric: tabular-nums; }
+    .value { color: #f5b24b; font-variant-numeric: tabular-nums; }
+    .log { height: 130px; margin-top: 14px; overflow: auto; white-space: pre-wrap; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 940px) { .toolbar, .layout, .grid, .metrics { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Text Classifier Queue Guard</h1>
+    <p>MediaPipe Text Classifier の同期 classify() を実モデル接続前に検証する自作サンプルです。入力テキストをジョブ化し、しきい値、maxResults、キュー上限、処理予算を動かして UI 側の待ち行列と stale result の扱いを確認します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Score threshold <input id="threshold" type="range" min="10" max="85" value="42"><span id="thresholdValue" class="value">42%</span></label>
+    <label>Max results <input id="maxResults" type="range" min="1" max="5" value="3"><span id="maxResultsValue" class="value">3</span></label>
+    <label>Queue limit <input id="queueLimit" type="range" min="2" max="10" value="5"><span id="queueLimitValue" class="value">5 jobs</span></label>
+    <label>Budget per job <input id="budget" type="range" min="8" max="80" value="36"><span id="budgetValue" class="value">36 ms</span></label>
+    <label>Text preset
+      <select id="preset">
+        <option value="support">support triage</option>
+        <option value="moderation">content moderation</option>
+        <option value="release">release note</option>
+      </select>
+      <span class="value">local simulation</span>
+    </label>
+    <button id="enqueue">Enqueue text</button>
+    <button id="burst" class="secondary">Burst 6</button>
+    <button id="process" class="secondary">Process next</button>
+    <button id="auto" class="secondary">Auto loop</button>
+    <button id="probe" class="secondary">Import probe</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Text task checklist</h2>
+      <div class="stack">
+        <div class="tile"><strong>FilesetResolver.forTextTasks()</strong><small>実接続時は CDN / self-hosted WASM path を pin して、rename せず配信できるか確認します。</small></div>
+        <div class="tile"><strong>TextClassifier.classify()</strong><small>API は同期的に結果を返すため、連打入力は worker / queue / budget guard で吸収します。</small></div>
+        <div class="tile"><strong>setOptions()</strong><small>scoreThreshold や maxResults を UI 設定として扱い、変更時の再分類範囲を限定します。</small></div>
+      </div>
+      <span id="importChip" class="chip">tasks-text: not probed</span>
+      <span id="queueChip" class="chip pass">queue: ready</span>
+      <span class="chip">model: simulated</span>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Classification queue</h2>
+        <div class="grid">
+          <div class="stack">
+            <textarea id="input" spellcheck="false">The camera feature is fast, but the setup copy is confusing. I need a clearer privacy notice before enabling on-device analysis.</textarea>
+            <div id="metrics" class="metrics"></div>
+          </div>
+          <div class="queue" id="queue"></div>
+        </div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const presets = {
+  support: [
+    "The camera feature is fast, but the setup copy is confusing. I need a clearer privacy notice before enabling on-device analysis.",
+    "I love the hand tracking demo. The first load is slow, but after that it feels smooth.",
+    "The sample froze during upload and I cannot tell if inference is local or remote."
+  ],
+  moderation: [
+    "This comment looks harmless and asks how to configure the model path.",
+    "Please block this spammy post because it repeats the same unsafe link five times.",
+    "The phrase is ambiguous, so hold it for review rather than hiding it immediately."
+  ],
+  release: [
+    "MediaPipe v1.0.0 adds JavaScript task updates and a privacy notice, so pin versions before deployment.",
+    "The worker now catches classify errors and posts structured results with timestamps.",
+    "Nightly package testing should be separate from the public sample path."
+  ]
+};
+const labels = [
+  { name: "positive", words: ["love", "fast", "smooth", "clear", "adds", "safe", "harmless"] },
+  { name: "needs_help", words: ["confusing", "cannot", "need", "slow", "review", "ambiguous", "setup"] },
+  { name: "privacy", words: ["privacy", "local", "remote", "consent", "notice", "on-device"] },
+  { name: "policy_hold", words: ["block", "unsafe", "spam", "hold", "hide"] },
+  { name: "release_ops", words: ["version", "pin", "worker", "timestamp", "nightly", "deployment"] }
+];
+let nextId = 1;
+let autoTimer = null;
+const state = { queue: [], processed: 0, dropped: 0, stale: 0, overBudget: 0, activeId: 0 };
+
+function setLabels() {
+  $("thresholdValue").textContent = `${$("threshold").value}%`;
+  $("maxResultsValue").textContent = $("maxResults").value;
+  $("queueLimitValue").textContent = `${$("queueLimit").value} jobs`;
+  $("budgetValue").textContent = `${$("budget").value} ms`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function scoreText(text) {
+  const lower = text.toLowerCase();
+  return labels.map((label, index) => {
+    const hits = label.words.reduce((sum, word) => sum + (lower.includes(word) ? 1 : 0), 0);
+    const lengthBoost = Math.min(.16, text.length / 700);
+    const punctuation = (text.match(/[!?]/g) || []).length * .035;
+    const score = Math.min(.98, .12 + hits * .19 + lengthBoost + punctuation + index * .012);
+    return { label: label.name, score };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function classify(job) {
+  const threshold = Number($("threshold").value) / 100;
+  const max = Number($("maxResults").value);
+  const start = performance.now();
+  const all = scoreText(job.text);
+  const result = all.filter((item) => item.score >= threshold).slice(0, max);
+  const cost = 7 + job.text.length * .15 + all.length * 2.4 + Math.random() * 7;
+  const elapsed = performance.now() - start + cost;
+  return { result, elapsed };
+}
+
+function enqueue(text = $("input").value) {
+  const limit = Number($("queueLimit").value);
+  if (state.queue.length >= limit) {
+    const removed = state.queue.shift();
+    removed.status = "dropped";
+    state.dropped += 1;
+    log(`drop oldest #${removed.id}: queue limit ${limit}`);
+  }
+  const job = { id: nextId++, text, status: "queued", result: [], elapsed: 0 };
+  state.queue.push(job);
+  state.activeId = job.id;
+  log(`enqueue #${job.id}: ${text.slice(0, 54)}`);
+  render();
+}
+
+function processNext() {
+  const job = state.queue.find((item) => item.status === "queued");
+  if (!job) {
+    log("no queued job");
+    render();
+    return;
+  }
+  job.status = "running";
+  render();
+  const responseLag = 80 + Math.random() * 220;
+  setTimeout(() => {
+    const { result, elapsed } = classify(job);
+    job.elapsed = elapsed;
+    job.result = result;
+    if (job.id < state.activeId - 2) {
+      job.status = "stale";
+      state.stale += 1;
+      log(`stale #${job.id}: newer input already active`);
+    } else {
+      job.status = "done";
+      state.processed += 1;
+      if (elapsed > Number($("budget").value)) state.overBudget += 1;
+      log(`done #${job.id}: ${result.map((item) => item.label).join(", ") || "no label above threshold"}`);
+    }
+    render();
+  }, responseLag);
+}
+
+function burst() {
+  const list = presets[$("preset").value];
+  for (let i = 0; i < 6; i += 1) enqueue(list[i % list.length]);
+}
+
+function renderQueue() {
+  $("queue").innerHTML = state.queue.slice().reverse().map((job) => {
+    const cls = job.status === "done" ? "pass" : job.status === "stale" || job.status === "dropped" ? "warn" : job.status === "running" ? "danger" : "";
+    const results = job.result.length ? job.result.map((item) => `<div>${item.label}<div class="bar"><span style="width:${Math.round(item.score * 100)}%"></span></div><small>${Math.round(item.score * 100)}%</small></div>`).join("") : "<small>waiting for classify()</small>";
+    return `<article class="job ${cls}"><strong>#${job.id} ${job.status}</strong><small>${job.text}</small>${results}<small>elapsed ${job.elapsed.toFixed(1)} ms</small></article>`;
+  }).join("");
+}
+
+function renderMetrics() {
+  const budget = Number($("budget").value);
+  const queued = state.queue.filter((item) => item.status === "queued").length;
+  const running = state.queue.filter((item) => item.status === "running").length;
+  const last = state.queue.slice().reverse().find((item) => item.status === "done");
+  const queueOk = state.queue.length <= Number($("queueLimit").value) && running <= 1;
+  $("queueChip").className = `chip ${queueOk ? "pass" : "warn"}`;
+  $("queueChip").textContent = queueOk ? "queue: guarded" : "queue: pressure";
+  $("metrics").innerHTML = [
+    ["Queued", queued],
+    ["Processed", state.processed],
+    ["Stale / dropped", `${state.stale} / ${state.dropped}`],
+    ["Last cost", last ? `${last.elapsed.toFixed(1)} ms / ${budget}` : `0 ms / ${budget}`]
+  ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+function render() {
+  setLabels();
+  renderQueue();
+  renderMetrics();
+}
+
+$("preset").addEventListener("change", () => {
+  $("input").value = presets[$("preset").value][0];
+});
+$("enqueue").addEventListener("click", () => enqueue());
+$("burst").addEventListener("click", burst);
+$("process").addEventListener("click", processNext);
+$("auto").addEventListener("click", () => {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    $("auto").textContent = "Auto loop";
+    return;
+  }
+  autoTimer = setInterval(processNext, 520);
+  $("auto").textContent = "Stop loop";
+});
+$("probe").addEventListener("click", async () => {
+  $("importChip").textContent = "tasks-text: probing";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@latest");
+    $("importChip").className = "chip pass";
+    $("importChip").textContent = mod.TextClassifier && mod.FilesetResolver ? "tasks-text: import ok" : "tasks-text: partial";
+  } catch (error) {
+    $("importChip").className = "chip warn";
+    $("importChip").textContent = "tasks-text: blocked";
+    log(`import probe failed: ${error.message}`);
+  }
+});
+["threshold", "maxResults", "queueLimit", "budget"].forEach((id) => $(id).addEventListener("input", render));
+enqueue($("input").value);
+processNext();
+render();
+</script>
+</body>
+</html>
