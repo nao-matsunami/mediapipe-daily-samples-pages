@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Embedder Quantization Calibrator</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0b1115; color: #f6faf8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(75, 184, 168, .18), transparent 36%), linear-gradient(315deg, rgba(225, 184, 93, .13), transparent 44%), #0b1115; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(246, 250, 248, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.75rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #4bb8a8; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #c7d2d1; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(246, 250, 248, .24); background: #f6faf8; color: #0b1115; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(11, 17, 21, .92); color: #f6faf8; }
+    label { display: grid; gap: 6px; color: #edf4f2; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #4bb8a8; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(246, 250, 248, .15); background: rgba(11, 17, 21, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 315px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #05080b; border: 1px solid rgba(246, 250, 248, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .vector { border: 1px solid rgba(246, 250, 248, .13); background: #151d23; padding: 10px; min-height: 88px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.08rem, 3vw, 1.55rem); color: #f6faf8; font-variant-numeric: tabular-nums; }
+    .vector { margin-top: 12px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; min-height: 82px; }
+    .bar { position: relative; height: 58px; background: #27323a; overflow: hidden; }
+    .bar span { position: absolute; inset: auto 0 0; min-height: 4px; background: #4bb8a8; }
+    .chip { display: inline-block; border: 1px solid rgba(246, 250, 248, .24); padding: 5px 8px; color: #d9e2e0; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(75, 184, 168, .8); background: rgba(75, 184, 168, .15); color: #f6faf8; }
+    .warn { border-color: rgba(225, 184, 93, .8); background: rgba(225, 184, 93, .14); color: #fff7df; }
+    .bad { border-color: rgba(221, 112, 112, .8); background: rgba(221, 112, 112, .14); color: #ffe7e7; }
+    .value { color: #e1b85d; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #dfe7e5; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Image Embedder Quantization Calibrator</h1>
+    <p>MediaPipe Image Embedder の `l2_normalize` と `quantize` を、実モデル接続前に cosine similarity の判定差として観察する自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Quantize strength <input id="quantize" type="range" min="0" max="100" value="42"><span id="quantizeValue" class="value">42%</span></label>
+    <label>Input noise <input id="noise" type="range" min="0" max="100" value="18"><span id="noiseValue" class="value">18%</span></label>
+    <label>Similarity gate <input id="gate" type="range" min="72" max="99" value="88"><span id="gateValue" class="value">0.88</span></label>
+    <label>ROI drift <input id="drift" type="range" min="0" max="100" value="24"><span id="driftValue" class="value">24%</span></label>
+    <label>Preset <select id="preset"><option value="product">product</option><option value="hand">hand</option><option value="face">face</option><option value="document">document</option></select><span class="value">synthetic image feature</span></label>
+    <button id="step">Step frame</button>
+    <button id="toggle" class="secondary">Start loop</button>
+    <button id="l2" class="secondary">L2 normalize on</button>
+    <button id="probe" class="secondary">Import probe</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Embedding policy</h2>
+      <p>公式 API では Image Embedder が embedding を返し、cosine similarity、`l2_normalize`、`quantize` を扱えます。このサンプルでは float と量子化後のベクトルを並べ、しきい値判定が変わる境界を見ます。</p>
+      <span id="importChip" class="chip">tasks-vision: not probed</span>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="l2Chip" class="chip pass">l2: on</span>
+      <div id="vector" class="vector"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Float vs quantized cosine</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const base = {
+  product: [0.78, .32, -.18, .46, .12, -.38, .26, .54, -.22, .31, .17, -.09],
+  hand: [.42, .76, .34, -.18, .24, .08, -.44, .18, .37, -.21, .29, .11],
+  face: [.18, .28, .82, .31, -.16, .22, .47, -.35, .12, .36, -.27, .19],
+  document: [.34, -.14, .21, .77, .41, -.22, .11, .28, -.43, .13, .49, -.31]
+};
+const state = { running: false, frame: 0, l2: true, previousFloat: null, previousQuant: null, history: [], flips: 0 };
+
+function labels() {
+  $("quantizeValue").textContent = `${$("quantize").value}%`;
+  $("noiseValue").textContent = `${$("noise").value}%`;
+  $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+  $("driftValue").textContent = `${$("drift").value}%`;
+  $("l2").textContent = state.l2 ? "L2 normalize on" : "L2 normalize off";
+  $("l2Chip").textContent = state.l2 ? "l2: on" : "l2: off";
+  $("l2Chip").className = state.l2 ? "chip pass" : "chip warn";
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function normalize(v) {
+  if (!state.l2) return [...v];
+  const n = Math.hypot(...v) || 1;
+  return v.map((x) => x / n);
+}
+
+function cosine(a, b) {
+  if (!a || !b) return 1;
+  const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
+  const scale = state.l2 ? 1 : (Math.hypot(...a) || 1) * (Math.hypot(...b) || 1);
+  return dot / scale;
+}
+
+function makeFloatVector() {
+  const seed = base[$("preset").value];
+  const noise = Number($("noise").value) / 100;
+  const drift = Number($("drift").value) / 100;
+  const t = state.frame * .18;
+  return normalize(seed.map((x, i) => x + Math.sin(t + i * 1.7) * noise * .32 + Math.cos(t * .48 + i) * drift * .18));
+}
+
+function quantize(v) {
+  const strength = Number($("quantize").value) / 100;
+  if (strength <= 0) return [...v];
+  const steps = Math.max(5, Math.round(80 - strength * 70));
+  return normalize(v.map((x) => Math.round(x * steps) / steps));
+}
+
+function step() {
+  state.frame += 1;
+  const nextFloat = makeFloatVector();
+  const nextQuant = quantize(nextFloat);
+  const floatSim = cosine(state.previousFloat, nextFloat);
+  const quantSim = cosine(state.previousQuant, nextQuant);
+  const gate = Number($("gate").value) / 100;
+  const floatRoute = floatSim >= gate ? "reuse" : "refresh";
+  const quantRoute = quantSim >= gate ? "reuse" : "refresh";
+  if (floatRoute !== quantRoute) state.flips += 1;
+  state.history.push({ floatSim, quantSim, floatRoute, quantRoute });
+  state.history = state.history.slice(-64);
+  state.previousFloat = nextFloat;
+  state.previousQuant = nextQuant;
+  log(`frame ${state.frame}: float ${floatSim.toFixed(3)} / quant ${quantSim.toFixed(3)} -> ${quantRoute}`);
+  draw(nextFloat, nextQuant);
+  render();
+}
+
+function draw(floatVector, quantVector) {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#05080b";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(246,250,248,.14)";
+  for (let i = 0; i < 7; i += 1) {
+    const y = 88 + i * 82;
+    ctx.beginPath();
+    ctx.moveTo(60, y);
+    ctx.lineTo(w - 60, y);
+    ctx.stroke();
+  }
+  const gateY = h - 92 - (Number($("gate").value) / 100) * 500;
+  ctx.strokeStyle = "#f6faf8";
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(60, gateY);
+  ctx.lineTo(w - 60, gateY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  state.history.forEach((item, i) => {
+    const x = 70 + i * ((w - 140) / 63);
+    const fy = h - 92 - Math.max(0, Math.min(1, item.floatSim)) * 500;
+    const qy = h - 92 - Math.max(0, Math.min(1, item.quantSim)) * 500;
+    ctx.fillStyle = "#4bb8a8";
+    ctx.fillRect(x - 6, fy - 6, 12, 12);
+    ctx.fillStyle = item.floatRoute === item.quantRoute ? "#e1b85d" : "#dd7070";
+    ctx.fillRect(x - 6, qy - 6, 12, 12);
+  });
+  ctx.fillStyle = "#f6faf8";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`preset ${$("preset").value}`, 54, 48);
+  ctx.fillText("float", 54, 92);
+  ctx.fillStyle = "#4bb8a8";
+  floatVector.forEach((v, i) => ctx.fillRect(150 + i * 82, 74, 28, Math.max(8, Math.abs(v) * 170)));
+  ctx.fillStyle = "#e1b85d";
+  ctx.fillText("quant", 54, 286);
+  quantVector.forEach((v, i) => ctx.fillRect(150 + i * 82, 268, 28, Math.max(8, Math.abs(v) * 170)));
+}
+
+function render() {
+  const latest = state.history.at(-1);
+  if (!latest) return;
+  const delta = Math.abs(latest.floatSim - latest.quantSim);
+  $("routeChip").textContent = latest.floatRoute === latest.quantRoute ? `route: ${latest.quantRoute}` : "route: changed by quantize";
+  $("routeChip").className = latest.floatRoute === latest.quantRoute ? "chip pass" : "chip bad";
+  $("meters").innerHTML = [
+    ["Float cosine", latest.floatSim.toFixed(3)],
+    ["Quant cosine", latest.quantSim.toFixed(3)],
+    ["Delta", delta.toFixed(3)],
+    ["Route flips", String(state.flips)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+  $("vector").innerHTML = state.previousQuant.map((v) => `<span class="bar"><span style="height:${Math.max(4, Math.abs(v) * 140)}%; background:${v >= 0 ? "#4bb8a8" : "#e1b85d"}"></span></span>`).join("");
+}
+
+async function probeImport() {
+  $("importChip").textContent = "tasks-vision: probing...";
+  $("importChip").className = "chip warn";
+  try {
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs");
+    $("importChip").textContent = mod.ImageEmbedder ? "tasks-vision: ImageEmbedder export ok" : "tasks-vision: loaded";
+    $("importChip").className = "chip pass";
+    log("imported @mediapipe/tasks-vision vision bundle");
+  } catch (error) {
+    $("importChip").textContent = "tasks-vision: import blocked";
+    $("importChip").className = "chip bad";
+    log(`import probe failed: ${error.message}`);
+  }
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 380) {
+    step();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+["quantize", "noise", "gate", "drift"].forEach((id) => $(id).addEventListener("input", labels));
+$("preset").addEventListener("change", () => { state.previousFloat = null; state.previousQuant = null; step(); });
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause loop" : "Start loop"; });
+$("l2").addEventListener("click", () => { state.l2 = !state.l2; labels(); step(); });
+$("probe").addEventListener("click", probeImport);
+$("reset").addEventListener("click", () => { Object.assign(state, { frame: 0, previousFloat: null, previousQuant: null, history: [], flips: 0 }); step(); log("state reset"); });
+labels();
+step();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

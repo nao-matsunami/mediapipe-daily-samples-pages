@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embedding Threshold Drift Sentinel</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101114; color: #f7f7f2; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(94, 165, 222, .16), transparent 38%), linear-gradient(315deg, rgba(218, 122, 132, .14), transparent 43%), #101114; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 247, 242, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.07; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #5ea5de; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cfd1d5; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 247, 242, .24); background: #f7f7f2; color: #101114; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(16, 17, 20, .92); color: #f7f7f2; }
+    label { display: grid; gap: 6px; color: #f0f1f0; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #5ea5de; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(247, 247, 242, .15); background: rgba(16, 17, 20, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #07080b; border: 1px solid rgba(247, 247, 242, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .item { border: 1px solid rgba(247, 247, 242, .13); background: #181b22; padding: 10px; min-height: 88px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.08rem, 3vw, 1.55rem); color: #f7f7f2; font-variant-numeric: tabular-nums; }
+    .item { margin-top: 10px; display: grid; gap: 7px; }
+    .bar { height: 12px; background: #282d36; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #5ea5de, #da7a84); }
+    .chip { display: inline-block; border: 1px solid rgba(247, 247, 242, .24); padding: 5px 8px; color: #e2e4e6; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(94, 165, 222, .78); background: rgba(94, 165, 222, .14); color: #f7f7f2; }
+    .warn { border-color: rgba(222, 188, 93, .78); background: rgba(222, 188, 93, .14); color: #fff8e4; }
+    .bad { border-color: rgba(218, 122, 132, .78); background: rgba(218, 122, 132, .14); color: #ffe8eb; }
+    .value { color: #debc5d; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e4e6e8; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Embedding Threshold Drift Sentinel</h1>
+    <p>Image Embedder の発展案として、保存済み embedding の鮮度、しきい値、レビュー帯、再 embed 判定を小さく検証する派生試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Reuse gate <input id="reuseGate" type="range" min="70" max="98" value="88"><span id="reuseGateValue" class="value">0.88</span></label>
+    <label>Review band <input id="reviewBand" type="range" min="2" max="20" value="8"><span id="reviewBandValue" class="value">0.08</span></label>
+    <label>Age penalty <input id="agePenalty" type="range" min="0" max="90" value="34"><span id="agePenaltyValue" class="value">34%</span></label>
+    <label>Drift speed <input id="driftSpeed" type="range" min="0" max="100" value="31"><span id="driftSpeedValue" class="value">31%</span></label>
+    <label>Input stream <select id="stream"><option>catalog</option><option>camera</option><option>document</option><option>mixed</option></select><span class="value">synthetic embeddings</span></label>
+    <button id="step">Step event</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="age" class="secondary">Age cache</button>
+    <button id="swap" class="secondary">Swap stream</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Drift policy</h2>
+      <p>cosine similarity は単発の数値ではなく、保存済みベクトルの鮮度や用途別 gate と一緒に扱うと運用しやすくなります。ここでは reuse / review / re-embed の境界を可視化します。</p>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="staleChip" class="chip">cache: fresh</span>
+      <div id="items"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Similarity stream</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const colors = { catalog: "#5ea5de", camera: "#78c491", document: "#debc5d", mixed: "#da7a84" };
+const bases = {
+  catalog: [.8, .34, .18, -.22, .41, -.18, .28, .12],
+  camera: [.28, .74, -.31, .26, .19, .34, -.24, .37],
+  document: [.31, -.12, .78, .38, -.28, .19, .26, -.35],
+  mixed: [.44, .28, .36, .65, .25, -.16, .38, .21]
+};
+const state = { running: false, tick: 0, hits: 0, reviews: 0, embeds: 0, cache: [], history: [] };
+
+function labels() {
+  $("reuseGateValue").textContent = (Number($("reuseGate").value) / 100).toFixed(2);
+  $("reviewBandValue").textContent = (Number($("reviewBand").value) / 100).toFixed(2);
+  $("agePenaltyValue").textContent = `${$("agePenalty").value}%`;
+  $("driftSpeedValue").textContent = `${$("driftSpeed").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function norm(v) {
+  const n = Math.hypot(...v) || 1;
+  return v.map((x) => x / n);
+}
+
+function cosine(a, b) {
+  return a.reduce((sum, v, i) => sum + v * b[i], 0);
+}
+
+function makeVector(stream) {
+  const speed = Number($("driftSpeed").value) / 100;
+  const t = state.tick * (.06 + speed * .2);
+  return norm(bases[stream].map((x, i) => x + Math.sin(t + i * 1.4) * speed * .24 + Math.cos(t * .7 + i) * .08));
+}
+
+function seedCache() {
+  state.cache = Object.keys(bases).map((stream, i) => ({ stream, vector: norm(bases[stream]), age: i * 2, uses: 0 }));
+}
+
+function step() {
+  state.tick += 1;
+  state.cache.forEach((item) => { item.age += 1; });
+  const incoming = $("stream").value;
+  const vector = makeVector(incoming);
+  const penalty = Number($("agePenalty").value) / 100;
+  const reuseGate = Number($("reuseGate").value) / 100;
+  const reviewFloor = reuseGate - Number($("reviewBand").value) / 100;
+  const scored = state.cache.map((item) => {
+    const raw = cosine(vector, item.vector);
+    return { ...item, raw, score: raw - item.age * penalty * .01 };
+  }).sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  let route = "re-embed";
+  if (best.score >= reuseGate) {
+    route = "reuse";
+    state.hits += 1;
+    const cached = state.cache.find((item) => item.stream === best.stream);
+    cached.age = 0;
+    cached.uses += 1;
+  } else if (best.score >= reviewFloor) {
+    route = "review";
+    state.reviews += 1;
+  } else {
+    state.embeds += 1;
+    state.cache.push({ stream: incoming, vector, age: 0, uses: 0 });
+    state.cache = state.cache.slice(-8);
+  }
+  state.history.push({ stream: incoming, best: best.stream, score: best.score, raw: best.raw, route });
+  state.history = state.history.slice(-58);
+  log(`${incoming} -> ${route} via ${best.stream} / score ${best.score.toFixed(3)}`);
+  draw();
+  render();
+}
+
+function draw() {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#07080b";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(247,247,242,.14)";
+  for (let i = 0; i < 6; i += 1) {
+    const y = 100 + i * 88;
+    ctx.beginPath();
+    ctx.moveTo(58, y);
+    ctx.lineTo(w - 58, y);
+    ctx.stroke();
+  }
+  const reuseY = h - 96 - (Number($("reuseGate").value) / 100) * 500;
+  const reviewY = h - 96 - (Number($("reuseGate").value) / 100 - Number($("reviewBand").value) / 100) * 500;
+  ctx.strokeStyle = "#f7f7f2";
+  ctx.setLineDash([12, 8]);
+  ctx.beginPath();
+  ctx.moveTo(58, reuseY);
+  ctx.lineTo(w - 58, reuseY);
+  ctx.stroke();
+  ctx.strokeStyle = "#debc5d";
+  ctx.beginPath();
+  ctx.moveTo(58, reviewY);
+  ctx.lineTo(w - 58, reviewY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  state.history.forEach((item, i) => {
+    const x = 70 + i * ((w - 140) / 57);
+    const y = h - 96 - Math.max(0, Math.min(1, item.score)) * 500;
+    ctx.fillStyle = item.route === "reuse" ? colors[item.best] : item.route === "review" ? "#debc5d" : "#da7a84";
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.fillStyle = "#f7f7f2";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`stream ${$("stream").value}`, 54, 48);
+  ctx.fillText("reuse gate", 54, reuseY - 12);
+  ctx.fillStyle = "#debc5d";
+  ctx.fillText("review floor", 54, reviewY - 12);
+}
+
+function render() {
+  const latest = state.history.at(-1);
+  $("routeChip").textContent = latest ? `route: ${latest.route}` : "route: waiting";
+  $("routeChip").className = latest?.route === "reuse" ? "chip pass" : latest?.route === "review" ? "chip warn" : "chip bad";
+  const oldest = Math.max(...state.cache.map((item) => item.age), 0);
+  $("staleChip").textContent = oldest > 12 ? "cache: stale entries" : "cache: fresh";
+  $("staleChip").className = oldest > 12 ? "chip warn" : "chip pass";
+  $("items").innerHTML = state.cache.map((item) => {
+    const width = Math.max(4, 100 - item.age * 7);
+    return `<div class="item"><strong>${item.stream}</strong><div class="bar"><span style="width:${width}%; background:${colors[item.stream]}"></span></div><span class="value">age ${item.age} / uses ${item.uses}</span></div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Reuse", String(state.hits)],
+    ["Review", String(state.reviews)],
+    ["Re-embed", String(state.embeds)],
+    ["Cache", String(state.cache.length)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+let last = performance.now();
+function loop(now) {
+  if (state.running && now - last > 520) {
+    step();
+    last = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+["reuseGate", "reviewBand", "agePenalty", "driftSpeed"].forEach((id) => $(id).addEventListener("input", labels));
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause stream" : "Start stream"; });
+$("age").addEventListener("click", () => { state.cache.forEach((item) => { item.age += 8; }); render(); log("cache aged by 8 ticks"); });
+$("swap").addEventListener("click", () => { const keys = Object.keys(bases); $("stream").value = keys[(keys.indexOf($("stream").value) + 1) % keys.length]; step(); });
+$("reset").addEventListener("click", () => { Object.assign(state, { tick: 0, hits: 0, reviews: 0, embeds: 0, history: [] }); seedCache(); step(); log("state reset"); });
+labels();
+seedCache();
+step();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

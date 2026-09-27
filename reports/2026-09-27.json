@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-27",
+  "category": "MediaPipe / Google AI Edge / Image Embedder / Web ML",
+  "headline": "Image Embedder は量子化後の cosine 判定を UI で校正してから使う",
+  "headlineEn": "Calibrate quantized cosine decisions in the UI before using Image Embedder",
+  "summary": "Google AI Edge の ImageEmbedder / ImageEmbedderOptions API、Web setup、MediaPipe releases、Tasks Vision Web README、mediapipe-samples-web、npm package を確認し、自作サンプルを2本追加しました。本命は float embedding と quantized embedding の cosine 差分を可視化する Image Embedder Quantization Calibrator、派生は保存済み embedding の鮮度としきい値から reuse / review / re-embed を分ける Embedding Threshold Drift Sentinel です。",
+  "summaryEn": "After checking the Google AI Edge ImageEmbedder / ImageEmbedderOptions APIs, Web setup, MediaPipe releases, Tasks Vision Web README, mediapipe-samples-web, and npm package, this adds two original samples. The main sample is Image Embedder Quantization Calibrator for visualizing cosine differences between float and quantized embeddings. The derivative is Embedding Threshold Drift Sentinel for routing saved embeddings into reuse / review / re-embed based on freshness and thresholds.",
+  "keyTopics": [
+    "ImageEmbedder API は embedding 抽出、cosine similarity、静止画 / 動画 / live stream 用の実行形を持ち、動画系では timestamp の単調増加が重要になる。",
+    "ImageEmbedderOptions は `l2_normalize` と `quantize` を持つため、軽量化した embedding がしきい値判定を変える境界を UI で観察しておく価値がある。",
+    "MediaPipe v1.0.0 release notes では JavaScript 側の IIFE bundles、Privacy Notice、running mode cache、Web LLM `.litertlm`、Text Embedder Gecko support が並び、Web package の運用境界がより明確になっている。",
+    "mediapipe-samples-web はブラウザ内で Tasks API を動かす公式サンプル集だが、今日の公開カードは公式 demo ではなく、この workspace の synthetic embedding policy サンプルにした。",
+    "embedding の reuse 判定は cosine だけでなく、量子化誤差、L2 正規化、cache age、review band をまとめて扱うとプロダクト UI に載せやすい。"
+  ],
+  "keyTopicsEn": [
+    "The ImageEmbedder API supports embedding extraction, cosine similarity, and image / video / live-stream execution styles, with monotonically increasing timestamps mattering for video-like flows.",
+    "ImageEmbedderOptions includes `l2_normalize` and `quantize`, so it is worth observing where lightweight embeddings change threshold decisions.",
+    "MediaPipe v1.0.0 release notes list JavaScript-side IIFE bundles, the Privacy Notice, running mode cache, Web LLM `.litertlm`, and Text Embedder Gecko support, clarifying Web package operations.",
+    "mediapipe-samples-web is the official browser Tasks API sample collection, but today's public cards are original synthetic embedding policy samples in this workspace rather than reposted demos.",
+    "Embedding reuse decisions become product-ready when cosine is considered together with quantization error, L2 normalization, cache age, and a review band."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Image Embedder Quantization Calibrator",
+      "url": "../outputs/2026-09-27_image_embedder_quantization_calibrator.html"
+    },
+    {
+      "label": "Today's derivative sample: Embedding Threshold Drift Sentinel",
+      "url": "../outputs/2026-09-27_embedding_threshold_drift_sentinel.html"
+    },
+    {
+      "label": "Google AI Edge API: ImageEmbedder",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ImageEmbedder"
+    },
+    {
+      "label": "Google AI Edge API: ImageEmbedderOptions",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ImageEmbedderOptions"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-27-image-embedder-quantization-calibrator.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Image Embedder の embedding を単なる類似度検索に使う前に、`l2_normalize` と `quantize` の判定差を UI で校正することです。公式 API は cosine similarity と running mode を提供しますが、実アプリでは gate 付近で float と quantized の route が変わると、cache reuse、再 embed、human review の体験が揺れます。そこで本命サンプルは実モデルを呼ばず、synthetic embedding で float / quantized の差分を触れるようにしました。",
+      "bodyEn": "Today's notable angle is calibrating `l2_normalize` and `quantize` decisions in the UI before using Image Embedder embeddings for similarity search. The official API provides cosine similarity and running modes, but in real apps a route change near the gate can affect cache reuse, re-embedding, and human review. The main sample therefore avoids a real model and makes float / quantized differences touchable with synthetic embeddings."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Image Embedder Quantization Calibrator` は、preset、quantize strength、input noise、similarity gate、ROI drift、L2 toggle を動かし、float cosine と quantized cosine、差分、route flip を表示します。派生の `Embedding Threshold Drift Sentinel` は、reuse gate、review band、age penalty、drift speed を操作し、保存済み embedding を reuse / review / re-embed に振り分けます。",
+      "bodyEn": "The main sample, `Image Embedder Quantization Calibrator`, exposes preset, quantize strength, input noise, similarity gate, ROI drift, and an L2 toggle while showing float cosine, quantized cosine, deltas, and route flips. The derivative, `Embedding Threshold Drift Sentinel`, adjusts reuse gate, review band, age penalty, and drift speed to route saved embeddings into reuse / review / re-embed."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは preset、float vector、quantized vector、cosine delta、route flip、L2 flag、similarity gate、cache age、review band、age penalty、reuse / review / re-embed count です。Image Embedder、Image Classifier、Object Detector、Interactive Segmenter、Text Embedder、IndexedDB、Web Worker、Canvas overlay、検索 index、商品棚 / 資料検索 / カメラ QA と組み合わせると、オンデバイス embedding の再利用ポリシーを試せます。",
+      "bodyEn": "The samples can accumulate preset, float vectors, quantized vectors, cosine deltas, route flips, L2 flags, similarity gates, cache age, review bands, age penalties, and reuse / review / re-embed counts. Combined with Image Embedder, Image Classifier, Object Detector, Interactive Segmenter, Text Embedder, IndexedDB, Web Workers, Canvas overlays, search indexes, product shelves, document search, or camera QA, they can test on-device embedding reuse policies."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実接続時は model adapter が返す embedding の型、正規化済みかどうか、量子化の有無、元画像 / ROI / timestamp を job metadata として保存します。`embedForVideo` 風の処理では timestamp の単調増加、古い結果の破棄、同期コストの worker 隔離を分けます。gate は1本だけにせず、reuse gate と review floor を分け、量子化で route が変わった時だけ監査ログに残すと運用しやすくなります。",
+      "bodyEn": "When wiring a real model, save the embedding type, whether it is normalized, quantization state, source image / ROI / timestamp as job metadata. For `embedForVideo`-style processing, keep monotonic timestamps, stale-result rejection, and synchronous-cost worker isolation separate. Use a reuse gate plus a review floor instead of one threshold, and log only cases where quantization changes the route."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は MediaPipe release notes の JavaScript / Vision task 更新、Image Embedder と Text Embedder の Gecko / Web 対応差、Tasks Vision Web README の bundle path、mediapipe-samples-web の embedding 系サンプル、npm `@mediapipe/tasks-vision` の version / IIFE bundle、Privacy Notice と metrics consent の扱いを見ます。",
+      "bodyEn": "Next, watch JavaScript / Vision task updates in MediaPipe release notes, Web support differences between Image Embedder and Text Embedder, bundle paths in the Tasks Vision Web README, embedding examples in mediapipe-samples-web, npm `@mediapipe/tasks-vision` versions / IIFE bundles, and Privacy Notice / metrics consent handling."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Image Embedder Quantization Calibrator` で Similarity gate を 0.90 前後、Quantize strength を 70% 以上に上げ、L2 normalize を切り替えると route flip が増える境界を見られます。派生サンプルでは Age cache を押してから Review band を広げると、すぐ再 embed せず review に止める運用帯が見えます。",
+      "bodyEn": "In `Image Embedder Quantization Calibrator`, raise Similarity gate near 0.90 and Quantize strength above 70%, then toggle L2 normalize to see where route flips increase. In the derivative sample, press Age cache and widen Review band to see the operational band that pauses for review instead of immediately re-embedding."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: ImageEmbedder / ImageEmbedderOptions、Web setup、MediaPipe releases、Tasks Vision Web README、mediapipe-samples-web、npm package を確認。設計: 公式 demo の再掲ではなく、embedding reuse policy を触れる自作 UI にする。実装: 本命 HTML に float / quantized vector、cosine delta、L2 toggle、import probe、route flip を追加。派生 HTML に cache age、reuse gate、review band、age penalty、drift stream を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked ImageEmbedder / ImageEmbedderOptions, Web setup, MediaPipe releases, Tasks Vision Web README, mediapipe-samples-web, and npm package. Design: instead of reposting an official demo, create an original UI for embedding reuse policy. Implementation: added float / quantized vectors, cosine delta, L2 toggle, import probe, and route flips to the main HTML. Added cache age, reuse gate, review band, age penalty, and drift stream to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は text task の budget / review gate を扱いました。今日は embedding 系へ戻し、Image Embedder を検索や cache に接続する前の判定面を整えました。Vision / Audio / Text を横断すると、日次サンプルは API 呼び出しそのものより、queue、budget、threshold、review、cache、audit の見える化へまとまってきています。",
+      "bodyEn": "The previous entry covered text-task budget and review gates. Today returns to embeddings and prepares the decision layer before connecting Image Embedder to search or cache. Across Vision, Audio, and Text, the daily samples are converging less on raw API calls and more on making queues, budgets, thresholds, review, cache, and audit visible."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Image Embedder Quantization Calibrator` です。実際に動く部分は preset、quantize strength、input noise、similarity gate、ROI drift、L2 normalize toggle、float / quantized cosine、route flip 表示です。次に足すなら実 ImageEmbedder adapter、実画像 ROI crop、worker 実行、IndexedDB embedding cache を足します。派生試作は `Embedding Threshold Drift Sentinel` で、実際に動く部分は reuse gate、review band、age penalty、drift speed、cache age、reuse / review / re-embed routing です。次に足すなら実 embedding stream、per-label gate、監査ログ export、human review queue を足します。",
+      "bodyEn": "The selected main prototype is `Image Embedder Quantization Calibrator`. The working pieces are preset, quantize strength, input noise, similarity gate, ROI drift, L2 normalize toggle, float / quantized cosine, and route flip display. Next additions should include a real ImageEmbedder adapter, real-image ROI crop, worker execution, and IndexedDB embedding cache. The derivative prototype is `Embedding Threshold Drift Sentinel`; the working pieces are reuse gate, review band, age penalty, drift speed, cache age, and reuse / review / re-embed routing. Next additions should include a real embedding stream, per-label gates, audit-log export, and a human review queue.",
+      "links": [
+        {
+          "label": "Open Image Embedder Quantization Calibrator",
+          "url": "../outputs/2026-09-27_image_embedder_quantization_calibrator.html"
+        },
+        {
+          "label": "Open Embedding Threshold Drift Sentinel",
+          "url": "../outputs/2026-09-27_embedding_threshold_drift_sentinel.html"
+        }
+      ]
+    }
+  ]
+}
