@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Object Detector Event Stabilizer</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0e1112; color: #f7f4ec; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(72, 180, 151, .16), transparent 36%), linear-gradient(315deg, rgba(213, 154, 72, .14), transparent 43%), #0e1112; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 244, 236, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.8rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #48b497; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d1cbc0; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 244, 236, .24); background: #f7f4ec; color: #0e1112; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(14, 17, 18, .92); color: #f7f4ec; }
+    label { display: grid; gap: 6px; color: #f0ede6; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #48b497; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(247, 244, 236, .15); background: rgba(14, 17, 18, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 315px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #050708; border: 1px solid rgba(247, 244, 236, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(247, 244, 236, .13); background: #171d1d; padding: 10px; min-height: 84px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.5rem); color: #f7f4ec; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .bar { height: 12px; background: #26302f; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #48b497, #d59a48); }
+    .chip { display: inline-block; border: 1px solid rgba(247, 244, 236, .24); padding: 5px 8px; color: #e6e1d8; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(72, 180, 151, .78); background: rgba(72, 180, 151, .14); color: #f7f4ec; }
+    .warn { border-color: rgba(213, 154, 72, .78); background: rgba(213, 154, 72, .14); color: #fff3dc; }
+    .bad { border-color: rgba(215, 104, 104, .78); background: rgba(215, 104, 104, .14); color: #ffe8e8; }
+    .value { color: #d59a48; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e8e1d7; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Object Detector Event Stabilizer</h1>
+    <p>MediaPipe Object Detector の `scoreThreshold`、`maxResults`、allow / deny policy、ROI の半減期を、実モデル接続前に検出イベントの安定化 UI として試す自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Score threshold <input id="threshold" type="range" min="25" max="90" value="54"><span id="thresholdValue" class="value">0.54</span></label>
+    <label>Max results <input id="maxResults" type="range" min="1" max="6" value="3"><span id="maxResultsValue" class="value">3</span></label>
+    <label>ROI half-life <input id="halfLife" type="range" min="1" max="18" value="7"><span id="halfLifeValue" class="value">7 frames</span></label>
+    <label>Jitter <input id="jitter" type="range" min="0" max="100" value="31"><span id="jitterValue" class="value">31%</span></label>
+    <label>Policy <select id="policy"><option value="all">all classes</option><option value="allow">allow person/cup</option><option value="deny">deny phone</option><option value="review">review unknown</option></select><span class="value">category routing</span></label>
+    <button id="step">Step frame</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="spike" class="secondary">Inject low score</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Detection policy</h2>
+      <p>公式 Object Detector は running mode、score threshold、max results、allowlist / denylist を持ちます。このサンプルは候補検出を受け取った後、UI に出すイベントだけを安定化する層を分けて観察します。</p>
+      <span id="routeChip" class="chip">route: waiting</span>
+      <span id="roiChip" class="chip">roi: empty</span>
+      <div id="rows"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Synthetic detector stream</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const palette = { person: "#48b497", cup: "#d59a48", phone: "#d76868", plant: "#75a7d8", unknown: "#b993d6" };
+const seeds = [
+  { label: "person", x: .18, y: .18, w: .24, h: .52, score: .76 },
+  { label: "cup", x: .58, y: .54, w: .12, h: .18, score: .68 },
+  { label: "phone", x: .70, y: .30, w: .16, h: .26, score: .55 },
+  { label: "plant", x: .38, y: .22, w: .18, h: .38, score: .49 },
+  { label: "unknown", x: .48, y: .46, w: .20, h: .20, score: .42 }
+];
+const state = { running: false, frame: 0, rois: [], history: [], accepted: 0, reviewed: 0, dropped: 0, spike: 0 };
+
+function labels() {
+  $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+  $("maxResultsValue").textContent = $("maxResults").value;
+  $("halfLifeValue").textContent = `${$("halfLife").value} frames`;
+  $("jitterValue").textContent = `${$("jitter").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function policyPass(label) {
+  const policy = $("policy").value;
+  if (policy === "allow") return ["person", "cup"].includes(label) ? "accept" : "drop";
+  if (policy === "deny") return label === "phone" ? "drop" : "accept";
+  if (policy === "review") return label === "unknown" ? "review" : "accept";
+  return "accept";
+}
+
+function generateDetections() {
+  const jitter = Number($("jitter").value) / 100;
+  const t = state.frame * .23;
+  return seeds.map((seed, index) => {
+    const lowScore = state.spike > 0 && index < 2 ? -.28 : 0;
+    return {
+      label: seed.label,
+      x: Math.max(.03, Math.min(.85, seed.x + Math.sin(t + index) * jitter * .05)),
+      y: Math.max(.03, Math.min(.78, seed.y + Math.cos(t * .8 + index) * jitter * .04)),
+      w: seed.w,
+      h: seed.h,
+      score: Math.max(.05, Math.min(.98, seed.score + Math.sin(t * 1.3 + index) * jitter * .18 + lowScore))
+    };
+  });
+}
+
+function iou(a, b) {
+  const ax2 = a.x + a.w;
+  const ay2 = a.y + a.h;
+  const bx2 = b.x + b.w;
+  const by2 = b.y + b.h;
+  const iw = Math.max(0, Math.min(ax2, bx2) - Math.max(a.x, b.x));
+  const ih = Math.max(0, Math.min(ay2, by2) - Math.max(a.y, b.y));
+  const union = a.w * a.h + b.w * b.h - iw * ih;
+  return union ? (iw * ih) / union : 0;
+}
+
+function updateRois(accepted) {
+  state.rois.forEach((roi) => { roi.age += 1; roi.score *= .94; });
+  accepted.forEach((det) => {
+    const existing = state.rois.find((roi) => roi.label === det.label && iou(roi, det) > .18);
+    if (existing) {
+      Object.assign(existing, det, { age: 0, score: Math.max(existing.score, det.score) });
+    } else {
+      state.rois.push({ ...det, age: 0 });
+    }
+  });
+  const maxAge = Number($("halfLife").value) * 2;
+  state.rois = state.rois.filter((roi) => roi.age <= maxAge).sort((a, b) => b.score - a.score).slice(0, 8);
+}
+
+function step() {
+  state.frame += 1;
+  if (state.spike > 0) state.spike -= 1;
+  const threshold = Number($("threshold").value) / 100;
+  const maxResults = Number($("maxResults").value);
+  const candidates = generateDetections().sort((a, b) => b.score - a.score);
+  const selected = [];
+  const review = [];
+  const dropped = [];
+  candidates.forEach((det) => {
+    const route = det.score < threshold ? "drop" : policyPass(det.label);
+    if (route === "accept" && selected.length < maxResults) selected.push(det);
+    else if (route === "review") review.push(det);
+    else dropped.push(det);
+  });
+  state.accepted += selected.length;
+  state.reviewed += review.length;
+  state.dropped += dropped.length;
+  updateRois(selected);
+  state.history.push({ selected: selected.length, review: review.length, dropped: dropped.length, rois: state.rois.length });
+  state.history = state.history.slice(-64);
+  log(`frame ${state.frame}: accept ${selected.length}, review ${review.length}, drop ${dropped.length}`);
+  draw(candidates, selected, review);
+  render(candidates, selected, review, dropped);
+}
+
+function draw(candidates, selected, review) {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#050708";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(247,244,236,.10)";
+  for (let i = 0; i < 8; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(i * 160, 0);
+    ctx.lineTo(i * 160, h);
+    ctx.stroke();
+  }
+  candidates.forEach((det) => box(det, "rgba(247,244,236,.20)", 1, true));
+  state.rois.forEach((roi) => box(roi, palette[roi.label] || "#f7f4ec", Math.max(1, 6 - roi.age * .25), false));
+  selected.forEach((det) => box(det, palette[det.label] || "#f7f4ec", 4, false));
+  review.forEach((det) => box(det, "#d59a48", 3, true));
+  drawTimeline();
+}
+
+function box(det, color, width, dashed) {
+  const x = det.x * 1280;
+  const y = det.y * 720;
+  const bw = det.w * 1280;
+  const bh = det.h * 720;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  if (dashed) ctx.setLineDash([12, 8]);
+  ctx.strokeRect(x, y, bw, bh);
+  ctx.fillStyle = color;
+  ctx.font = "20px ui-monospace, Menlo, monospace";
+  ctx.fillText(`${det.label} ${det.score.toFixed(2)}`, x + 8, y + 26);
+  ctx.restore();
+}
+
+function drawTimeline() {
+  const x0 = 62;
+  const y0 = 650;
+  const span = 1110 / 63;
+  state.history.forEach((item, i) => {
+    const x = x0 + i * span;
+    ctx.fillStyle = item.selected ? "#48b497" : item.review ? "#d59a48" : "#d76868";
+    ctx.fillRect(x, y0 - item.rois * 16, 12, item.rois * 16);
+  });
+}
+
+function render(candidates, selected, review, dropped) {
+  const total = selected.length + review.length + dropped.length;
+  $("routeChip").textContent = selected.length ? "route: emit events" : review.length ? "route: review" : "route: suppress";
+  $("routeChip").className = selected.length ? "chip pass" : review.length ? "chip warn" : "chip bad";
+  $("roiChip").textContent = `roi: ${state.rois.length} active`;
+  $("roiChip").className = state.rois.length ? "chip pass" : "chip";
+  $("rows").innerHTML = candidates.map((det) => {
+    const kept = selected.includes(det);
+    const needsReview = review.includes(det);
+    const width = Math.round(det.score * 100);
+    return `<div class="row"><strong>${det.label}</strong><div class="bar"><span style="width:${width}%; background:${palette[det.label] || "#f7f4ec"}"></span></div><span class="value">${det.score.toFixed(2)} ${kept ? "emit" : needsReview ? "review" : "drop"}</span></div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Candidates", String(total)],
+    ["Accepted", String(state.accepted)],
+    ["Reviewed", String(state.reviewed)],
+    ["Dropped", String(state.dropped)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+let timer = 0;
+function loop() {
+  if (!state.running) return;
+  step();
+  timer = window.setTimeout(loop, 520);
+}
+
+document.querySelectorAll("input, select").forEach((node) => node.addEventListener("input", () => { labels(); step(); }));
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Stop stream" : "Start stream";
+  if (state.running) loop();
+  else window.clearTimeout(timer);
+});
+$("spike").addEventListener("click", () => { state.spike = 4; log("injected low-score burst"); step(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { running: false, frame: 0, rois: [], history: [], accepted: 0, reviewed: 0, dropped: 0, spike: 0 });
+  $("toggle").textContent = "Start stream";
+  labels();
+  step();
+});
+
+labels();
+step();
+</script>
+</body>
+</html>

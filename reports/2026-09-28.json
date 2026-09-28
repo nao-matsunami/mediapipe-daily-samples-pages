@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-28",
+  "category": "MediaPipe / Google AI Edge / Object Detector / Web ML",
+  "headline": "Object Detector の結果はイベント化の前に安定化レイヤーを挟む",
+  "headlineEn": "Stabilize Object Detector results before turning them into events",
+  "summary": "Google AI Edge の Object Detector guide、Web setup、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認し、自作サンプルを2本追加しました。本命は scoreThreshold / maxResults / allowlist / denylist / ROI half-life を動かす Object Detector Event Stabilizer、派生は検出イベントを送信予算・鮮度・重複で間引く Detection Event Bandwidth Guard です。",
+  "summaryEn": "After checking the Google AI Edge Object Detector guide, Web setup, MediaPipe Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and npm package, this adds two original samples. The main sample is Object Detector Event Stabilizer for scoreThreshold / maxResults / allowlist / denylist / ROI half-life. The derivative is Detection Event Bandwidth Guard for thinning detection events by send budget, freshness, and duplicate checks.",
+  "keyTopics": [
+    "Object Detector は画像、動画、ライブストリーム向けの running mode を持ち、Web では `detect` / `detectForVideo` を UI のフレーム設計と分けて考える必要がある。",
+    "`score_threshold`、`max_results`、`category_allowlist`、`category_denylist` は公式 guide の基本オプションだが、実アプリでは後段の review / drop / emit policy と一緒に設計すると扱いやすい。",
+    "MediaPipe Tasks Vision Web README は Object Detector の Web package 利用例と Privacy Notice を含むため、オンデバイス処理と metrics consent の説明を UI 実装前に確認する価値がある。",
+    "mediapipe-samples-web は公式デモとして参照しつつ、公開カードは公式 demo の再掲ではなく、この workspace の synthetic detector policy サンプルにした。",
+    "検出結果を analytics や review queue へ送る場合、低スコア除外だけでなく、ROI の半減期、重複 IOU、TTL、送信予算をまとめた event guard が必要になる。"
+  ],
+  "keyTopicsEn": [
+    "Object Detector supports image, video, and live-stream running modes, and on the Web `detect` / `detectForVideo` should be designed separately from UI frame scheduling.",
+    "`score_threshold`, `max_results`, `category_allowlist`, and `category_denylist` are core guide options, but real apps benefit from designing them together with downstream review / drop / emit policy.",
+    "The MediaPipe Tasks Vision Web README includes Object Detector package usage and a Privacy Notice, so on-device processing and metrics consent should be checked before UI integration.",
+    "mediapipe-samples-web is referenced as the official demo collection, while today's public cards remain original synthetic detector policy samples in this workspace.",
+    "When detection results are sent to analytics or a review queue, low-score filtering is not enough; ROI half-life, duplicate IOU, TTL, and send budget need an event guard."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Object Detector Event Stabilizer",
+      "url": "../outputs/2026-09-28_object_detector_event_stabilizer.html"
+    },
+    {
+      "label": "Today's derivative sample: Detection Event Bandwidth Guard",
+      "url": "../outputs/2026-09-28_detection_event_bandwidth_guard.html"
+    },
+    {
+      "label": "Google AI Edge: Object detection task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/object_detector"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-28-object-detector-event-stabilizer.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Object Detector の Web guide にある score threshold、max results、allowlist / denylist を、検出結果そのものではなくイベント化の手前の安定化レイヤーとして扱うことです。公式 demo は検出をすぐ可視化しますが、実アプリでは同じ ROI が連続発火したり、低スコア候補が review queue を汚したりします。そこで本命サンプルは synthetic detection stream を使い、emit / review / drop の境界を操作できるようにしました。",
+      "bodyEn": "Today's notable angle is treating Object Detector Web guide options such as score threshold, max results, allowlist, and denylist as a stabilization layer before detections become events. Official demos visualize detections directly, but real apps can repeatedly fire the same ROI or pollute review queues with low-score candidates. The main sample therefore uses a synthetic detection stream and exposes the emit / review / drop boundary."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Object Detector Event Stabilizer` は Score threshold、Max results、ROI half-life、Jitter、Policy を動かし、候補 box、採用 box、review box、ROI の残り方を同時に表示します。派生の `Detection Event Bandwidth Guard` は Send budget、Freshness TTL、Duplicate IOU、Priority boost、Channel を動かし、検出イベントを送る / 保留する / 捨てる判断を時系列で見ます。",
+      "bodyEn": "The main sample, `Object Detector Event Stabilizer`, adjusts score threshold, max results, ROI half-life, jitter, and policy while showing candidate boxes, accepted boxes, review boxes, and ROI persistence. The derivative, `Detection Event Bandwidth Guard`, adjusts send budget, freshness TTL, duplicate IOU, priority boost, and channel while showing send / hold / drop decisions over time."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは frame、label、score、ROI、policy snapshot、emit / review / drop route、ROI age、duplicate IOU、TTL、send budget、queue length です。Object Detector、Image Classifier、Image Segmenter、Image Embedder、Web Worker、IndexedDB、Canvas overlay、WebRTC、analytics endpoint、human review queue と組み合わせると、オンデバイス検出をプロダクトイベントへ変換する前段を検証できます。",
+      "bodyEn": "The samples can accumulate frame, label, score, ROI, policy snapshot, emit / review / drop route, ROI age, duplicate IOU, TTL, send budget, and queue length. Combined with Object Detector, Image Classifier, Image Segmenter, Image Embedder, Web Workers, IndexedDB, Canvas overlays, WebRTC, analytics endpoints, or human review queues, they can validate the layer that turns on-device detection into product events."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実接続時は `ObjectDetector.detectForVideo(video, timestampMs)` の timestamp をイベント ID に含め、同じ frame から作った policy 結果だけをまとめます。`maxResults` は UI 表示数ではなく後段キューの上限にも効くため、review queue と analytics channel で別々に持つのが安全です。allowlist と denylist は同時指定不可なので、設定 UI では conflict guard を置きます。",
+      "bodyEn": "When wiring a real model, include the `ObjectDetector.detectForVideo(video, timestampMs)` timestamp in event IDs and group policy results made from the same frame. `maxResults` affects more than UI display count; it can also limit downstream queues, so review queues and analytics channels should have separate caps. Since allowlists and denylists are mutually exclusive, the settings UI needs a conflict guard."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は MediaPipe release notes の JavaScript / Vision task 更新、Object Detector guide の Web code path、Tasks Vision README の Privacy Notice、mediapipe-samples-web の worker / UI 実装、npm `@mediapipe/tasks-vision` の version、GitHub issues の Web performance / telemetry 周辺を見ます。",
+      "bodyEn": "Next, watch JavaScript / Vision task updates in MediaPipe release notes, the Web code path in the Object Detector guide, the Privacy Notice in the Tasks Vision README, worker / UI implementation in mediapipe-samples-web, npm `@mediapipe/tasks-vision` versions, and Web performance / telemetry issues on GitHub."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Object Detector Event Stabilizer` で Score threshold を 0.60 前後、Max results を 2、Policy を review unknown にしてから Inject low score を押すと、候補が UI に残る / review に落ちる / 捨てられる境界が見えます。派生サンプルでは Send budget を 2、Duplicate IOU を 0.50 以上にすると、同じ ROI のイベント送信が抑制されます。",
+      "bodyEn": "In `Object Detector Event Stabilizer`, set score threshold near 0.60, max results to 2, policy to review unknown, then press Inject low score to see the boundary between UI persistence, review, and drop. In the derivative sample, set send budget to 2 and duplicate IOU above 0.50 to suppress repeated events from the same ROI."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Object Detector guide、Web setup、Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認。設計: 公式 demo の再掲ではなく、検出イベントの policy 層を触れる自作 UI にする。実装: 本命 HTML に score threshold、max results、ROI half-life、allow / deny / review policy、synthetic detections を追加。派生 HTML に send budget、TTL、duplicate IOU、priority boost、queue visualization を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Object Detector guide, Web setup, Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and npm package. Design: instead of reposting an official demo, create an original UI for the detection-event policy layer. Implementation: added score threshold, max results, ROI half-life, allow / deny / review policy, and synthetic detections to the main HTML. Added send budget, TTL, duplicate IOU, priority boost, and queue visualization to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Image Embedder の量子化と cache reuse を扱いました。今日は Object Detector へ戻し、検出を UI / analytics / review queue へ渡す前の状態管理に寄せました。Vision / Text / Audio を横断すると、日次サンプルは API 呼び出しの手前と後段にある queue、threshold、cache、review、audit の設計を少しずつ部品化しています。",
+      "bodyEn": "The previous entry covered Image Embedder quantization and cache reuse. Today returns to Object Detector and focuses on state management before detections are handed to UI, analytics, or review queues. Across Vision, Text, and Audio, the daily samples are gradually componentizing queues, thresholds, cache, review, and audit around the API call."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Object Detector Event Stabilizer` です。実際に動く部分は score threshold、max results、ROI half-life、jitter、allow / deny / review policy、synthetic detection boxes、ROI persistence、emit / review / drop counters です。次に足すなら実 ObjectDetector adapter、video timestamp、worker 実行、検出履歴の IndexedDB replay を足します。派生試作は `Detection Event Bandwidth Guard` で、実際に動く部分は send budget、freshness TTL、duplicate IOU、priority boost、channel、queue、send / hold / drop counters です。次に足すなら analytics endpoint mock、human review export、per-label TTL、WebRTC metadata channel を足します。",
+      "bodyEn": "The selected main prototype is `Object Detector Event Stabilizer`. The working pieces are score threshold, max results, ROI half-life, jitter, allow / deny / review policy, synthetic detection boxes, ROI persistence, and emit / review / drop counters. Next additions should include a real ObjectDetector adapter, video timestamps, worker execution, and IndexedDB replay for detection history. The derivative prototype is `Detection Event Bandwidth Guard`; the working pieces are send budget, freshness TTL, duplicate IOU, priority boost, channel, queue, and send / hold / drop counters. Next additions should include an analytics endpoint mock, human review export, per-label TTL, and a WebRTC metadata channel.",
+      "links": [
+        {
+          "label": "Open Object Detector Event Stabilizer",
+          "url": "../outputs/2026-09-28_object_detector_event_stabilizer.html"
+        },
+        {
+          "label": "Open Detection Event Bandwidth Guard",
+          "url": "../outputs/2026-09-28_detection_event_bandwidth_guard.html"
+        }
+      ]
+    }
+  ]
+}

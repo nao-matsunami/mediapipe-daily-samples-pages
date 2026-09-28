@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detection Event Bandwidth Guard</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #111215; color: #f5f7f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(96, 160, 220, .16), transparent 37%), linear-gradient(315deg, rgba(222, 119, 104, .14), transparent 43%), #111215; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 40px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 247, 241, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.7rem); line-height: 1.07; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #60a0dc; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cdd2cf; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(245, 247, 241, .24); background: #f5f7f1; color: #111215; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(17, 18, 21, .92); color: #f5f7f1; }
+    label { display: grid; gap: 6px; color: #eef1ed; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #60a0dc; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 247, 241, .15); background: rgba(17, 18, 21, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(132px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #07080a; border: 1px solid rgba(245, 247, 241, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .queueItem { border: 1px solid rgba(245, 247, 241, .13); background: #181b22; padding: 10px; min-height: 86px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.06rem, 3vw, 1.5rem); color: #f5f7f1; font-variant-numeric: tabular-nums; }
+    .queueItem { display: grid; gap: 6px; margin-top: 10px; }
+    .bar { height: 12px; background: #282d35; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #60a0dc, #de7768); }
+    .chip { display: inline-block; border: 1px solid rgba(245, 247, 241, .24); padding: 5px 8px; color: #e2e6e1; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(96, 160, 220, .78); background: rgba(96, 160, 220, .14); color: #f5f7f1; }
+    .warn { border-color: rgba(218, 179, 84, .78); background: rgba(218, 179, 84, .14); color: #fff8e2; }
+    .bad { border-color: rgba(222, 119, 104, .78); background: rgba(222, 119, 104, .14); color: #ffe9e6; }
+    .value { color: #dab354; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e5e8e3; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 290px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Detection Event Bandwidth Guard</h1>
+    <p>Object Detector の発展案として、検出結果をネットワークやレビューキューへ送る前に、帯域、鮮度、重複、優先度で送信イベントを間引く派生試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Send budget <input id="budget" type="range" min="1" max="10" value="4"><span id="budgetValue" class="value">4 events</span></label>
+    <label>Freshness TTL <input id="ttl" type="range" min="2" max="18" value="8"><span id="ttlValue" class="value">8 frames</span></label>
+    <label>Duplicate IOU <input id="dup" type="range" min="10" max="80" value="42"><span id="dupValue" class="value">0.42</span></label>
+    <label>Priority boost <input id="boost" type="range" min="0" max="100" value="38"><span id="boostValue" class="value">38%</span></label>
+    <label>Channel <select id="channel"><option>analytics</option><option>review</option><option>edge-sync</option></select><span class="value">event sink</span></label>
+    <button id="step">Step burst</button>
+    <button id="toggle" class="secondary">Start bursts</button>
+    <button id="flush" class="secondary">Flush queue</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Event guard</h2>
+      <p>低スコアを捨てるだけでは、同じ ROI のイベント送信が増えがちです。ここでは Object Detector 後段の event guard を、送信予算と重複判定の小さな状態機械として試します。</p>
+      <span id="queueChip" class="chip">queue: empty</span>
+      <span id="sendChip" class="chip">send: waiting</span>
+      <div id="queue"></div>
+    </aside>
+
+    <section>
+      <div class="stage">
+        <h2>Bandwidth timeline</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, tick: 0, queue: [], sent: 0, held: 0, dropped: 0, history: [] };
+const labels = ["person", "cup", "phone", "plant", "unknown"];
+const colors = { person: "#60a0dc", cup: "#dab354", phone: "#de7768", plant: "#78bf8e", unknown: "#b48ad7" };
+
+function updateLabels() {
+  $("budgetValue").textContent = `${$("budget").value} events`;
+  $("ttlValue").textContent = `${$("ttl").value} frames`;
+  $("dupValue").textContent = (Number($("dup").value) / 100).toFixed(2);
+  $("boostValue").textContent = `${$("boost").value}%`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function makeBurst() {
+  const boost = Number($("boost").value) / 100;
+  return labels.map((label, i) => {
+    const t = state.tick * .31 + i * .9;
+    const priority = label === "person" || ($("channel").value === "review" && label === "unknown") ? boost : 0;
+    return {
+      id: `${state.tick}-${label}`,
+      label,
+      x: .12 + i * .16 + Math.sin(t) * .035,
+      y: .20 + (i % 3) * .16 + Math.cos(t * .8) * .035,
+      w: .14 + (i % 2) * .04,
+      h: .18 + (i % 3) * .03,
+      score: Math.max(.08, Math.min(.99, .42 + Math.sin(t * 1.2) * .22 + priority)),
+      age: 0
+    };
+  });
+}
+
+function iou(a, b) {
+  const ax2 = a.x + a.w;
+  const ay2 = a.y + a.h;
+  const bx2 = b.x + b.w;
+  const by2 = b.y + b.h;
+  const iw = Math.max(0, Math.min(ax2, bx2) - Math.max(a.x, b.x));
+  const ih = Math.max(0, Math.min(ay2, by2) - Math.max(a.y, b.y));
+  const union = a.w * a.h + b.w * b.h - iw * ih;
+  return union ? (iw * ih) / union : 0;
+}
+
+function enqueue(events) {
+  const dupGate = Number($("dup").value) / 100;
+  events.forEach((event) => {
+    const duplicate = state.queue.find((queued) => queued.label === event.label && iou(queued, event) >= dupGate);
+    if (duplicate) {
+      duplicate.score = Math.max(duplicate.score, event.score);
+      duplicate.age = 0;
+      state.held += 1;
+    } else if (event.score < .35) {
+      state.dropped += 1;
+    } else {
+      state.queue.push(event);
+    }
+  });
+}
+
+function sendBudgeted() {
+  const budget = Number($("budget").value);
+  const ttl = Number($("ttl").value);
+  state.queue.forEach((event) => { event.age += 1; });
+  const fresh = state.queue.filter((event) => event.age <= ttl);
+  state.dropped += state.queue.length - fresh.length;
+  const sorted = fresh.sort((a, b) => b.score - a.score);
+  const send = sorted.slice(0, budget);
+  const keep = sorted.slice(budget);
+  state.sent += send.length;
+  state.queue = keep;
+  state.history.push({ sent: send.length, kept: keep.length, dropped: state.dropped, queue: state.queue.length });
+  state.history = state.history.slice(-64);
+  log(`burst ${state.tick}: send ${send.length}, keep ${keep.length}, queue ${state.queue.length}`);
+  return send;
+}
+
+function step() {
+  state.tick += 1;
+  const burst = makeBurst();
+  enqueue(burst);
+  const sent = sendBudgeted();
+  draw(burst, sent);
+  render(sent);
+}
+
+function draw(burst, sent) {
+  const w = 1280;
+  const h = 720;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#07080a";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(245,247,241,.10)";
+  for (let i = 0; i < 7; i += 1) {
+    const y = 96 + i * 82;
+    ctx.beginPath();
+    ctx.moveTo(54, y);
+    ctx.lineTo(w - 54, y);
+    ctx.stroke();
+  }
+  burst.forEach((event) => box(event, "rgba(245,247,241,.18)", 1, true));
+  state.queue.forEach((event) => box(event, colors[event.label], Math.max(1, 5 - event.age * .25), false));
+  sent.forEach((event) => box(event, "#f5f7f1", 4, false));
+  drawTimeline();
+}
+
+function box(event, color, width, dashed) {
+  const x = event.x * 1280;
+  const y = event.y * 720;
+  const bw = event.w * 1280;
+  const bh = event.h * 720;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  if (dashed) ctx.setLineDash([10, 8]);
+  ctx.strokeRect(x, y, bw, bh);
+  ctx.fillStyle = color;
+  ctx.font = "19px ui-monospace, Menlo, monospace";
+  ctx.fillText(`${event.label} ${event.score.toFixed(2)}`, x + 8, y + 24);
+  ctx.restore();
+}
+
+function drawTimeline() {
+  const x0 = 58;
+  const y0 = 650;
+  const span = 1120 / 63;
+  state.history.forEach((item, i) => {
+    const x = x0 + i * span;
+    ctx.fillStyle = "#60a0dc";
+    ctx.fillRect(x, y0 - item.sent * 30, 8, item.sent * 30);
+    ctx.fillStyle = "#dab354";
+    ctx.fillRect(x + 9, y0 - item.queue * 16, 8, item.queue * 16);
+  });
+  ctx.fillStyle = "#f5f7f1";
+  ctx.font = "20px ui-monospace, Menlo, monospace";
+  ctx.fillText(`channel ${$("channel").value}`, 54, 48);
+}
+
+function render(sent) {
+  $("queueChip").textContent = `queue: ${state.queue.length}`;
+  $("queueChip").className = state.queue.length > Number($("budget").value) * 2 ? "chip warn" : state.queue.length ? "chip pass" : "chip";
+  $("sendChip").textContent = sent.length ? `send: ${sent.length}` : "send: quiet";
+  $("sendChip").className = sent.length ? "chip pass" : "chip";
+  $("queue").innerHTML = state.queue.map((event) => `<div class="queueItem"><strong>${event.label}</strong><div class="bar"><span style="width:${Math.round(event.score * 100)}%; background:${colors[event.label]}"></span></div><span class="value">score ${event.score.toFixed(2)} / age ${event.age}</span></div>`).join("");
+  $("meters").innerHTML = [
+    ["Sent", String(state.sent)],
+    ["Held duplicate", String(state.held)],
+    ["Dropped", String(state.dropped)],
+    ["Queued", String(state.queue.length)]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+let timer = 0;
+function loop() {
+  if (!state.running) return;
+  step();
+  timer = window.setTimeout(loop, 640);
+}
+
+document.querySelectorAll("input, select").forEach((node) => node.addEventListener("input", () => { updateLabels(); step(); }));
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Stop bursts" : "Start bursts";
+  if (state.running) loop();
+  else window.clearTimeout(timer);
+});
+$("flush").addEventListener("click", () => { state.queue = []; log("queue flushed"); render([]); draw([], []); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { running: false, tick: 0, queue: [], sent: 0, held: 0, dropped: 0, history: [] });
+  $("toggle").textContent = "Start bursts";
+  updateLabels();
+  step();
+});
+
+updateLabels();
+step();
+</script>
+</body>
+</html>
