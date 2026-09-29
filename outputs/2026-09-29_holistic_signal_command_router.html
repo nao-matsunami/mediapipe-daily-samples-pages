@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holistic Signal Command Router</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #101016; color: #fbf8ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(116, 166, 255, .15), transparent 34%), linear-gradient(315deg, rgba(234, 190, 92, .16), transparent 42%), #101016; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(251, 248, 239, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.7rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #74a6ff; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #d5cfc2; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(251, 248, 239, .22); background: #fbf8ef; color: #101016; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(16, 16, 22, .94); color: #fbf8ef; }
+    label { display: grid; gap: 6px; color: #f1ece1; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #74a6ff; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(251, 248, 239, .15); background: rgba(16, 16, 22, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #06060a; border: 1px solid rgba(251, 248, 239, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(251, 248, 239, .13); background: #191923; padding: 10px; min-height: 80px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.45rem); color: #fbf8ef; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .row b { color: #fbf8ef; }
+    .bar { height: 12px; background: #2b2930; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #74a6ff, #eabe5c); }
+    .chip { display: inline-block; border: 1px solid rgba(251, 248, 239, .24); padding: 5px 8px; color: #ebe7dc; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(116, 166, 255, .8); background: rgba(116, 166, 255, .14); }
+    .warn { border-color: rgba(234, 190, 92, .78); background: rgba(234, 190, 92, .14); }
+    .bad { border-color: rgba(218, 86, 105, .78); background: rgba(218, 86, 105, .14); }
+    .value { color: #eabe5c; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e8e2d5; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 292px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Holistic Signal Command Router</h1>
+    <p>Holistic Landmarker の pose / face / hand 信号を、アプリ内コマンドへ変換する派生試作です。顔の集中度、肩の傾き、両手の距離、左右手の信頼度を合成し、誤発火を抑える dwell と cooldown を動かします。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Dwell frames <input id="dwell" type="range" min="1" max="16" value="6"><span id="dwellValue" class="value">6 frames</span></label>
+    <label>Cooldown <input id="cooldown" type="range" min="0" max="20" value="8"><span id="cooldownValue" class="value">8 frames</span></label>
+    <label>Signal noise <input id="noise" type="range" min="0" max="70" value="24"><span id="noiseValue" class="value">24%</span></label>
+    <label>Presence gate <input id="gate" type="range" min="25" max="90" value="56"><span id="gateValue" class="value">0.56</span></label>
+    <label>Command set <select id="mode"><option value="studio">studio controls</option><option value="access">accessibility</option><option value="review">review queue</option></select><span class="value">router preset</span></label>
+    <button id="step">Step frame</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="inject" class="secondary">Inject intent</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Command policy</h2>
+      <p>Holistic の出力は情報量が多いため、そのまま UI action にせず、姿勢、表情、手の距離を小さな intent に分けてから dwell と cooldown で安定化します。</p>
+      <span id="commandChip" class="chip">command: waiting</span>
+      <span id="stateChip" class="chip">state: idle</span>
+      <div id="rows"></div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h2>Intent signals</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, frame: 0, boost: 0, current: "idle", dwell: 0, cool: 0, fired: 0, suppressed: 0, history: [], lastSignals: null };
+const presets = {
+  studio: { pinch: "capture marker", lean: "scrub timeline", focus: "lock subject" },
+  access: { pinch: "select", lean: "switch target", focus: "confirm" },
+  review: { pinch: "approve", lean: "compare", focus: "hold for review" }
+};
+
+function labels() {
+  $("dwellValue").textContent = `${$("dwell").value} frames`;
+  $("cooldownValue").textContent = `${$("cooldown").value} frames`;
+  $("noiseValue").textContent = `${$("noise").value}%`;
+  $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function signals() {
+  const t = state.frame * .18;
+  const noise = Number($("noise").value) / 100;
+  const push = state.boost > 0 ? .35 : 0;
+  const handPresence = Math.max(0, Math.min(1, .68 + Math.sin(t * .9) * .18 + push - Math.random() * noise * .35));
+  const pinch = Math.max(0, Math.min(1, .42 + Math.sin(t * 1.7) * .32 + push - Math.random() * noise * .2));
+  const lean = Math.max(0, Math.min(1, .36 + Math.cos(t * 1.15) * .34 + push * .4));
+  const focus = Math.max(0, Math.min(1, .58 + Math.sin(t * .72 + 1.2) * .28 + push * .28));
+  const shoulderTilt = Math.sin(t * 1.15) * 18 + push * 10;
+  const handGap = 130 + pinch * -80 + Math.sin(t) * 16;
+  return { handPresence, pinch, lean, focus, shoulderTilt, handGap };
+}
+
+function chooseIntent(s) {
+  const gate = Number($("gate").value) / 100;
+  if (s.handPresence >= gate && s.pinch >= gate && s.handGap < 92) return "pinch";
+  if (s.lean >= gate && Math.abs(s.shoulderTilt) > 11) return "lean";
+  if (s.focus >= gate && s.handPresence < .78) return "focus";
+  return "idle";
+}
+
+function step() {
+  state.frame += 1;
+  if (state.boost > 0) state.boost -= 1;
+  if (state.cool > 0) state.cool -= 1;
+  const s = signals();
+  const intent = chooseIntent(s);
+  if (intent === state.current && intent !== "idle") state.dwell += 1;
+  else {
+    state.current = intent;
+    state.dwell = intent === "idle" ? 0 : 1;
+  }
+  const ready = intent !== "idle" && state.dwell >= Number($("dwell").value);
+  const command = presets[$("mode").value][intent] || "idle";
+  let fired = false;
+  if (ready && state.cool === 0) {
+    state.fired += 1;
+    state.cool = Number($("cooldown").value);
+    fired = true;
+    log(`frame ${state.frame}: fire ${command}`);
+  } else if (ready) {
+    state.suppressed += 1;
+    log(`frame ${state.frame}: suppress ${command} during cooldown`);
+  }
+  state.lastSignals = s;
+  state.history.push({ intent, fired, pinch: s.pinch, lean: s.lean, focus: s.focus });
+  state.history = state.history.slice(-80);
+  draw(s, intent, fired);
+  render(s, intent, command, ready, fired);
+}
+
+function draw(s, intent, fired) {
+  ctx.clearRect(0, 0, 1280, 720);
+  ctx.fillStyle = "#06060a";
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.strokeStyle = "rgba(251,248,239,.10)";
+  for (let i = 0; i < 8; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(i * 180, 0);
+    ctx.lineTo(i * 180, 720);
+    ctx.stroke();
+  }
+  const cx = 640;
+  const shoulderY = 292;
+  const tilt = s.shoulderTilt;
+  const leftShoulder = [cx - 150, shoulderY - tilt];
+  const rightShoulder = [cx + 150, shoulderY + tilt];
+  const leftHand = [cx - 120 - s.handGap, 392 - s.pinch * 88];
+  const rightHand = [cx + 120 + s.handGap, 392 - s.pinch * 88];
+  line(leftShoulder, rightShoulder, intent === "lean" ? "#eabe5c" : "#74a6ff", 12);
+  line(leftShoulder, leftHand, "#eabe5c", 7);
+  line(rightShoulder, rightHand, "#da5669", 7);
+  dot([cx, 160], intent === "focus" ? "#74a6ff" : "rgba(251,248,239,.35)", 54);
+  dot(leftHand, intent === "pinch" ? "#eabe5c" : "rgba(251,248,239,.35)", 28);
+  dot(rightHand, intent === "pinch" ? "#da5669" : "rgba(251,248,239,.35)", 28);
+  ctx.fillStyle = fired ? "rgba(116,166,255,.24)" : "rgba(251,248,239,.08)";
+  ctx.fillRect(430, 506, 420, 86);
+  ctx.fillStyle = "#fbf8ef";
+  ctx.font = "24px ui-monospace, Menlo, monospace";
+  ctx.fillText(intent === "idle" ? "intent: idle" : `intent: ${intent}`, 470, 558);
+  drawHistory();
+}
+
+function line(a, b, color, width) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(a[0], a[1]);
+  ctx.lineTo(b[0], b[1]);
+  ctx.stroke();
+}
+
+function dot(pt, color, r) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(pt[0], pt[1], r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawHistory() {
+  const x0 = 80;
+  const y0 = 652;
+  state.history.forEach((item, i) => {
+    const x = x0 + i * 8;
+    const h = Math.max(item.pinch, item.lean, item.focus) * 80;
+    ctx.fillStyle = item.fired ? "#74a6ff" : item.intent === "idle" ? "rgba(251,248,239,.2)" : "#eabe5c";
+    ctx.fillRect(x, y0 - h, 5, h);
+  });
+}
+
+function render(s, intent, command, ready, fired) {
+  $("commandChip").textContent = `command: ${command}`;
+  $("commandChip").className = `chip ${fired ? "pass" : ready ? "warn" : "chip"}`;
+  $("stateChip").textContent = `state: dwell ${state.dwell} / cool ${state.cool}`;
+  $("stateChip").className = `chip ${state.cool ? "warn" : "pass"}`;
+  const rows = [
+    ["Hand presence", s.handPresence],
+    ["Pinch distance", s.pinch],
+    ["Shoulder lean", s.lean],
+    ["Face focus", s.focus]
+  ];
+  $("rows").innerHTML = rows.map(([label, value]) => `<div class="row"><b>${label}</b><span>${value.toFixed(2)}</span><div class="bar"><span style="width:${Math.round(value * 100)}%"></span></div></div>`).join("");
+  $("meters").innerHTML = [
+    ["Intent", intent],
+    ["Fired", state.fired],
+    ["Suppressed", state.suppressed],
+    ["Cooldown", state.cool]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+function tick() {
+  if (state.running) step();
+  setTimeout(tick, 520);
+}
+
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+});
+$("inject").addEventListener("click", () => { state.boost = 10; log("injected intent boost"); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { running: false, frame: 0, boost: 0, current: "idle", dwell: 0, cool: 0, fired: 0, suppressed: 0, history: [], lastSignals: null });
+  $("toggle").textContent = "Start stream";
+  step();
+});
+["dwell", "cooldown", "noise", "gate", "mode"].forEach((id) => $(id).addEventListener("input", labels));
+labels();
+step();
+tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holistic Frame Sync Console</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0a1114; color: #f7fbf5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(84, 200, 165, .16), transparent 35%), linear-gradient(320deg, rgba(219, 116, 92, .15), transparent 42%), #0a1114; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 251, 245, .16); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.75rem); line-height: 1.06; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #54c8a5; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #cbd7d0; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 251, 245, .22); background: #f7fbf5; color: #0a1114; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(10, 17, 20, .94); color: #f7fbf5; }
+    label { display: grid; gap: 6px; color: #eef5ef; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #54c8a5; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(247, 251, 245, .15); background: rgba(10, 17, 20, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #040708; border: 1px solid rgba(247, 251, 245, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(247, 251, 245, .13); background: #141d20; padding: 10px; min-height: 80px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.45rem); color: #f7fbf5; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .row b { color: #f7fbf5; }
+    .bar { height: 12px; background: #263136; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #54c8a5, #db745c); }
+    .chip { display: inline-block; border: 1px solid rgba(247, 251, 245, .24); padding: 5px 8px; color: #e6eee8; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(84, 200, 165, .8); background: rgba(84, 200, 165, .14); }
+    .warn { border-color: rgba(219, 116, 92, .78); background: rgba(219, 116, 92, .14); }
+    .bad { border-color: rgba(220, 84, 100, .78); background: rgba(220, 84, 100, .14); }
+    .value { color: #ffb86d; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e8efe9; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 292px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Holistic Frame Sync Console</h1>
+    <p>MediaPipe Holistic Landmarker の face / pose / left hand / right hand を、同じ video timestamp で合流させる前提の自作ミニ試作です。実モデル接続前に、遅延、欠損、confidence gate、hold policy を観察します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Sync window <input id="window" type="range" min="8" max="96" value="42"><span id="windowValue" class="value">42 ms</span></label>
+    <label>Confidence gate <input id="gate" type="range" min="20" max="90" value="54"><span id="gateValue" class="value">0.54</span></label>
+    <label>Dropout <input id="dropout" type="range" min="0" max="70" value="18"><span id="dropoutValue" class="value">18%</span></label>
+    <label>Worker jitter <input id="jitter" type="range" min="0" max="90" value="28"><span id="jitterValue" class="value">28 ms</span></label>
+    <label>Hold policy <select id="policy"><option value="pose">pose required</option><option value="facePose">face + pose</option><option value="anyHand">pose + any hand</option><option value="all">all streams</option></select><span class="value">merge rule</span></label>
+    <button id="step">Step frame</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="burst" class="secondary">Inject hand loss</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Merge decision</h2>
+      <p>公式 guide の `detectForVideo(video, timestamp)` はフレーム時刻を基準にします。このサンプルでは各出力を別 worker から戻るように見立て、同じ timestamp に束ねるか、hold するか、欠損つきで emit するかを決めます。</p>
+      <span id="decisionChip" class="chip">decision: waiting</span>
+      <span id="skewChip" class="chip">skew: -</span>
+      <div id="rows"></div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h2>Synthetic holistic result bus</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const streams = [
+  { key: "pose", label: "Pose", color: "#54c8a5", base: 18, phase: 0 },
+  { key: "face", label: "Face", color: "#7db7ff", base: 24, phase: 1.4 },
+  { key: "left", label: "Left hand", color: "#ffb86d", base: 31, phase: 2.2 },
+  { key: "right", label: "Right hand", color: "#db745c", base: 34, phase: 3.1 }
+];
+const state = { running: false, frame: 0, now: 0, hold: [], history: [], emitted: 0, held: 0, stale: 0, burst: 0, last: null };
+
+function labels() {
+  $("windowValue").textContent = `${$("window").value} ms`;
+  $("gateValue").textContent = (Number($("gate").value) / 100).toFixed(2);
+  $("dropoutValue").textContent = `${$("dropout").value}%`;
+  $("jitterValue").textContent = `${$("jitter").value} ms`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function makePacket(stream) {
+  const frameTs = state.frame * 33.33;
+  const jitter = Number($("jitter").value);
+  const dropout = Number($("dropout").value) / 100 + (state.burst > 0 && ["left", "right"].includes(stream.key) ? .35 : 0);
+  const conf = Math.max(.04, Math.min(.98, .68 + Math.sin(state.frame * .19 + stream.phase) * .22 - (Math.random() < dropout ? .42 : 0)));
+  return {
+    key: stream.key,
+    label: stream.label,
+    color: stream.color,
+    frame: state.frame,
+    timestamp: frameTs,
+    arrived: frameTs + stream.base + Math.sin(state.frame * .21 + stream.phase) * jitter + Math.random() * jitter,
+    confidence: conf,
+    present: conf >= Number($("gate").value) / 100
+  };
+}
+
+function requiredKeys() {
+  const policy = $("policy").value;
+  if (policy === "pose") return ["pose"];
+  if (policy === "facePose") return ["face", "pose"];
+  if (policy === "anyHand") return ["pose", "hand"];
+  return ["pose", "face", "left", "right"];
+}
+
+function canEmit(group) {
+  const keys = new Set(group.filter((p) => p.present).map((p) => p.key));
+  const needed = requiredKeys();
+  return needed.every((key) => key === "hand" ? (keys.has("left") || keys.has("right")) : keys.has(key));
+}
+
+function step() {
+  state.frame += 1;
+  state.now = state.frame * 33.33;
+  if (state.burst > 0) state.burst -= 1;
+  const packets = streams.map(makePacket).sort((a, b) => a.arrived - b.arrived);
+  const live = packets.filter((packet) => packet.arrived - packet.timestamp <= Number($("window").value));
+  const skew = live.length ? Math.max(...live.map((p) => p.arrived)) - Math.min(...live.map((p) => p.arrived)) : 0;
+  const emit = canEmit(live) && skew <= Number($("window").value);
+  const weak = packets.filter((p) => !p.present).length;
+
+  if (emit) {
+    state.emitted += 1;
+    state.last = { frame: state.frame, packets: live, skew };
+    log(`frame ${state.frame}: emit holistic bundle (${live.length}/4, skew ${skew.toFixed(0)}ms)`);
+  } else {
+    state.held += 1;
+    state.hold.unshift({ frame: state.frame, reason: weak ? "confidence" : "late", count: live.length });
+    state.hold = state.hold.slice(0, 10);
+    log(`frame ${state.frame}: hold (${live.length}/4 live, ${weak} weak)`);
+  }
+  state.stale += packets.length - live.length;
+  state.history.push({ emit: emit ? 1 : 0, live: live.length, skew, weak });
+  state.history = state.history.slice(-72);
+  draw(packets, live, emit, skew);
+  render(packets, live, emit, skew);
+}
+
+function draw(packets, live, emit, skew) {
+  ctx.clearRect(0, 0, 1280, 720);
+  ctx.fillStyle = "#040708";
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.strokeStyle = "rgba(247,251,245,.10)";
+  for (let i = 0; i < 9; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(i * 160, 0);
+    ctx.lineTo(i * 160, 720);
+    ctx.stroke();
+  }
+  drawSkeleton(live);
+  drawBus(packets, live);
+  drawHistory();
+  ctx.fillStyle = emit ? "rgba(84,200,165,.18)" : "rgba(219,116,92,.18)";
+  ctx.fillRect(32, 30, Math.min(520, skew * 7), 18);
+  ctx.fillStyle = "#f7fbf5";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(emit ? "EMIT holistic bundle" : "HOLD waiting for coherent bundle", 32, 78);
+}
+
+function drawSkeleton(live) {
+  const t = state.frame * .08;
+  const has = (key) => live.some((p) => p.key === key && p.present);
+  const pts = {
+    head: [640 + Math.sin(t) * 18, 150],
+    chest: [640, 280],
+    hip: [640 + Math.sin(t * .7) * 12, 430],
+    leftHand: [430 + Math.sin(t * 1.3) * 55, 300 + Math.cos(t) * 40],
+    rightHand: [850 + Math.cos(t * 1.2) * 55, 300 + Math.sin(t) * 40]
+  };
+  line(pts.head, pts.chest, has("pose") ? "#54c8a5" : "rgba(247,251,245,.18)", 10);
+  line(pts.chest, pts.hip, has("pose") ? "#54c8a5" : "rgba(247,251,245,.18)", 10);
+  line(pts.chest, pts.leftHand, has("left") ? "#ffb86d" : "rgba(247,251,245,.18)", 7);
+  line(pts.chest, pts.rightHand, has("right") ? "#db745c" : "rgba(247,251,245,.18)", 7);
+  dot(pts.head, has("face") ? "#7db7ff" : "rgba(247,251,245,.22)", 42);
+  dot(pts.chest, "#54c8a5", 18);
+  dot(pts.leftHand, has("left") ? "#ffb86d" : "rgba(247,251,245,.22)", 24);
+  dot(pts.rightHand, has("right") ? "#db745c" : "rgba(247,251,245,.22)", 24);
+}
+
+function line(a, b, color, width) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(a[0], a[1]);
+  ctx.lineTo(b[0], b[1]);
+  ctx.stroke();
+}
+
+function dot(pt, color, r) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(pt[0], pt[1], r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBus(packets, live) {
+  const x0 = 92;
+  const y0 = 586;
+  const scale = 5;
+  ctx.font = "18px ui-monospace, Menlo, monospace";
+  packets.forEach((packet, i) => {
+    const x = x0 + Math.max(0, packet.arrived - packet.timestamp) * scale;
+    const y = y0 + i * 28;
+    ctx.fillStyle = live.includes(packet) && packet.present ? packet.color : "rgba(247,251,245,.25)";
+    ctx.fillRect(x, y, 18, 18);
+    ctx.fillText(`${packet.label} ${(packet.confidence).toFixed(2)}`, 30, y + 16);
+  });
+  ctx.strokeStyle = "rgba(247,251,245,.45)";
+  ctx.strokeRect(x0, y0 - 12, Number($("window").value) * scale, 126);
+}
+
+function drawHistory() {
+  const baseX = 760;
+  const baseY = 628;
+  state.history.forEach((item, i) => {
+    const x = baseX + i * 6;
+    ctx.fillStyle = item.emit ? "#54c8a5" : "#db745c";
+    ctx.fillRect(x, baseY - item.live * 18, 4, item.live * 18);
+  });
+}
+
+function render(packets, live, emit, skew) {
+  $("decisionChip").textContent = `decision: ${emit ? "emit" : "hold"}`;
+  $("decisionChip").className = `chip ${emit ? "pass" : "warn"}`;
+  $("skewChip").textContent = `skew: ${skew.toFixed(0)}ms`;
+  $("skewChip").className = `chip ${skew <= Number($("window").value) ? "pass" : "bad"}`;
+  $("rows").innerHTML = packets.map((packet) => {
+    const liveState = live.includes(packet);
+    const pct = Math.round(packet.confidence * 100);
+    return `<div class="row"><b>${packet.label}</b><span>${liveState ? "within window" : "late"} / ${packet.present ? "present" : "below gate"} / arrival ${(packet.arrived - packet.timestamp).toFixed(0)}ms</span><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+  }).join("");
+  $("meters").innerHTML = [
+    ["Emitted", state.emitted],
+    ["Held", state.held],
+    ["Stale packets", state.stale],
+    ["Live outputs", live.length]
+  ].map(([label, value]) => `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`).join("");
+}
+
+function tick() {
+  if (state.running) step();
+  setTimeout(tick, 520);
+}
+
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+});
+$("burst").addEventListener("click", () => { state.burst = 8; log("injected hand loss burst"); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { running: false, frame: 0, now: 0, hold: [], history: [], emitted: 0, held: 0, stale: 0, burst: 0, last: null });
+  $("toggle").textContent = "Start stream";
+  step();
+});
+["window", "gate", "dropout", "jitter", "policy"].forEach((id) => $(id).addEventListener("input", labels));
+labels();
+step();
+tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-29",
+  "category": "MediaPipe / Google AI Edge / Holistic Landmarker / Web ML",
+  "headline": "Holistic Landmarker は同時検出の後にフレーム合流ポリシーが要る",
+  "headlineEn": "Holistic Landmarker needs a frame merge policy after combined detection",
+  "summary": "Google AI Edge の Holistic Landmarker Web guide、JavaScript API、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認し、自作サンプルを2本追加しました。本命は face / pose / left hand / right hand の synthetic packet を timestamp と arrival skew で合流する Holistic Frame Sync Console、派生は holistic 信号を dwell / cooldown つきコマンドへ変換する Holistic Signal Command Router です。",
+  "summaryEn": "After checking the Google AI Edge Holistic Landmarker Web guide, JavaScript API, MediaPipe Tasks Vision Web README, mediapipe-samples-web, MediaPipe releases, and npm package, this adds two original samples. The main sample is Holistic Frame Sync Console, which merges synthetic face / pose / left-hand / right-hand packets by timestamp and arrival skew. The derivative is Holistic Signal Command Router, which converts holistic signals into commands with dwell and cooldown gates.",
+  "keyTopics": [
+    "Holistic Landmarker は face、hand、pose landmarker を組み合わせ、画像または動画から human body landmarks を返す Web task として整理されている。",
+    "Web guide の video path は `detectForVideo(video, timestamp)` を使うため、後段の UI / command / analytics も timestamp を基準に束ねる設計にすると破綻しにくい。",
+    "設定オプションには running mode、face / pose detection confidence、face / pose presence confidence、hand landmarks confidence、face blendshapes、pose segmentation masks があり、出力を増やすほど合流と遅延の設計が重要になる。",
+    "MediaPipe Tasks Vision Web README は CDN / WASM setup と Privacy Notice を含むため、オンデバイス処理と metrics consent をアプリ UI の前提として確認する価値がある。",
+    "公式サンプルは task UI の参照として使い、公開カードは公式 demo の再掲ではなく、この workspace の synthetic synchronization / command routing サンプルにした。"
+  ],
+  "keyTopicsEn": [
+    "Holistic Landmarker is described as a Web task that combines face, hand, and pose landmarkers to return human body landmarks from images or videos.",
+    "The Web guide's video path uses `detectForVideo(video, timestamp)`, so downstream UI, command, and analytics layers should also group data by timestamp.",
+    "Options include running mode, face / pose detection confidence, face / pose presence confidence, hand landmark confidence, face blendshapes, and pose segmentation masks; more outputs make merge and latency policy more important.",
+    "The MediaPipe Tasks Vision Web README includes CDN / WASM setup and a Privacy Notice, so on-device processing and metrics consent should be treated as UI prerequisites.",
+    "Official samples are used as task UI references, while today's public cards remain original synthetic synchronization and command-routing samples in this workspace."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Holistic Frame Sync Console",
+      "url": "../outputs/2026-09-29_holistic_frame_sync_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Holistic Signal Command Router",
+      "url": "../outputs/2026-09-29_holistic_signal_command_router.html"
+    },
+    {
+      "label": "Google AI Edge: Holistic Landmarker Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/holistic_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: HolisticLandmarker JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.holisticlandmarker"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: holistic-landmarker worker sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/holistic-landmarker.worker.ts"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-29-holistic-frame-sync-console.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Holistic Landmarker の「複数出力が1つの task から返る」点を、UI ではなく後段の synchronization 問題として扱うことです。公式 guide は face / hand / pose をまとめて検出できること、動画では timestamp を渡して `detectForVideo` することを示しています。実アプリでは pose は十分、片手は欠損、face は少し遅れて到着、という状態が起きるので、同じ timestamp の holistic bundle をいつ emit するかを明示する必要があります。",
+      "bodyEn": "Today's notable angle is treating Holistic Landmarker's combined outputs as a downstream synchronization problem rather than only a UI rendering problem. The official guide shows combined face / hand / pose detection and `detectForVideo` with timestamps for video. Real apps can see pose arrive confidently, one hand drop out, and face arrive slightly late, so the app needs an explicit rule for when to emit a holistic bundle for the same timestamp."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Holistic Frame Sync Console` は Sync window、Confidence gate、Dropout、Worker jitter、Hold policy を動かし、pose / face / left hand / right hand の synthetic packet を arrival timeline と skeleton で表示します。派生の `Holistic Signal Command Router` は Dwell frames、Cooldown、Signal noise、Presence gate、Command set を動かし、顔の集中度、肩の傾き、両手距離を小さな command に変換します。",
+      "bodyEn": "The main sample, `Holistic Frame Sync Console`, adjusts sync window, confidence gate, dropout, worker jitter, and hold policy while showing synthetic pose / face / left-hand / right-hand packets on an arrival timeline and skeleton. The derivative, `Holistic Signal Command Router`, adjusts dwell frames, cooldown, signal noise, presence gate, and command set while converting face focus, shoulder tilt, and hand distance into small commands."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは frame timestamp、各 stream の arrival time、confidence、present / missing、skew、hold reason、emit count、intent、dwell、cooldown、fired / suppressed command です。Holistic Landmarker、Gesture Recognizer、Face Landmarker blendshapes、Pose segmentation masks、Web Worker、WebRTC metadata、IndexedDB replay、accessibility controls、human review queue、XR avatar rig と組み合わせると、全身入力を安定したアプリイベントに変換する層を検証できます。",
+      "bodyEn": "The samples can accumulate frame timestamp, per-stream arrival time, confidence, present / missing state, skew, hold reason, emit count, intent, dwell, cooldown, and fired / suppressed commands. Combined with Holistic Landmarker, Gesture Recognizer, Face Landmarker blendshapes, Pose segmentation masks, Web Workers, WebRTC metadata, IndexedDB replay, accessibility controls, human review queues, or XR avatar rigs, they can validate the layer that converts full-body input into stable app events."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実接続時は `detectForVideo(video, timestamp)` の timestamp を bundle id にし、UI draw、command routing、analytics event を同じ id で結びます。optional な face blendshapes や pose segmentation masks を有効にする場合は、結果サイズと描画コストが増えるので、worker から戻る packet の arrival skew と stale rejection を別に測るのが安全です。欠損をゼロ扱いにせず、missing / late / below confidence を分けてログに残すと調整しやすくなります。",
+      "bodyEn": "When wiring a real model, use the `detectForVideo(video, timestamp)` timestamp as the bundle ID and connect UI drawing, command routing, and analytics events through that ID. If optional face blendshapes or pose segmentation masks are enabled, result size and draw cost increase, so packet arrival skew and stale rejection should be measured separately. Missing outputs should not be treated as zeros; logging missing / late / below-confidence separately makes tuning easier."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Holistic Landmarker guide の configuration 更新、MediaPipe release notes の JavaScript / Vision task 更新、Tasks Vision README の Privacy Notice、mediapipe-samples-web の worker 実装、npm `@mediapipe/tasks-vision` の version、GitHub issues の holistic / web / performance 周辺を見ます。",
+      "bodyEn": "Next, watch configuration updates in the Holistic Landmarker guide, JavaScript / Vision task changes in MediaPipe release notes, the Privacy Notice in the Tasks Vision README, worker implementation in mediapipe-samples-web, npm `@mediapipe/tasks-vision` versions, and holistic / web / performance issues on GitHub."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Holistic Frame Sync Console` で Hold policy を `all streams`、Sync window を 24ms 前後、Worker jitter を高めにすると、同じ frame の出力でも到着ずれで hold が増える様子が見えます。派生サンプルでは Dwell frames を 8、Cooldown を 10 にして Inject intent を押すと、command が即発火せず安定化される境界を確認できます。",
+      "bodyEn": "In `Holistic Frame Sync Console`, set hold policy to `all streams`, sync window around 24 ms, and worker jitter high to see holds increase from arrival skew even on the same frame. In the derivative sample, set dwell frames to 8 and cooldown to 10, then press Inject intent to see the boundary where commands are stabilized instead of firing immediately."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Holistic Landmarker Web guide、JavaScript API、Tasks Vision Web README、mediapipe-samples-web、holistic worker、MediaPipe releases、npm package を確認。設計: 公式 demo の再掲ではなく、フレーム合流とコマンドルーティングを触れる自作 UI にする。実装: 本命 HTML に sync window、confidence gate、dropout、worker jitter、hold policy、packet arrival timeline、skeleton visualization を追加。派生 HTML に dwell、cooldown、noise、presence gate、command presets、intent history を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Holistic Landmarker Web guide, JavaScript API, Tasks Vision Web README, mediapipe-samples-web, holistic worker, MediaPipe releases, and npm package. Design: instead of reposting the official demo, create original UIs for frame merging and command routing. Implementation: added sync window, confidence gate, dropout, worker jitter, hold policy, packet arrival timeline, and skeleton visualization to the main HTML. Added dwell, cooldown, noise, presence gate, command presets, and intent history to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Object Detector の event stabilization を扱いました。今日は Holistic Landmarker に寄せ、検出後の bundle synchronization と command routing を部品化しました。これで Vision 系の日次サンプルは threshold、queue、cache、event guard、frame sync、command policy という、モデル呼び出しの前後にある実装上の詰まりどころを横断的に持てるようになってきました。",
+      "bodyEn": "The previous entry covered Object Detector event stabilization. Today shifts to Holistic Landmarker and componentizes bundle synchronization and command routing after detection. The Vision samples now cover thresholding, queues, cache, event guards, frame sync, and command policy: the implementation bottlenecks around the model call."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Holistic Frame Sync Console` です。実際に動く部分は sync window、confidence gate、dropout、worker jitter、hold policy、synthetic pose / face / hand packets、arrival skew、emit / hold counters です。次に足すなら実 HolisticLandmarker adapter、face blendshape packet、pose segmentation mask cost meter、IndexedDB replay を足します。派生試作は `Holistic Signal Command Router` で、実際に動く部分は dwell、cooldown、signal noise、presence gate、command preset、intent history、fire / suppress counters です。次に足すなら Gesture Recognizer との二段 gate、WebRTC metadata channel、accessibility mapping export、XR avatar rig adapter を足します。",
+      "bodyEn": "The selected main prototype is `Holistic Frame Sync Console`. The working pieces are sync window, confidence gate, dropout, worker jitter, hold policy, synthetic pose / face / hand packets, arrival skew, and emit / hold counters. Next additions should include a real HolisticLandmarker adapter, face-blendshape packets, a pose-segmentation mask cost meter, and IndexedDB replay. The derivative prototype is `Holistic Signal Command Router`; the working pieces are dwell, cooldown, signal noise, presence gate, command presets, intent history, and fire / suppress counters. Next additions should include a second-stage gate with Gesture Recognizer, a WebRTC metadata channel, accessibility mapping export, and an XR avatar rig adapter.",
+      "links": [
+        {
+          "label": "Open Holistic Frame Sync Console",
+          "url": "../outputs/2026-09-29_holistic_frame_sync_console.html"
+        },
+        {
+          "label": "Open Holistic Signal Command Router",
+          "url": "../outputs/2026-09-29_holistic_signal_command_router.html"
+        }
+      ]
+    }
+  ]
+}
