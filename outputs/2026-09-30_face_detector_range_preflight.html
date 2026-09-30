@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Detector Range Preflight</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #08100f; color: #f5fbf7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(73, 184, 150, .16), transparent 34%), linear-gradient(315deg, rgba(235, 150, 72, .15), transparent 42%), #08100f; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 251, 247, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #49b896; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.62; color: #cad8d1; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(245, 251, 247, .22); background: #f5fbf7; color: #08100f; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(8, 16, 15, .94); color: #f5fbf7; }
+    label { display: grid; gap: 6px; color: #eef8f1; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #49b896; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 251, 247, .15); background: rgba(8, 16, 15, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 335px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #030706; border: 1px solid rgba(245, 251, 247, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(245, 251, 247, .13); background: #121d1b; padding: 10px; min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.04rem, 3vw, 1.42rem); color: #f5fbf7; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .bar { height: 12px; background: #25312e; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #49b896, #eb9648); }
+    .chip { display: inline-block; border: 1px solid rgba(245, 251, 247, .24); padding: 5px 8px; color: #e7f0ea; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(73, 184, 150, .82); background: rgba(73, 184, 150, .14); }
+    .warn { border-color: rgba(235, 150, 72, .82); background: rgba(235, 150, 72, .14); }
+    .bad { border-color: rgba(218, 85, 104, .82); background: rgba(218, 85, 104, .14); }
+    .value { color: #f4c06f; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e8f1eb; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 292px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Face Detector Range Preflight</h1>
+    <p>MediaPipe Face Detector の short-range / full-range モデル選択を、実モデル接続前に点検する自作ミニ試作です。顔サイズ、想定距離、score threshold、max results、delegate を変え、どのモデル URL と運用ポリシーで起動するかを決めます。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Scene distance <input id="distance" type="range" min="50" max="520" value="270"><span id="distanceValue" class="value">2.7 m</span></label>
+    <label>Face scale <input id="scale" type="range" min="8" max="46" value="20"><span id="scaleValue" class="value">20%</span></label>
+    <label>Score threshold <input id="threshold" type="range" min="20" max="90" value="56"><span id="thresholdValue" class="value">0.56</span></label>
+    <label>Max results <input id="maxResults" type="range" min="1" max="8" value="4"><span id="maxResultsValue" class="value">4</span></label>
+    <label>Delegate <select id="delegate"><option value="gpu">GPU first</option><option value="cpu">CPU stable</option><option value="auto">auto fallback</option></select><span class="value">startup route</span></label>
+    <button id="step">Step scene</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="crowd" class="secondary">Inject crowd</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Preflight decision</h2>
+      <p>公式サンプルの再掲ではなく、Face Detector を Web アプリへ組み込む直前の選択を可視化します。short は近距離の顔、full は遠め・小さめの顔を想定し、推定 latency と recall/precision のトレードオフを見ます。</p>
+      <span id="modelChip" class="chip">model: pending</span>
+      <span id="routeChip" class="chip">route: pending</span>
+      <div id="rows"></div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h2>Synthetic camera frame</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, tick: 0, burst: 0, detections: [], history: [], shortHits: 0, fullHits: 0, fallback: 0 };
+
+function labels() {
+  $("distanceValue").textContent = `${(Number($("distance").value) / 100).toFixed(1)} m`;
+  $("scaleValue").textContent = `${$("scale").value}%`;
+  $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+  $("maxResultsValue").textContent = $("maxResults").value;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function chooseModel(distance, scale) {
+  if (distance > 300 || scale < 16) return "full";
+  if (distance < 190 && scale > 18) return "short";
+  return Number($("threshold").value) >= 68 ? "short" : "full";
+}
+
+function estimate(model, count) {
+  const delegate = $("delegate").value;
+  const gpuBonus = delegate === "gpu" ? -3 : delegate === "cpu" ? 4 : 0;
+  const base = model === "short" ? 8.5 : 12.8;
+  const crowdCost = Math.max(0, count - 3) * (model === "short" ? 1.1 : 1.6);
+  const jitter = Math.sin(state.tick * .43) * 1.5;
+  const latency = Math.max(5, base + crowdCost + gpuBonus + jitter);
+  const shouldFallback = delegate === "gpu" && latency > 17.5;
+  return { latency, shouldFallback };
+}
+
+function makeFaces() {
+  const distance = Number($("distance").value) / 100;
+  const scale = Number($("scale").value) / 100;
+  const crowd = state.burst > 0 ? 5 : 0;
+  const total = Math.min(8, 2 + Math.round((5.3 - distance) * .7) + crowd);
+  const faces = [];
+  for (let i = 0; i < total; i += 1) {
+    const depth = distance + (i - total / 2) * .17 + Math.sin(state.tick * .11 + i) * .18;
+    const size = Math.max(.055, scale * (distance / Math.max(.9, depth)) * (1 + Math.sin(state.tick * .19 + i) * .12));
+    const x = 180 + (i % 4) * 270 + Math.sin(state.tick * .09 + i) * 38;
+    const y = 150 + Math.floor(i / 4) * 220 + Math.cos(state.tick * .12 + i) * 30;
+    const blur = Math.max(0, depth - 2.4) * .08 + (size < .15 ? .08 : 0);
+    const shortScore = clamp(.92 - Math.max(0, depth - 2.1) * .19 - Math.max(0, .18 - size) * 1.9 - blur + Math.sin(i + state.tick * .2) * .04);
+    const fullScore = clamp(.75 - Math.max(0, depth - 4.9) * .12 + Math.max(0, .22 - size) * .65 - blur * .45 + Math.cos(i + state.tick * .18) * .04);
+    faces.push({ x, y, w: size * 1280, h: size * 1280 * 1.18, depth, size, shortScore, fullScore });
+  }
+  return faces;
+}
+
+function clamp(v) {
+  return Math.max(.02, Math.min(.99, v));
+}
+
+function step() {
+  state.tick += 1;
+  if (state.burst > 0) state.burst -= 1;
+  const faces = makeFaces();
+  const model = chooseModel(Number($("distance").value), Number($("scale").value));
+  const max = Number($("maxResults").value);
+  const threshold = Number($("threshold").value) / 100;
+  const ranked = faces
+    .map((face, index) => ({ ...face, index, score: model === "short" ? face.shortScore : face.fullScore }))
+    .filter((face) => face.score >= threshold)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max);
+  const estimateResult = estimate(model, faces.length);
+  if (model === "short") state.shortHits += 1; else state.fullHits += 1;
+  if (estimateResult.shouldFallback) state.fallback += 1;
+  state.detections = ranked;
+  state.history.push({ model, kept: ranked.length, total: faces.length, latency: estimateResult.latency });
+  state.history = state.history.slice(-68);
+  draw(faces, ranked, model, estimateResult);
+  render(faces, ranked, model, estimateResult);
+  log(`scene ${state.tick}: ${model} model, kept ${ranked.length}/${faces.length}, latency ${estimateResult.latency.toFixed(1)}ms`);
+}
+
+function draw(faces, detections, model, estimateResult) {
+  ctx.clearRect(0, 0, 1280, 720);
+  ctx.fillStyle = "#030706";
+  ctx.fillRect(0, 0, 1280, 720);
+  for (let i = 0; i < 80; i += 1) {
+    ctx.fillStyle = `rgba(245,251,247,${.035 + (i % 5) * .006})`;
+    ctx.fillRect((i * 97 + state.tick * 4) % 1280, (i * 53) % 720, 2, 2);
+  }
+  faces.forEach((face) => drawFace(face, false, model));
+  detections.forEach((face) => drawFace(face, true, model));
+  drawHistory();
+  ctx.fillStyle = estimateResult.shouldFallback ? "rgba(218,85,104,.18)" : "rgba(73,184,150,.16)";
+  ctx.fillRect(28, 28, Math.min(520, estimateResult.latency * 25), 18);
+  ctx.fillStyle = "#f5fbf7";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`${model.toUpperCase()} model route`, 28, 76);
+  ctx.font = "16px ui-monospace, Menlo, monospace";
+  ctx.fillText(estimateResult.shouldFallback ? "GPU fallback recommended" : "startup path OK", 28, 104);
+}
+
+function drawFace(face, detected, model) {
+  const color = detected ? (model === "short" ? "#49b896" : "#eb9648") : "rgba(245,251,247,.18)";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = detected ? 4 : 2;
+  ctx.strokeRect(face.x - face.w / 2, face.y - face.h / 2, face.w, face.h);
+  ctx.fillStyle = detected ? "rgba(73,184,150,.18)" : "rgba(245,251,247,.045)";
+  ctx.fillRect(face.x - face.w / 2, face.y - face.h / 2, face.w, face.h);
+  ctx.fillStyle = detected ? "#f5fbf7" : "rgba(245,251,247,.45)";
+  ctx.font = "15px ui-monospace, Menlo, monospace";
+  const labelScore = model === "short" ? face.shortScore : face.fullScore;
+  ctx.fillText(labelScore.toFixed(2), face.x - face.w / 2, face.y - face.h / 2 - 8);
+  ctx.beginPath();
+  ctx.arc(face.x - face.w * .15, face.y - face.h * .08, Math.max(3, face.w * .035), 0, Math.PI * 2);
+  ctx.arc(face.x + face.w * .15, face.y - face.h * .08, Math.max(3, face.w * .035), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawHistory() {
+  const baseY = 650;
+  state.history.forEach((item, i) => {
+    const x = 34 + i * 17;
+    const h = item.latency * 4;
+    ctx.fillStyle = item.model === "short" ? "#49b896" : "#eb9648";
+    ctx.fillRect(x, baseY - h, 10, h);
+    ctx.fillStyle = item.kept ? "rgba(245,251,247,.8)" : "rgba(218,85,104,.85)";
+    ctx.fillRect(x, baseY + 8, 10, 5);
+  });
+}
+
+function render(faces, detections, model, estimateResult) {
+  const modelUrl = model === "short"
+    ? "face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+    : "face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite";
+  $("modelChip").textContent = `model: ${model}`;
+  $("modelChip").className = `chip ${model === "short" ? "pass" : "warn"}`;
+  $("routeChip").textContent = estimateResult.shouldFallback ? "route: CPU fallback" : "route: delegate OK";
+  $("routeChip").className = `chip ${estimateResult.shouldFallback ? "bad" : "pass"}`;
+  const avgShort = average(faces.map((f) => f.shortScore));
+  const avgFull = average(faces.map((f) => f.fullScore));
+  $("rows").innerHTML = [
+    row("Selected model URL", modelUrl, model === "short" ? 72 : 92),
+    row("Short score average", avgShort.toFixed(2), avgShort * 100),
+    row("Full score average", avgFull.toFixed(2), avgFull * 100),
+    row("Estimated latency", `${estimateResult.latency.toFixed(1)} ms`, Math.min(100, estimateResult.latency * 5)),
+    row("Detections kept", `${detections.length} / ${faces.length}`, faces.length ? detections.length / faces.length * 100 : 0)
+  ].join("");
+  $("meters").innerHTML = [
+    meter("Short routes", state.shortHits),
+    meter("Full routes", state.fullHits),
+    meter("Fallback flags", state.fallback),
+    meter("Visible boxes", detections.length)
+  ].join("");
+}
+
+function average(values) {
+  return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+}
+
+function row(label, value, pct) {
+  return `<div class="row"><b>${label}</b><span>${value}</span><div class="bar"><span style="width:${Math.max(3, Math.min(100, pct))}%"></span></div></div>`;
+}
+
+function meter(label, value) {
+  return `<div class="meter"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function loop() {
+  if (!state.running) return;
+  step();
+  setTimeout(loop, 460);
+}
+
+["distance", "scale", "threshold", "maxResults"].forEach((id) => $(id).addEventListener("input", () => { labels(); step(); }));
+$("delegate").addEventListener("change", step);
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+  if (state.running) loop();
+});
+$("crowd").addEventListener("click", () => { state.burst = 8; log("injected crowd + far small faces"); step(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { running: false, tick: 0, burst: 0, detections: [], history: [], shortHits: 0, fullHits: 0, fallback: 0 });
+  $("toggle").textContent = "Start stream";
+  $("log").textContent = "";
+  labels();
+  step();
+});
+labels();
+step();
+</script>
+</body>
+</html>

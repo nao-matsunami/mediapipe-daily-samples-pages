@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-30",
+  "category": "MediaPipe / Google AI Edge / Face Detector / Web ML",
+  "headline": "Face Detector はモデル範囲とイベント送信を起動前に分けて設計する",
+  "headlineEn": "Face Detector needs model-range and event-export planning before startup",
+  "summary": "Google AI Edge の Web setup、Face Detector guide、MediaPipe releases、mediapipe-samples-web、npm @mediapipe/tasks-vision を確認し、自作サンプルを2本追加しました。本命は short-range / full-range Face Detector のモデル選択、score threshold、max results、delegate fallback を触る Face Detector Range Preflight、派生は検出後の bbox event、crop risk、consent、送信帯域を扱う Face Event Privacy Budget です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, Face Detector guide, MediaPipe releases, mediapipe-samples-web, and npm @mediapipe/tasks-vision, this adds two original samples. The main sample is Face Detector Range Preflight, which explores short-range / full-range model selection, score threshold, max results, and delegate fallback. The derivative is Face Event Privacy Budget, which handles post-detection bbox events, crop risk, consent, and send budget.",
+  "keyTopics": [
+    "npm `@mediapipe/tasks-vision` はこの確認時点で 1.0.1 が latest として見えており、nightly / rc 系の更新も続いているため、Web 統合では package version と WASM path の固定を毎回確認したい。",
+    "MediaPipe v1.0.0 release notes では JavaScript の IIFE bundles、Privacy Notice、running mode cache、Web LLM の `.litertlm` 対応など、Web 実装の運用面に関わる更新が並んでいる。",
+    "Face Detector は short-range と full-range の使い分けが重要で、近距離の大きい顔だけでなく遠め・小さめの顔を扱う UI ではモデル URL と threshold のプリフライトが有効。",
+    "公式サンプルや `mediapipe-samples-web` はタスク接続の参照に使い、今日の公開カードは公式 demo ではなく synthetic camera frame と event queue の自作検証にした。",
+    "MediaPipe Tasks は入力をオンデバイスで処理する前提だが、アプリが bbox、crop、ログ、analytics event を保存・送信する場合は、検出後の privacy / bandwidth policy が別途必要になる。"
+  ],
+  "keyTopicsEn": [
+    "At the time of this check, npm `@mediapipe/tasks-vision` shows 1.0.1 as latest and rc / nightly updates continue, so Web integration should keep package version and WASM path pinning visible.",
+    "MediaPipe v1.0.0 release notes include JavaScript IIFE bundles, a Privacy Notice, running-mode caching, and `.litertlm` support for Web LLM, all of which matter operationally for Web apps.",
+    "Face Detector needs careful short-range versus full-range selection; UIs that handle smaller or farther faces benefit from a model URL and threshold preflight.",
+    "Official samples and `mediapipe-samples-web` are used as task-connection references, while today's public cards are original synthetic camera-frame and event-queue prototypes.",
+    "MediaPipe Tasks process input on device, but if the app stores or exports bboxes, crops, logs, or analytics events, a separate post-detection privacy / bandwidth policy is needed."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Face Detector Range Preflight",
+      "url": "../outputs/2026-09-30_face_detector_range_preflight.html"
+    },
+    {
+      "label": "Today's derivative sample: Face Event Privacy Budget",
+      "url": "../outputs/2026-09-30_face_event_privacy_budget.html"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: Face Detector guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/face_detector"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: Face Detector sample source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/face-detector.ts"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-09-30-face-detector-range-preflight.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Face Detector を「画面に枠を出す task」としてではなく、起動前のモデル選択と検出後のイベント設計に分けて扱うことです。公式情報では Web setup、WASM path、npm package、Face Detector task、MediaPipe release notes の JavaScript 更新がそれぞれ別の場所にあります。実アプリでは、近距離セルフィーなのか、遠めの会議室なのか、bbox だけ使うのか、crop を保存するのかで設計が大きく変わります。",
+      "bodyEn": "Today's notable angle is treating Face Detector not just as a task that draws boxes, but as two design layers: pre-startup model selection and post-detection event policy. Official information about Web setup, WASM paths, npm packages, the Face Detector task, and JavaScript release changes lives in separate places. In real apps, the design changes depending on whether the scene is a close selfie, a farther meeting room, bbox-only metadata, or stored face crops."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Face Detector Range Preflight` は Scene distance、Face scale、Score threshold、Max results、Delegate を動かし、short / full の model route、推定 latency、fallback flag、検出 box を表示します。派生の `Face Event Privacy Budget` は Consent level、Send budget、Review band、Crop risk、TTL を動かし、検出後イベントを send / hold / review / redact / drop に分けます。",
+      "bodyEn": "The main sample, `Face Detector Range Preflight`, adjusts scene distance, face scale, score threshold, max results, and delegate while showing the short / full model route, estimated latency, fallback flag, and detection boxes. The derivative, `Face Event Privacy Budget`, adjusts consent level, send budget, review band, crop risk, and TTL while routing post-detection events into send / hold / review / redact / drop states."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは model route、score threshold、max results、推定 latency、delegate fallback、face bbox、score、age、crop risk、consent state、send quota、redaction reason です。Face Detector、Face Landmarker、Holistic Landmarker、WebRTC metadata、IndexedDB replay、privacy review queue、accessibility mode、analytics sampling、server-side identity pipeline の前段 filter と組み合わせると、顔検出の後に何を外へ出すべきかを細かく検証できます。",
+      "bodyEn": "The samples can accumulate model route, score threshold, max results, estimated latency, delegate fallback, face bbox, score, age, crop risk, consent state, send quota, and redaction reason. Combined with Face Detector, Face Landmarker, Holistic Landmarker, WebRTC metadata, IndexedDB replay, privacy review queues, accessibility modes, analytics sampling, or the pre-filter for a server-side identity pipeline, they help validate what should leave the device after face detection."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実接続時は Web setup guide の `FilesetResolver.forVisionTasks` と package version を固定し、short-range / full-range の model path を設定値として UI に出します。`scoreThreshold` と `maxResults` は検出器の品質調整だけでなく、後段イベント数と bandwidth に直結します。GPU first にする場合でも初回起動や低性能端末の fallback を測るため、モデル作成、最初の detect、連続 detect の3つを別メトリクスとして持つと原因を切り分けやすくなります。",
+      "bodyEn": "When wiring a real model, pin the package version and `FilesetResolver.forVisionTasks` path from the Web setup guide, and expose short-range / full-range model paths as visible configuration. `scoreThreshold` and `maxResults` tune detector quality but also directly control downstream event volume and bandwidth. Even with GPU-first startup, keep separate metrics for model creation, first detection, and steady detection to distinguish fallback and low-end device behavior."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-vision` の 1.0.1 以降の rc / nightly、MediaPipe release notes の JavaScript / Vision task 更新、Face Detector guide の model path や option 更新、`mediapipe-samples-web` の face-detector 実装、Privacy Notice と metrics consent 周りの説明変更を見ます。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-vision` rc / nightly versions after 1.0.1, JavaScript / Vision task updates in MediaPipe release notes, model path or option changes in the Face Detector guide, the face-detector implementation in `mediapipe-samples-web`, and wording changes around Privacy Notice and metrics consent."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Face Detector Range Preflight` で Scene distance を 3m 以上、Face scale を 14% 以下にすると full-range が選ばれやすくなります。Score threshold を上げると box 数は減り、Delegate を GPU first にして crowd を注入すると fallback flag の境界が見えます。派生では Consent level を local only にすると検出はできても外部送信が止まる挙動を確認できます。",
+      "bodyEn": "In `Face Detector Range Preflight`, set scene distance above 3 m and face scale below 14% to make full-range routing more likely. Raising the score threshold reduces boxes, and injecting a crowd with GPU first shows the fallback boundary. In the derivative sample, setting consent level to local only demonstrates detection continuing while external event export stops."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Web setup、Face Detector guide、MediaPipe releases、mediapipe-samples-web、Face Detector sample source、npm package を確認。設計: 公式 demo の一覧化ではなく、モデル範囲選択とイベント送信ポリシーを触る自作 UI にする。実装: 本命 HTML に scene distance、face scale、threshold、max results、delegate、short/full route、fallback meter を追加。派生 HTML に consent、send budget、review band、crop risk、TTL、send / hold / redact / drop queue を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked Web setup, the Face Detector guide, MediaPipe releases, mediapipe-samples-web, the Face Detector sample source, and the npm package. Design: instead of listing official demos, create original UIs for model-range selection and event-export policy. Implementation: added scene distance, face scale, threshold, max results, delegate, short/full route, and fallback meters to the main HTML. Added consent, send budget, review band, crop risk, TTL, and send / hold / redact / drop queues to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "直近は Holistic Landmarker の multi-output sync と command routing を扱いました。今日は Face Detector に戻り、モデル実行前の range preflight と検出後の privacy budget を部品化しました。これで Vision 系の日次サンプルは検出、landmark、segment、embed、text/audio task だけでなく、モデル選択、worker queue、event stabilization、consent、bandwidth の実装レイヤーまで広がっています。",
+      "bodyEn": "The previous entry handled Holistic Landmarker multi-output sync and command routing. Today returns to Face Detector and componentizes range preflight before model execution plus privacy budget after detection. The Vision samples now cover not only detection, landmarks, segmentation, embeddings, and text/audio tasks, but also implementation layers such as model selection, worker queues, event stabilization, consent, and bandwidth."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Face Detector Range Preflight` です。実際に動く部分は scene distance、face scale、score threshold、max results、delegate、short/full route、推定 latency、fallback flag、synthetic face boxes です。次に足すなら実 `FaceDetector.createFromOptions` adapter、実測 latency logger、short/full A/B replay、camera permission preflight を足します。派生試作は `Face Event Privacy Budget` で、実際に動く部分は consent level、send budget、review band、crop risk、TTL、send / hold / review / redact / drop queue です。次に足すなら IndexedDB replay、duplicate bbox suppression、consent banner state machine、WebRTC metadata channel を足します。",
+      "bodyEn": "The selected main prototype is `Face Detector Range Preflight`. The working pieces are scene distance, face scale, score threshold, max results, delegate, short/full route, estimated latency, fallback flag, and synthetic face boxes. Next additions should include a real `FaceDetector.createFromOptions` adapter, measured latency logger, short/full A/B replay, and camera-permission preflight. The derivative prototype is `Face Event Privacy Budget`; the working pieces are consent level, send budget, review band, crop risk, TTL, and send / hold / review / redact / drop queues. Next additions should include IndexedDB replay, duplicate bbox suppression, a consent-banner state machine, and a WebRTC metadata channel.",
+      "links": [
+        {
+          "label": "Open Face Detector Range Preflight",
+          "url": "../outputs/2026-09-30_face_detector_range_preflight.html"
+        },
+        {
+          "label": "Open Face Event Privacy Budget",
+          "url": "../outputs/2026-09-30_face_event_privacy_budget.html"
+        }
+      ]
+    }
+  ]
+}
