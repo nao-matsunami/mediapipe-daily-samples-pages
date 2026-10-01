@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Running Mode Switchboard</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #07120f; color: #f7fbf4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(92, 194, 145, .16), transparent 35%), linear-gradient(315deg, rgba(238, 188, 92, .13), transparent 44%), #07120f; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 251, 244, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #5cc291; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #c9d8ce; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 251, 244, .22); background: #f7fbf4; color: #07120f; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(7, 18, 15, .95); color: #f7fbf4; }
+    label { display: grid; gap: 6px; color: #eef8f1; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #5cc291; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(247, 251, 244, .15); background: rgba(7, 18, 15, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 335px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #030706; border: 1px solid rgba(247, 251, 244, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(247, 251, 244, .13); background: #121d19; padding: 10px; min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.04rem, 3vw, 1.42rem); color: #f7fbf4; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .bar { height: 12px; background: #26312d; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #5cc291, #eebc5c); }
+    .chip { display: inline-block; border: 1px solid rgba(247, 251, 244, .24); padding: 5px 8px; color: #e7f0ea; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(92, 194, 145, .82); background: rgba(92, 194, 145, .14); }
+    .warn { border-color: rgba(238, 188, 92, .82); background: rgba(238, 188, 92, .14); }
+    .bad { border-color: rgba(218, 85, 104, .82); background: rgba(218, 85, 104, .14); }
+    .value { color: #f4c06f; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e8f1eb; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 292px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Gesture Running Mode Switchboard</h1>
+    <p>MediaPipe Gesture Recognizer の `IMAGE` / `VIDEO` runningMode と `setOptions()` 切替を、実モデル接続前に観察する自作ミニ試作です。静止画クリック、動画フレーム、切替要求、同期ブロック時間を合成して、いつ切り替えるべきかを見ます。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Input mix <input id="mix" type="range" min="0" max="100" value="68"><span id="mixValue" class="value">68% video</span></label>
+    <label>Mode switch cost <input id="switchCost" type="range" min="8" max="120" value="42"><span id="switchCostValue" class="value">42 ms</span></label>
+    <label>Frame interval <input id="interval" type="range" min="16" max="100" value="33"><span id="intervalValue" class="value">33 ms</span></label>
+    <label>Sync infer cost <input id="inferCost" type="range" min="5" max="55" value="18"><span id="inferCostValue" class="value">18 ms</span></label>
+    <label>Policy <select id="policy"><option value="sticky">sticky mode</option><option value="eager">eager switch</option><option value="batch">batch stills</option></select><span class="value">routing rule</span></label>
+    <button id="step">Step input</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="burst" class="secondary">Still burst</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Mode decision</h2>
+      <p>公式APIでは `recognize()` は image mode、`recognizeForVideo(videoFrame, timestamp)` は video mode 用です。この試作では `setOptions({ runningMode })` を頻繁に呼ぶと UI 予算を食う、という運用上の判断を可視化します。</p>
+      <span id="modeChip" class="chip">mode: IMAGE</span>
+      <span id="budgetChip" class="chip">budget: ready</span>
+      <div id="rows"></div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h2>Synthetic recognizer queue</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, tick: 0, mode: "IMAGE", blocked: 0, processed: 0, switched: 0, dropped: 0, burst: 0, history: [], queue: [] };
+
+function labels() {
+  $("mixValue").textContent = `${$("mix").value}% video`;
+  $("switchCostValue").textContent = `${$("switchCost").value} ms`;
+  $("intervalValue").textContent = `${$("interval").value} ms`;
+  $("inferCostValue").textContent = `${$("inferCost").value} ms`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function nextInput() {
+  const videoBias = Number($("mix").value) / 100;
+  const forceStill = state.burst > 0;
+  if (state.burst > 0) state.burst -= 1;
+  const type = forceStill || Math.random() > videoBias ? "IMAGE" : "VIDEO";
+  const gesture = ["Open palm", "Pointing up", "Thumb up", "Victory", "Closed fist"][(state.tick + Math.floor(Math.random() * 3)) % 5];
+  const score = Math.max(.08, Math.min(.99, .62 + Math.sin(state.tick * .37) * .2 + Math.random() * .16));
+  return { id: state.tick, type, gesture, score, timestamp: state.tick * Number($("interval").value) };
+}
+
+function preferredMode(input) {
+  if ($("policy").value === "sticky" && state.mode === "VIDEO" && input.type === "IMAGE" && state.queue.filter((item) => item.type === "IMAGE").length < 3) return state.mode;
+  if ($("policy").value === "batch" && input.type === "IMAGE" && state.queue.filter((item) => item.type === "IMAGE").length < 2) return state.mode;
+  return input.type;
+}
+
+function step() {
+  state.tick += 1;
+  const input = nextInput();
+  state.queue.push(input);
+  const wanted = preferredMode(input);
+  let cost = Number($("inferCost").value) + Math.random() * 5;
+  let switched = false;
+  if (wanted !== state.mode) {
+    state.mode = wanted;
+    state.switched += 1;
+    switched = true;
+    cost += Number($("switchCost").value);
+  }
+  const frameBudget = Math.max(16, Number($("interval").value));
+  const processedNow = [];
+  while (state.queue.length && processedNow.length < (state.mode === "IMAGE" ? 2 : 1)) {
+    const item = state.queue.shift();
+    if (item.type !== state.mode && $("policy").value !== "sticky") {
+      state.dropped += 1;
+    } else {
+      processedNow.push(item);
+    }
+  }
+  if (cost > frameBudget) state.blocked += cost - frameBudget;
+  state.processed += processedNow.length;
+  state.history.push({ cost, frameBudget, mode: state.mode, queue: state.queue.length, switched, count: processedNow.length });
+  state.history = state.history.slice(-72);
+  draw(input, processedNow, cost, frameBudget, switched);
+  render(input, processedNow, cost, frameBudget, switched);
+  log(`input ${input.id}: ${input.type} -> ${state.mode}, ${processedNow.length} processed, ${cost.toFixed(1)}ms${switched ? " + setOptions" : ""}`);
+}
+
+function draw(input, processedNow, cost, frameBudget, switched) {
+  ctx.clearRect(0, 0, 1280, 720);
+  ctx.fillStyle = "#030706";
+  ctx.fillRect(0, 0, 1280, 720);
+  drawHand(input, processedNow.length > 0);
+  drawQueue();
+  drawHistory(frameBudget);
+  ctx.fillStyle = cost > frameBudget ? "rgba(218,85,104,.18)" : switched ? "rgba(238,188,92,.18)" : "rgba(92,194,145,.16)";
+  ctx.fillRect(32, 30, Math.min(560, cost * 8), 18);
+  ctx.fillStyle = "#f7fbf4";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`${state.mode} runningMode`, 32, 78);
+  ctx.font = "16px ui-monospace, Menlo, monospace";
+  ctx.fillText(cost > frameBudget ? "main-thread budget exceeded" : switched ? "setOptions switch paid" : "steady inference", 32, 104);
+}
+
+function drawHand(input, active) {
+  const cx = 650 + Math.sin(state.tick * .21) * 75;
+  const cy = 315 + Math.cos(state.tick * .17) * 42;
+  const colors = { IMAGE: "#eebc5c", VIDEO: "#5cc291" };
+  ctx.lineCap = "round";
+  for (let i = 0; i < 5; i += 1) {
+    const angle = -1.2 + i * .6 + Math.sin(state.tick * .11 + i) * .14;
+    ctx.strokeStyle = active ? colors[input.type] : "rgba(247,251,244,.22)";
+    ctx.lineWidth = 14 - i;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * (120 - i * 8), cy + Math.sin(angle) * (120 - i * 6));
+    ctx.stroke();
+  }
+  ctx.fillStyle = active ? colors[input.type] : "rgba(247,251,244,.28)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#07120f";
+  ctx.font = "16px ui-monospace, Menlo, monospace";
+  ctx.fillText(input.gesture, cx - 70, cy + 74);
+}
+
+function drawQueue() {
+  state.queue.slice(0, 14).forEach((item, index) => {
+    const x = 50 + index * 58;
+    ctx.fillStyle = item.type === "VIDEO" ? "rgba(92,194,145,.78)" : "rgba(238,188,92,.78)";
+    ctx.fillRect(x, 620, 42, 42);
+    ctx.fillStyle = "#07120f";
+    ctx.font = "13px ui-monospace, Menlo, monospace";
+    ctx.fillText(item.type[0], x + 16, 647);
+  });
+}
+
+function drawHistory(frameBudget) {
+  const baseX = 42;
+  const baseY = 550;
+  state.history.forEach((item, i) => {
+    const h = Math.min(170, item.cost * 3);
+    ctx.fillStyle = item.cost > frameBudget ? "#da5568" : item.switched ? "#eebc5c" : "#5cc291";
+    ctx.fillRect(baseX + i * 8, baseY - h, 5, h);
+  });
+  ctx.strokeStyle = "rgba(247,251,244,.34)";
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY - frameBudget * 3);
+  ctx.lineTo(baseX + 580, baseY - frameBudget * 3);
+  ctx.stroke();
+}
+
+function render(input, processedNow, cost, frameBudget, switched) {
+  $("modeChip").textContent = `mode: ${state.mode}`;
+  $("modeChip").className = `chip ${state.mode === "VIDEO" ? "pass" : "warn"}`;
+  $("budgetChip").textContent = cost > frameBudget ? "budget: over" : switched ? "budget: switching" : "budget: stable";
+  $("budgetChip").className = `chip ${cost > frameBudget ? "bad" : switched ? "warn" : "pass"}`;
+  const switchRate = state.tick ? state.switched / state.tick : 0;
+  $("rows").innerHTML = [
+    ["Latest input", `${input.type} / ${input.gesture}`],
+    ["Processed now", `${processedNow.length} item(s)`],
+    ["Queue depth", `${state.queue.length}`],
+    ["Switch rate", `${Math.round(switchRate * 100)}%`],
+    ["Blocked time", `${state.blocked.toFixed(0)} ms`]
+  ].map(([label, value]) => `<div class="row"><b>${label}</b><span>${value}</span><div class="bar"><span style="width:${Math.min(100, String(value).match(/\\d+/)?.[0] || 30)}%"></span></div></div>`).join("");
+  $("meters").innerHTML = [
+    ["Processed", state.processed],
+    ["Mode switches", state.switched],
+    ["Dropped", state.dropped],
+    ["Cost", `${cost.toFixed(1)} ms`]
+  ].map(([label, value]) => `<div class="meter">${label}<strong>${value}</strong></div>`).join("");
+}
+
+function reset() {
+  Object.assign(state, { running: false, tick: 0, mode: "IMAGE", blocked: 0, processed: 0, switched: 0, dropped: 0, burst: 0, history: [], queue: [] });
+  $("toggle").textContent = "Start stream";
+  $("log").textContent = "";
+  step();
+}
+
+function loop() {
+  if (!state.running) return;
+  step();
+  window.setTimeout(loop, Number($("interval").value));
+}
+
+["mix", "switchCost", "interval", "inferCost"].forEach((id) => $(id).addEventListener("input", labels));
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause stream" : "Start stream"; if (state.running) loop(); });
+$("burst").addEventListener("click", () => { state.burst = 8; log("still-image burst injected"); });
+$("reset").addEventListener("click", reset);
+labels();
+reset();
+</script>
+</body>
+</html>

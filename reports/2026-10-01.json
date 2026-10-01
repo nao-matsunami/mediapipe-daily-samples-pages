@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-01",
+  "category": "MediaPipe / Google AI Edge / Gesture Recognizer / Web ML",
+  "headline": "Gesture Recognizer は runningMode 切替と timestamp hygiene を先に設計する",
+  "headlineEn": "Gesture Recognizer needs running-mode switching and timestamp hygiene up front",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、JavaScript API、Web setup、MediaPipe release notes、mediapipe-samples-web の worker 実装を確認し、自作サンプルを2本追加しました。本命は IMAGE / VIDEO runningMode、setOptions の切替コスト、同期推論予算を見る Gesture Running Mode Switchboard、派生は duplicate / rewind / stale result を扱う Gesture Timestamp Monotonic Guard です。",
+  "summaryEn": "After checking the Google AI Edge Gesture Recognizer Web guide, JavaScript API, Web setup guide, MediaPipe release notes, and the worker implementation in mediapipe-samples-web, this adds two original samples. The main sample is Gesture Running Mode Switchboard, which explores IMAGE / VIDEO runningMode, setOptions switching cost, and synchronous inference budget. The derivative is Gesture Timestamp Monotonic Guard, which handles duplicate, rewind, and stale-result cases.",
+  "keyTopics": [
+    "Gesture Recognizer の Web guide は `runningMode` を `IMAGE` / `VIDEO` に分け、静止画では `recognize()`、動画フレームでは `recognizeForVideo(videoFrame, timestamp)` を使う構成を示している。",
+    "JavaScript API では `recognize()` と `recognizeForVideo()` が同期的に結果を返すため、実アプリでは worker 化、重複フレーム skip、UI budget の監視が重要になる。",
+    "`setOptions()` で running mode を変えられるが、静止画操作とライブ動画を細かく行き来する UI では、切替コストを払う頻度そのものを設計対象にしたい。",
+    "MediaPipe v1.0.0 release notes では JavaScript IIFE bundle や VisionTaskRunner の running mode cache が触れられており、Web Tasks の運用面が継続的に更新されている。",
+    "公式サンプルや `mediapipe-samples-web` は実接続の参照に使い、今日の公開カードは合成 gesture queue と timestamp lane の自作検証にした。"
+  ],
+  "keyTopicsEn": [
+    "The Gesture Recognizer Web guide separates `runningMode` into `IMAGE` and `VIDEO`, using `recognize()` for still images and `recognizeForVideo(videoFrame, timestamp)` for video frames.",
+    "The JavaScript API returns results synchronously from `recognize()` and `recognizeForVideo()`, so real apps need worker isolation, duplicate-frame skipping, and UI budget monitoring.",
+    "`setOptions()` can change running mode, but UIs that jump between still-image actions and live video should treat the frequency of mode switching itself as a design surface.",
+    "MediaPipe v1.0.0 release notes mention JavaScript IIFE bundles and VisionTaskRunner running-mode caching, showing that operational Web Tasks details continue to evolve.",
+    "Official samples and `mediapipe-samples-web` are used as integration references, while today's public cards are original synthetic gesture-queue and timestamp-lane prototypes."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Running Mode Switchboard",
+      "url": "../outputs/2026-10-01_gesture_running_mode_switchboard.html"
+    },
+    {
+      "label": "Today's derivative sample: Gesture Timestamp Monotonic Guard",
+      "url": "../outputs/2026-10-01_gesture_timestamp_monotonic_guard.html"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: GestureRecognizer JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.gesturerecognizer"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: Gesture Recognizer worker source",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/gesture-recognizer.worker.ts"
+    },
+    {
+      "label": "npm: @mediapipe/tasks-vision",
+      "url": "https://www.npmjs.com/package/@mediapipe/tasks-vision"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-01-gesture-running-mode-switchboard.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は Gesture Recognizer の結果カテゴリではなく、その手前にある runningMode と timestamp の運用です。公式 Web guide は静止画の `recognize()` と動画の `recognizeForVideo()` を明確に分け、API reference はどちらも同期的に結果を返すことを示しています。つまり、ブラウザ UI では「どのジェスチャーが出たか」だけでなく、いつ `setOptions()` を呼ぶか、どのフレームを捨てるか、遅れて返った worker 結果を採用するかが体験を左右します。",
+      "bodyEn": "Today's notable angle is not the gesture category itself, but the running-mode and timestamp operations before and around it. The official Web guide clearly separates still-image `recognize()` from video `recognizeForVideo()`, and the API reference shows both returning results synchronously. In a browser UI, the experience depends not only on which gesture was recognized, but also on when `setOptions()` runs, which frames are skipped, and whether late worker results are accepted."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Gesture Running Mode Switchboard` は video / still の入力比率、mode switch cost、frame interval、sync infer cost、routing policy を動かし、IMAGE / VIDEO mode、切替回数、queue、blocked time を表示します。派生の `Gesture Timestamp Monotonic Guard` は frame jitter、duplicate rate、worker delay、queue limit、timestamp guard を動かし、accept / reject / repair / stale の流れを表示します。",
+      "bodyEn": "The main sample, `Gesture Running Mode Switchboard`, adjusts the video / still input mix, mode-switch cost, frame interval, synchronous inference cost, and routing policy while showing IMAGE / VIDEO mode, switch count, queue depth, and blocked time. The derivative, `Gesture Timestamp Monotonic Guard`, adjusts frame jitter, duplicate rate, worker delay, queue limit, and timestamp guard while showing accept / reject / repair / stale flow."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは input type、runningMode、setOptions 回数、同期推論コスト、frame interval、queue depth、blocked time、timestamp、duplicate、rewind、repair、stale result、gesture label、score です。Gesture Recognizer、Hand Landmarker、Holistic Landmarker、Web Worker、ImageBitmap transfer、OffscreenCanvas、WebRTC metadata、IndexedDB replay、アクセシビリティ入力、gesture command router と組み合わせると、ジェスチャー認識の前後にあるフレーム制御を細かく検証できます。",
+      "bodyEn": "The samples can accumulate input type, runningMode, setOptions count, synchronous inference cost, frame interval, queue depth, blocked time, timestamp, duplicate, rewind, repair, stale result, gesture label, and score. Combined with Gesture Recognizer, Hand Landmarker, Holistic Landmarker, Web Workers, ImageBitmap transfer, OffscreenCanvas, WebRTC metadata, IndexedDB replay, accessibility input, or a gesture command router, they help validate the frame-control layer around gesture recognition."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実接続時は Web setup guide の package / WASM path を固定し、`GestureRecognizer.createFromOptions` の初期化、`setOptions({ runningMode })`、`recognize()`、`recognizeForVideo(videoFrame, timestamp)` を明確に分けます。動画では同一 `video.currentTime` の再処理を skip し、worker へ送る場合は request id と timestamp を一緒に持たせ、最新表示済み timestamp より古い結果を破棄します。静止画クリックが連続する UI では、即時に VIDEO へ戻さず短い猶予を置く sticky policy が有効です。",
+      "bodyEn": "When wiring a real model, pin the package / WASM path from the Web setup guide and keep initialization, `setOptions({ runningMode })`, `recognize()`, and `recognizeForVideo(videoFrame, timestamp)` as separate operational steps. For video, skip repeated `video.currentTime` processing; if using a worker, send request id and timestamp together and drop results older than the latest displayed timestamp. For UIs with bursts of still-image clicks, a short sticky policy before returning to VIDEO mode can reduce unnecessary switching."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は `@mediapipe/tasks-vision` の 1.0.1 以降の rc / nightly、MediaPipe release notes の JavaScript / running mode / worker 周り、Gesture Recognizer Web guide の option 更新、`mediapipe-samples-web` の gesture worker の message shape、IIFE bundle と CDN path の説明変更を見ます。",
+      "bodyEn": "Next, watch `@mediapipe/tasks-vision` rc / nightly versions after 1.0.1, JavaScript / running-mode / worker notes in MediaPipe release notes, Gesture Recognizer Web guide option changes, gesture-worker message shapes in `mediapipe-samples-web`, and wording changes around IIFE bundles and CDN paths."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Gesture Running Mode Switchboard` で Input mix を video 寄りにし、Still burst を押すと、sticky / eager / batch policy の違いが見えます。Mode switch cost を 80ms 以上にすると eager switch がすぐ budget over になります。派生では Duplicate rate と Worker delay を上げ、Inject rewind を押すと strict / repair / loose の timestamp policy 差が出ます。",
+      "bodyEn": "In `Gesture Running Mode Switchboard`, push the input mix toward video and press Still burst to compare sticky / eager / batch policy. Raising mode-switch cost above 80 ms makes eager switching exceed the budget quickly. In the derivative, increase Duplicate rate and Worker delay, then press Inject rewind to compare strict / repair / loose timestamp policy."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、JavaScript API、Web setup、MediaPipe releases、mediapipe-samples-web、gesture worker source、npm package を確認。設計: 公式 demo の一覧化ではなく、runningMode switchboard と timestamp guard を触る自作 UI にする。実装: 本命 HTML に input mix、switch cost、frame interval、infer cost、policy、queue、blocked time を追加。派生 HTML に jitter、duplicate、worker delay、queue limit、strict / repair / loose guard、stale result lane を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer Web guide, JavaScript API, Web setup, MediaPipe releases, mediapipe-samples-web, the gesture worker source, and the npm package. Design: instead of listing official demos, create original UIs for running-mode switching and timestamp guarding. Implementation: added input mix, switch cost, frame interval, inference cost, policy, queue depth, and blocked time to the main HTML. Added jitter, duplicate rate, worker delay, queue limit, strict / repair / loose guard, and stale-result lane to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は Face Detector の model range と post-detection privacy budget を扱いました。今日は Gesture Recognizer に戻り、認識結果そのものではなく、呼び出し方法、mode switching、timestamp、worker stale result という周辺レイヤーを部品化しました。これで日次サンプルは検出・landmark・segment・embed だけでなく、Web アプリとして壊れにくくするフレーム運用まで広がっています。",
+      "bodyEn": "Yesterday handled Face Detector model range and post-detection privacy budget. Today returns to Gesture Recognizer and componentizes the surrounding layer: call method, mode switching, timestamp, and worker stale results rather than the recognition category itself. The daily samples now cover not only detection, landmarks, segmentation, and embeddings, but also frame operations that make a Web app more robust."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Gesture Running Mode Switchboard` です。実際に動く部分は IMAGE / VIDEO routing、setOptions switch cost、sync infer cost、input queue、blocked time、still burst、routing policy 比較です。次に足すなら実 `GestureRecognizer.createFromOptions` adapter、実測 mode switch logger、worker message replay、ImageBitmap close 計測を足します。派生試作は `Gesture Timestamp Monotonic Guard` で、実際に動く部分は duplicate timestamp、rewind、queue limit、strict / repair / loose guard、stale result rejection です。次に足すなら `video.currentTime` 実入力、request id trace、OffscreenCanvas preview、IndexedDB replay を足します。",
+      "bodyEn": "The selected main prototype is `Gesture Running Mode Switchboard`. The working pieces are IMAGE / VIDEO routing, setOptions switch cost, synchronous inference cost, input queue, blocked time, still burst, and routing-policy comparison. Next additions should include a real `GestureRecognizer.createFromOptions` adapter, measured mode-switch logger, worker message replay, and ImageBitmap close measurements. The derivative prototype is `Gesture Timestamp Monotonic Guard`; the working pieces are duplicate timestamp, rewind, queue limit, strict / repair / loose guard, and stale-result rejection. Next additions should include real `video.currentTime` input, request-id tracing, OffscreenCanvas preview, and IndexedDB replay.",
+      "links": [
+        {
+          "label": "Open Gesture Running Mode Switchboard",
+          "url": "../outputs/2026-10-01_gesture_running_mode_switchboard.html"
+        },
+        {
+          "label": "Open Gesture Timestamp Monotonic Guard",
+          "url": "../outputs/2026-10-01_gesture_timestamp_monotonic_guard.html"
+        }
+      ]
+    }
+  ]
+}

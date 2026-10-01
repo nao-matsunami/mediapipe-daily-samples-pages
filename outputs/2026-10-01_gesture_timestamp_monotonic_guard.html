@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Timestamp Monotonic Guard</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0a1015; color: #f5fbff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(93, 169, 255, .15), transparent 34%), linear-gradient(315deg, rgba(239, 120, 104, .13), transparent 42%), #0a1015; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 251, 255, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #5da9ff; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #c9d4dc; line-height: 1.62; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(245, 251, 255, .22); background: #f5fbff; color: #0a1015; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(10, 16, 21, .95); color: #f5fbff; }
+    label { display: grid; gap: 6px; color: #edf6fb; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #5da9ff; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 251, 255, .15); background: rgba(10, 16, 21, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 335px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #030609; border: 1px solid rgba(245, 251, 255, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(245, 251, 255, .13); background: #121a22; padding: 10px; min-height: 78px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.04rem, 3vw, 1.42rem); color: #f5fbff; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .bar { height: 12px; background: #26313b; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #5da9ff, #ef7868); }
+    .chip { display: inline-block; border: 1px solid rgba(245, 251, 255, .24); padding: 5px 8px; color: #e7eef4; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(93, 169, 255, .82); background: rgba(93, 169, 255, .14); }
+    .warn { border-color: rgba(238, 188, 92, .82); background: rgba(238, 188, 92, .14); }
+    .bad { border-color: rgba(239, 120, 104, .82); background: rgba(239, 120, 104, .14); }
+    .value { color: #ffbe72; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 132px; overflow: auto; white-space: pre-wrap; color: #e8f1f7; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 292px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Gesture Timestamp Monotonic Guard</h1>
+    <p>MediaPipe Gesture Recognizer の動画フレーム処理で、timestamp の単調増加、重複フレーム skip、worker queue の stale result rejection を確認する派生試作です。実カメラなしで、乱れた到着順と遅延を合成します。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Frame jitter <input id="jitter" type="range" min="0" max="90" value="28"><span id="jitterValue" class="value">28 ms</span></label>
+    <label>Duplicate rate <input id="duplicate" type="range" min="0" max="70" value="18"><span id="duplicateValue" class="value">18%</span></label>
+    <label>Worker delay <input id="delay" type="range" min="4" max="140" value="44"><span id="delayValue" class="value">44 ms</span></label>
+    <label>Queue limit <input id="limit" type="range" min="1" max="8" value="3"><span id="limitValue" class="value">3</span></label>
+    <label>Guard <select id="guard"><option value="strict">strict monotonic</option><option value="repair">repair duplicate</option><option value="loose">loose pass</option></select><span class="value">timestamp policy</span></label>
+    <button id="step">Step frame</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="rewind" class="secondary">Inject rewind</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Timestamp gate</h2>
+      <p>`recognizeForVideo(videoFrame, timestamp)` に渡す時刻は、動画フレームを識別する実装上の軸です。この試作では同じ timestamp、巻き戻り、worker から遅れて返る結果を別々に数えます。</p>
+      <span id="guardChip" class="chip">guard: strict</span>
+      <span id="staleChip" class="chip">stale: 0</span>
+      <div id="rows"></div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h2>Synthetic video timestamp lane</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { running: false, frame: 0, videoTime: 0, lastAccepted: -1, lastDisplayed: -1, accepted: 0, rejected: 0, duplicate: 0, stale: 0, repaired: 0, rewind: 0, queue: [], results: [], history: [] };
+
+function labels() {
+  $("jitterValue").textContent = `${$("jitter").value} ms`;
+  $("duplicateValue").textContent = `${$("duplicate").value}%`;
+  $("delayValue").textContent = `${$("delay").value} ms`;
+  $("limitValue").textContent = $("limit").value;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function makeFrame() {
+  state.frame += 1;
+  const duplicate = Math.random() < Number($("duplicate").value) / 100;
+  const rewound = state.rewind > 0;
+  if (state.rewind > 0) state.rewind -= 1;
+  if (!duplicate) state.videoTime += 33 + Math.sin(state.frame * .21) * Number($("jitter").value);
+  if (rewound) state.videoTime -= 90;
+  return { id: state.frame, timestamp: Math.max(0, Math.round(state.videoTime)), duplicate, rewound };
+}
+
+function acceptFrame(frame) {
+  let ts = frame.timestamp;
+  let status = "accept";
+  if (ts <= state.lastAccepted) {
+    if ($("guard").value === "repair") {
+      ts = state.lastAccepted + 1;
+      state.repaired += 1;
+      status = "repair";
+    } else if ($("guard").value === "strict") {
+      state.rejected += 1;
+      if (ts === state.lastAccepted) state.duplicate += 1;
+      return { status: "reject", timestamp: ts };
+    }
+  }
+  state.lastAccepted = ts;
+  state.accepted += 1;
+  const readyAt = performance.now() + Number($("delay").value) + Math.random() * Number($("delay").value);
+  state.queue.push({ ...frame, timestamp: ts, readyAt, status });
+  if (state.queue.length > Number($("limit").value)) {
+    const dropped = state.queue.shift();
+    state.stale += 1;
+    log(`drop queued frame ${dropped.id}: queue limit`);
+  }
+  return { status, timestamp: ts };
+}
+
+function harvestResults() {
+  const now = performance.now();
+  const ready = [];
+  state.queue = state.queue.filter((item) => {
+    if (item.readyAt <= now) {
+      ready.push(item);
+      return false;
+    }
+    return true;
+  });
+  ready.sort((a, b) => a.timestamp - b.timestamp).forEach((item) => {
+    if (item.timestamp <= state.lastDisplayed) {
+      state.stale += 1;
+      log(`reject stale result frame ${item.id}: ${item.timestamp}ms`);
+    } else {
+      state.lastDisplayed = item.timestamp;
+      state.results.unshift({ ...item, gesture: gestureFor(item) });
+      state.results = state.results.slice(0, 9);
+    }
+  });
+}
+
+function gestureFor(item) {
+  return ["Open palm", "Thumb up", "Victory", "Pointing up", "Closed fist"][item.id % 5];
+}
+
+function step() {
+  harvestResults();
+  const frame = makeFrame();
+  const gate = acceptFrame(frame);
+  harvestResults();
+  state.history.push({ id: frame.id, ts: gate.timestamp, status: gate.status, queue: state.queue.length });
+  state.history = state.history.slice(-72);
+  draw(frame, gate);
+  render(frame, gate);
+  log(`frame ${frame.id}: ${gate.status} timestamp ${gate.timestamp}ms`);
+}
+
+function draw(frame, gate) {
+  ctx.clearRect(0, 0, 1280, 720);
+  ctx.fillStyle = "#030609";
+  ctx.fillRect(0, 0, 1280, 720);
+  drawLane();
+  drawResults();
+  drawHand(frame, gate);
+  ctx.fillStyle = gate.status === "reject" ? "rgba(239,120,104,.18)" : gate.status === "repair" ? "rgba(238,188,92,.18)" : "rgba(93,169,255,.16)";
+  ctx.fillRect(32, 30, Math.min(620, Math.max(60, gate.timestamp / 4)), 18);
+  ctx.fillStyle = "#f5fbff";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(`${gate.status.toUpperCase()} ${gate.timestamp}ms`, 32, 78);
+  ctx.font = "16px ui-monospace, Menlo, monospace";
+  ctx.fillText(`last accepted ${state.lastAccepted}ms / last displayed ${state.lastDisplayed}ms`, 32, 104);
+}
+
+function drawLane() {
+  const baseY = 580;
+  ctx.strokeStyle = "rgba(245,251,255,.18)";
+  ctx.beginPath();
+  ctx.moveTo(50, baseY);
+  ctx.lineTo(1230, baseY);
+  ctx.stroke();
+  state.history.forEach((item, i) => {
+    const x = 60 + i * 16;
+    const y = baseY - Math.min(410, item.ts / 8);
+    ctx.fillStyle = item.status === "reject" ? "#ef7868" : item.status === "repair" ? "#eebc5c" : "#5da9ff";
+    ctx.fillRect(x, y, 10, baseY - y);
+  });
+}
+
+function drawResults() {
+  state.results.forEach((item, i) => {
+    const x = 840;
+    const y = 150 + i * 42;
+    ctx.fillStyle = item.status === "repair" ? "rgba(238,188,92,.2)" : "rgba(93,169,255,.18)";
+    ctx.fillRect(x, y, 330, 30);
+    ctx.fillStyle = "#f5fbff";
+    ctx.font = "14px ui-monospace, Menlo, monospace";
+    ctx.fillText(`${item.timestamp}ms ${item.gesture}`, x + 10, y + 20);
+  });
+}
+
+function drawHand(frame, gate) {
+  const cx = 410 + Math.sin(frame.id * .19) * 78;
+  const cy = 315 + Math.cos(frame.id * .16) * 48;
+  const active = gate.status !== "reject";
+  ctx.lineCap = "round";
+  for (let i = 0; i < 5; i += 1) {
+    const angle = -1.18 + i * .58 + Math.sin(frame.id * .1 + i) * .16;
+    ctx.strokeStyle = active ? "#5da9ff" : "rgba(239,120,104,.7)";
+    ctx.lineWidth = 14 - i;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * (120 - i * 8), cy + Math.sin(angle) * (120 - i * 6));
+    ctx.stroke();
+  }
+  ctx.fillStyle = active ? "#5da9ff" : "#ef7868";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function render(frame, gate) {
+  $("guardChip").textContent = `guard: ${$("guard").value}`;
+  $("guardChip").className = `chip ${$("guard").value === "strict" ? "pass" : "warn"}`;
+  $("staleChip").textContent = `stale: ${state.stale}`;
+  $("staleChip").className = `chip ${state.stale ? "bad" : "pass"}`;
+  $("rows").innerHTML = [
+    ["Latest frame", `#${frame.id} / ${frame.timestamp} ms`],
+    ["Gate status", gate.status],
+    ["Queue depth", `${state.queue.length}`],
+    ["Last accepted", `${state.lastAccepted} ms`],
+    ["Last displayed", `${state.lastDisplayed} ms`]
+  ].map(([label, value]) => `<div class="row"><b>${label}</b><span>${value}</span><div class="bar"><span style="width:${Math.min(100, String(value).match(/\\d+/)?.[0] || 30)}%"></span></div></div>`).join("");
+  $("meters").innerHTML = [
+    ["Accepted", state.accepted],
+    ["Rejected", state.rejected],
+    ["Repaired", state.repaired],
+    ["Stale", state.stale]
+  ].map(([label, value]) => `<div class="meter">${label}<strong>${value}</strong></div>`).join("");
+}
+
+function reset() {
+  Object.assign(state, { running: false, frame: 0, videoTime: 0, lastAccepted: -1, lastDisplayed: -1, accepted: 0, rejected: 0, duplicate: 0, stale: 0, repaired: 0, rewind: 0, queue: [], results: [], history: [] });
+  $("toggle").textContent = "Start stream";
+  $("log").textContent = "";
+  step();
+}
+
+function loop() {
+  if (!state.running) return;
+  step();
+  window.setTimeout(loop, 55);
+}
+
+["jitter", "duplicate", "delay", "limit"].forEach((id) => $(id).addEventListener("input", labels));
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => { state.running = !state.running; $("toggle").textContent = state.running ? "Pause stream" : "Start stream"; if (state.running) loop(); });
+$("rewind").addEventListener("click", () => { state.rewind = 3; log("timestamp rewind injected"); });
+$("reset").addEventListener("click", reset);
+labels();
+reset();
+</script>
+</body>
+</html>
