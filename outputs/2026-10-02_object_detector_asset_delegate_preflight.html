@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Object Detector Asset Delegate Preflight</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #07110f; color: #f5fbf6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 18% 10%, rgba(96, 192, 160, .2), transparent 28%), radial-gradient(circle at 88% 18%, rgba(242, 179, 86, .16), transparent 30%), #07110f; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(245, 251, 246, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #60c0a0; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.62; color: #d1ddd8; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(245, 251, 246, .22); background: #f5fbf6; color: #07110f; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(7, 17, 15, .95); color: #f5fbf6; }
+    label { display: grid; gap: 6px; color: #edf8f2; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #60c0a0; }
+    .toolbar, .panel, .stage, .log { border: 1px solid rgba(245, 251, 246, .15); background: rgba(7, 17, 15, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(134px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 350px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .stage { padding: 14px; }
+    .stageFrame { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 340px; background: #020706; border: 1px solid rgba(245, 251, 246, .13); overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter, .row { border: 1px solid rgba(245, 251, 246, .13); background: #111d1a; padding: 10px; min-height: 76px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.03rem, 3vw, 1.35rem); color: #f5fbf6; font-variant-numeric: tabular-nums; }
+    .row { display: grid; gap: 7px; margin-top: 10px; }
+    .bar { height: 12px; background: #263331; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #60c0a0, #f2b356); }
+    .chip { display: inline-block; border: 1px solid rgba(245, 251, 246, .24); padding: 5px 8px; color: #edf8f2; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(96, 192, 160, .82); background: rgba(96, 192, 160, .14); }
+    .warn { border-color: rgba(242, 179, 86, .82); background: rgba(242, 179, 86, .14); }
+    .bad { border-color: rgba(220, 89, 111, .82); background: rgba(220, 89, 111, .14); }
+    .value { color: #f2b356; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 126px; overflow: auto; white-space: pre-wrap; color: #e8f1ec; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+      .stageFrame { min-height: 288px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Object Detector Asset Delegate Preflight</h1>
+    <p>MediaPipe Object Detector を Web に載せる前に、WASM path、modelAssetPath、CPU/GPU delegate、scoreThreshold、maxResults の組み合わせを合成フレームで点検する自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Model weight <input id="weight" type="range" min="2" max="32" value="9"><span id="weightValue" class="value">9 MB</span></label>
+    <label>Scene density <input id="density" type="range" min="1" max="12" value="6"><span id="densityValue" class="value">6 objects</span></label>
+    <label>Score threshold <input id="threshold" type="range" min="20" max="90" value="52"><span id="thresholdValue" class="value">0.52</span></label>
+    <label>Max results <input id="maxResults" type="range" min="1" max="10" value="5"><span id="maxResultsValue" class="value">5</span></label>
+    <label>Delegate <select id="delegate"><option value="gpu">GPU first</option><option value="cpu">CPU stable</option><option value="auto">auto fallback</option></select><span class="value">baseOptions.delegate</span></label>
+    <button id="step">Step frame</button>
+    <button id="toggle" class="secondary">Start stream</button>
+    <button id="jitter" class="secondary">Inject network jitter</button>
+    <button id="miss" class="secondary">Break asset path</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Preflight route</h2>
+      <p>公式 Object Detector guide の `FilesetResolver.forVisionTasks()`、`ObjectDetector.createFromOptions()`、`modelAssetPath` を実接続する前に、初期化と推論ルートの失敗条件を UI として分解します。</p>
+      <span id="assetChip" class="chip">asset: pending</span>
+      <span id="delegateChip" class="chip">delegate: pending</span>
+      <div id="rows"></div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h2>Synthetic Object Detector frame</h2>
+        <div class="stageFrame"><canvas id="stage" width="1280" height="720"></canvas></div>
+        <div id="meters" class="meters"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("stage").getContext("2d");
+const state = { tick: 0, running: false, jitter: 0, broken: false, history: [], fallbacks: 0, emitted: 0, held: 0 };
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function labels() {
+  $("weightValue").textContent = `${$("weight").value} MB`;
+  $("densityValue").textContent = `${$("density").value} objects`;
+  $("thresholdValue").textContent = (Number($("threshold").value) / 100).toFixed(2);
+  $("maxResultsValue").textContent = $("maxResults").value;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2300);
+}
+
+function objects() {
+  const count = Number($("density").value);
+  return Array.from({ length: count }, (_, i) => {
+    const x = 120 + (i % 4) * 290 + Math.sin(state.tick * .15 + i) * 38;
+    const y = 130 + Math.floor(i / 4) * 185 + Math.cos(state.tick * .13 + i) * 34;
+    const w = 96 + ((i * 29) % 150);
+    const h = 72 + ((i * 41) % 120);
+    const occlusion = clamp((count - 4) * .035 + Math.sin(state.tick * .2 + i) * .05, 0, .42);
+    const score = clamp(.88 - occlusion - i * .025 + Math.cos(state.tick * .17 + i) * .07, .05, .98);
+    const label = ["cup", "phone", "book", "plant", "tool", "box", "badge", "cable", "bottle", "remote", "key", "card"][i % 12];
+    return { x, y, w, h, score, label };
+  });
+}
+
+function estimate(selected) {
+  const weight = Number($("weight").value);
+  const delegate = $("delegate").value;
+  const density = Number($("density").value);
+  const wasmMs = 42 + state.jitter * 14;
+  const modelMs = weight * (state.broken ? 0 : 4.8) + state.jitter * 21;
+  const gpuStartup = delegate === "gpu" ? 38 : delegate === "auto" ? 18 : 8;
+  const inferBase = delegate === "cpu" ? 15 : 9;
+  const inferMs = inferBase + density * (delegate === "cpu" ? 1.7 : 1.1) + weight * .18;
+  const assetOk = !state.broken && (wasmMs + modelMs) < 260;
+  const gpuRisk = delegate === "gpu" && (weight > 22 || state.jitter > 2);
+  const fallback = gpuRisk || !assetOk;
+  return { wasmMs, modelMs, gpuStartup, inferMs, assetOk, fallback, total: wasmMs + modelMs + gpuStartup + inferMs, selected };
+}
+
+function step() {
+  state.tick += 1;
+  if (state.jitter > 0) state.jitter -= .35;
+  const threshold = Number($("threshold").value) / 100;
+  const maxResults = Number($("maxResults").value);
+  const all = objects();
+  const selected = all.filter((item) => item.score >= threshold).sort((a, b) => b.score - a.score).slice(0, maxResults);
+  const perf = estimate(selected);
+  if (perf.fallback) state.fallbacks += 1;
+  state.emitted += selected.length;
+  state.held += Math.max(0, all.length - selected.length);
+  state.history.push({ total: perf.total, selected: selected.length, fallback: perf.fallback });
+  state.history = state.history.slice(-70);
+  draw(all, selected, perf);
+  render(all, selected, perf);
+  log(`frame ${state.tick}: kept ${selected.length}/${all.length}, init+infer ${perf.total.toFixed(0)}ms, ${perf.fallback ? "fallback" : "delegate ok"}`);
+}
+
+function draw(all, selected, perf) {
+  ctx.clearRect(0, 0, 1280, 720);
+  ctx.fillStyle = "#020706";
+  ctx.fillRect(0, 0, 1280, 720);
+  for (let y = 0; y < 720; y += 36) {
+    ctx.strokeStyle = y % 72 === 0 ? "rgba(245,251,246,.055)" : "rgba(245,251,246,.025)";
+    ctx.beginPath();
+    ctx.moveTo(0, y + (state.tick % 36));
+    ctx.lineTo(1280, y + (state.tick % 36));
+    ctx.stroke();
+  }
+  all.forEach((item) => box(item, false));
+  selected.forEach((item) => box(item, true));
+  ctx.fillStyle = perf.fallback ? "rgba(220,89,111,.2)" : "rgba(96,192,160,.17)";
+  ctx.fillRect(30, 30, clamp(perf.total * 1.5, 70, 520), 18);
+  ctx.fillStyle = "#f5fbf6";
+  ctx.font = "22px ui-monospace, Menlo, monospace";
+  ctx.fillText(perf.assetOk ? "Fileset + model path ready" : "Asset route needs repair", 30, 76);
+  ctx.font = "16px ui-monospace, Menlo, monospace";
+  ctx.fillText(`delegate=${$("delegate").value} model=${$("weight").value}MB score>=${(Number($("threshold").value) / 100).toFixed(2)}`, 30, 104);
+  drawHistory();
+}
+
+function box(item, selected) {
+  ctx.strokeStyle = selected ? "#60c0a0" : "rgba(245,251,246,.22)";
+  ctx.lineWidth = selected ? 4 : 2;
+  ctx.strokeRect(item.x, item.y, item.w, item.h);
+  ctx.fillStyle = selected ? "rgba(96,192,160,.18)" : "rgba(245,251,246,.04)";
+  ctx.fillRect(item.x, item.y, item.w, item.h);
+  ctx.fillStyle = selected ? "#f5fbf6" : "rgba(245,251,246,.58)";
+  ctx.font = "15px ui-monospace, Menlo, monospace";
+  ctx.fillText(`${item.label} ${item.score.toFixed(2)}`, item.x + 8, item.y + 22);
+}
+
+function drawHistory() {
+  const base = 654;
+  state.history.forEach((item, i) => {
+    const x = 34 + i * 17;
+    ctx.fillStyle = item.fallback ? "#dc596f" : "#f2b356";
+    ctx.fillRect(x, base - clamp(item.total, 20, 220), 10, clamp(item.total, 20, 220));
+    ctx.fillStyle = item.selected ? "#60c0a0" : "rgba(220,89,111,.8)";
+    ctx.fillRect(x, base + 8, 10, 5);
+  });
+}
+
+function render(all, selected, perf) {
+  $("assetChip").textContent = perf.assetOk ? "asset: resolvable" : "asset: repair needed";
+  $("assetChip").className = `chip ${perf.assetOk ? "pass" : "bad"}`;
+  $("delegateChip").textContent = perf.fallback ? "delegate: fallback" : "delegate: ready";
+  $("delegateChip").className = `chip ${perf.fallback ? "warn" : "pass"}`;
+  $("rows").innerHTML = [
+    row("WASM fileset", `${perf.wasmMs.toFixed(0)} ms`, 240, perf.wasmMs),
+    row("modelAssetPath", state.broken ? "404 simulated" : `${perf.modelMs.toFixed(0)} ms`, 240, perf.modelMs),
+    row("delegate startup", `${perf.gpuStartup.toFixed(0)} ms`, 90, perf.gpuStartup),
+    row("detectForVideo budget", `${perf.inferMs.toFixed(1)} ms`, 34, perf.inferMs),
+    row("selected / total", `${selected.length} / ${all.length}`, all.length || 1, selected.length)
+  ].join("");
+  $("meters").innerHTML = [
+    meter("Init + infer", `${perf.total.toFixed(0)} ms`, perf.total > 240 ? "bad" : perf.total > 170 ? "warn" : "pass"),
+    meter("Fallbacks", state.fallbacks, state.fallbacks ? "warn" : "pass"),
+    meter("Emitted", state.emitted, "pass"),
+    meter("Held", state.held, state.held > state.emitted ? "warn" : "pass")
+  ].join("");
+}
+
+function row(label, value, max, current) {
+  const width = clamp((Number(current) / max) * 100, 3, 100);
+  return `<div class="row"><span>${label}: <strong class="value">${value}</strong></span><div class="bar"><span style="width:${width}%"></span></div></div>`;
+}
+
+function meter(label, value, tone) {
+  return `<div class="meter ${tone}">${label}<strong>${value}</strong></div>`;
+}
+
+["weight", "density", "threshold", "maxResults"].forEach((id) => $(id).addEventListener("input", () => { labels(); step(); }));
+$("delegate").addEventListener("change", step);
+$("step").addEventListener("click", step);
+$("toggle").addEventListener("click", () => {
+  state.running = !state.running;
+  $("toggle").textContent = state.running ? "Pause stream" : "Start stream";
+});
+$("jitter").addEventListener("click", () => { state.jitter = 5; log("network jitter injected for WASM/model fetch"); step(); });
+$("miss").addEventListener("click", () => { state.broken = !state.broken; $("miss").textContent = state.broken ? "Repair asset path" : "Break asset path"; step(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { tick: 0, jitter: 0, broken: false, history: [], fallbacks: 0, emitted: 0, held: 0 });
+  $("miss").textContent = "Break asset path";
+  step();
+});
+setInterval(() => { if (state.running) step(); }, 850);
+labels();
+step();
+</script>
+</body>
+</html>

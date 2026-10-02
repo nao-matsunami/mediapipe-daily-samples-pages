@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Model Asset Cache Warmup Timeline</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0d1017; color: #f7f8fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(92, 167, 231, .18), transparent 34%), linear-gradient(315deg, rgba(236, 179, 91, .17), transparent 42%), #0d1017; }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 248, 251, .15); }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.55rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #5ca7e7; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.62; color: #d5d9e2; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 248, 251, .22); background: #f7f8fb; color: #0d1017; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(13, 16, 23, .95); color: #f7f8fb; }
+    label { display: grid; gap: 6px; color: #eef3fb; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #5ca7e7; }
+    .toolbar, .panel, .timeline, .log { border: 1px solid rgba(247, 248, 251, .15); background: rgba(13, 16, 23, .88); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .timeline { padding: 14px; }
+    .track { position: relative; min-height: 420px; border: 1px solid rgba(247, 248, 251, .13); background: #070a10; overflow: hidden; padding: 18px; }
+    .lane { display: grid; grid-template-columns: 128px 1fr 72px; gap: 12px; align-items: center; margin: 14px 0; }
+    .label { color: #f7f8fb; font-size: .9rem; }
+    .bar { height: 30px; background: #1c2533; position: relative; overflow: hidden; }
+    .bar span { position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, #5ca7e7, #ecb35b); }
+    .bar b { position: absolute; inset: 6px 8px auto auto; font-size: .76rem; color: #081019; background: rgba(247, 248, 251, .85); padding: 2px 6px; }
+    .value { color: #ecb35b; font-variant-numeric: tabular-nums; }
+    .chip { display: inline-block; border: 1px solid rgba(247, 248, 251, .24); padding: 5px 8px; color: #eef3fb; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(92, 167, 231, .82); background: rgba(92, 167, 231, .14); }
+    .warn { border-color: rgba(236, 179, 91, .82); background: rgba(236, 179, 91, .14); }
+    .bad { border-color: rgba(221, 91, 118, .82); background: rgba(221, 91, 118, .14); }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .card { border: 1px solid rgba(247, 248, 251, .13); background: #151b26; padding: 10px; min-height: 78px; }
+    .card strong { display: block; margin-top: 5px; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 126px; overflow: auto; white-space: pre-wrap; color: #e9edf5; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .cards { grid-template-columns: 1fr; }
+      .lane { grid-template-columns: 96px 1fr 60px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Model Asset Cache Warmup Timeline</h1>
+    <p>MediaPipe Tasks Web の WASM と modelAssetPath を、初回アクセス前にどこまで温めるかを比較する派生試作です。Service Worker 風キャッシュ、CDN jitter、delegate warmup、offline fallback を小さなタイムラインで見ます。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>WASM size <input id="wasm" type="range" min="3" max="18" value="8"><span id="wasmValue" class="value">8 MB</span></label>
+    <label>Model size <input id="model" type="range" min="2" max="40" value="14"><span id="modelValue" class="value">14 MB</span></label>
+    <label>Network jitter <input id="jitter" type="range" min="0" max="8" value="2"><span id="jitterValue" class="value">2x</span></label>
+    <label>Cache policy <select id="policy"><option value="eager">eager warmup</option><option value="lazy">lazy first use</option><option value="stale">stale while revalidate</option></select><span class="value">asset route</span></label>
+    <label>Delegate <select id="delegate"><option value="auto">auto</option><option value="gpu">GPU warm</option><option value="cpu">CPU only</option></select><span class="value">warmup cost</span></label>
+    <button id="run">Run timeline</button>
+    <button id="offline" class="secondary">Toggle offline</button>
+    <button id="evict" class="secondary">Evict cache</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Cache decision</h2>
+      <p>Object Detector などの Vision task を開く前に、WASM fileset とモデルをキャッシュに置くか、初回操作時に取得するかを比較します。ここでの数値は合成ですが、実装時に計測ログへ差し替えやすい形にしています。</p>
+      <span id="readyChip" class="chip">ready: pending</span>
+      <span id="offlineChip" class="chip">offline: false</span>
+      <div id="summary"></div>
+    </aside>
+    <section>
+      <div class="timeline">
+        <h2>Startup timeline</h2>
+        <div id="track" class="track"></div>
+        <div id="cards" class="cards"></div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const state = { offline: false, cache: { wasm: true, model: false, delegate: false }, run: 0, misses: 0, hits: 0 };
+const stages = ["Resolve WASM", "Fetch model", "Map buffer", "Delegate warm", "First detect"];
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function labels() {
+  $("wasmValue").textContent = `${$("wasm").value} MB`;
+  $("modelValue").textContent = `${$("model").value} MB`;
+  $("jitterValue").textContent = `${$("jitter").value}x`;
+}
+
+function log(line) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${line}\n${$("log").textContent}`.slice(0, 2100);
+}
+
+function compute() {
+  const policy = $("policy").value;
+  const delegate = $("delegate").value;
+  const jitter = Number($("jitter").value);
+  const wasmSize = Number($("wasm").value);
+  const modelSize = Number($("model").value);
+  const network = state.offline ? 999 : 1 + jitter * .23;
+  const wasm = state.cache.wasm ? 18 : wasmSize * 18 * network;
+  const model = state.cache.model ? 22 : modelSize * 15 * network;
+  const map = 24 + modelSize * 1.3;
+  const warm = delegate === "cpu" ? 10 : state.cache.delegate ? 12 : delegate === "gpu" ? 58 : 36;
+  const first = delegate === "cpu" ? 18 + modelSize * .12 : 11 + modelSize * .08;
+  const lazyPenalty = policy === "lazy" ? model + wasm : 0;
+  const usableOffline = state.offline && (state.cache.wasm && state.cache.model);
+  const values = policy === "eager"
+    ? [wasm, model, map, warm, first]
+    : policy === "stale"
+      ? [state.cache.wasm ? 16 : wasm, state.cache.model ? 20 : model * .45, map, warm, first]
+      : [16, 0, 0, 0, first + lazyPenalty];
+  const total = values.reduce((sum, item) => sum + item, 0);
+  const ready = !state.offline || usableOffline;
+  return { values, total, ready, usableOffline, policy, delegate, network };
+}
+
+function run() {
+  state.run += 1;
+  const result = compute();
+  if (result.ready) {
+    state.hits += 1;
+    if (result.policy !== "lazy") {
+      state.cache.wasm = true;
+      state.cache.model = true;
+      state.cache.delegate = result.delegate !== "cpu";
+    }
+  } else {
+    state.misses += 1;
+  }
+  render(result);
+  log(`run ${state.run}: ${result.policy}, total ${result.total.toFixed(0)}ms, ${result.ready ? "ready" : "blocked"}`);
+}
+
+function render(result) {
+  const max = Math.max(900, ...result.values) || 900;
+  let start = 0;
+  $("track").innerHTML = stages.map((stage, index) => {
+    const ms = result.values[index];
+    const width = clamp(ms / max * 100, ms === 0 ? 0 : 3, 100);
+    const offset = clamp(start / result.total * 88, 0, 88);
+    start += ms;
+    const tone = ms > 500 ? "#dd5b76" : ms > 180 ? "#ecb35b" : "#5ca7e7";
+    return `<div class="lane"><span class="label">${stage}</span><div class="bar"><span style="width:${width}%; margin-left:${offset}%; background:${tone}"></span><b>${ms.toFixed(0)}ms</b></div><span class="value">${(start / 1000).toFixed(2)}s</span></div>`;
+  }).join("");
+  $("cards").innerHTML = [
+    card("Total startup", `${result.total.toFixed(0)} ms`, result.total > 1200 ? "bad" : result.total > 650 ? "warn" : "pass"),
+    card("Cache hits", state.hits, "pass"),
+    card("Blocked runs", state.misses, state.misses ? "bad" : "pass")
+  ].join("");
+  $("readyChip").textContent = result.ready ? "ready: can run" : "ready: blocked";
+  $("readyChip").className = `chip ${result.ready ? "pass" : "bad"}`;
+  $("offlineChip").textContent = `offline: ${state.offline}`;
+  $("offlineChip").className = `chip ${state.offline ? "warn" : "pass"}`;
+  $("summary").innerHTML = [
+    row("WASM cached", state.cache.wasm ? "yes" : "no"),
+    row("Model cached", state.cache.model ? "yes" : "no"),
+    row("Delegate warm", state.cache.delegate ? "yes" : "no"),
+    row("Offline usable", result.usableOffline ? "yes" : "no"),
+    row("Next hook", result.policy === "lazy" ? "measure first user action" : "measure app boot")
+  ].join("");
+}
+
+function row(label, value) {
+  return `<p style="margin-top:10px">${label}: <strong class="value">${value}</strong></p>`;
+}
+
+function card(label, value, tone) {
+  return `<div class="card ${tone}">${label}<strong>${value}</strong></div>`;
+}
+
+["wasm", "model", "jitter"].forEach((id) => $(id).addEventListener("input", () => { labels(); run(); }));
+$("policy").addEventListener("change", run);
+$("delegate").addEventListener("change", run);
+$("run").addEventListener("click", run);
+$("offline").addEventListener("click", () => { state.offline = !state.offline; run(); });
+$("evict").addEventListener("click", () => { state.cache = { wasm: false, model: false, delegate: false }; log("cache evicted"); run(); });
+$("reset").addEventListener("click", () => { Object.assign(state, { offline: false, cache: { wasm: true, model: false, delegate: false }, run: 0, misses: 0, hits: 0 }); run(); });
+labels();
+run();
+</script>
+</body>
+</html>
