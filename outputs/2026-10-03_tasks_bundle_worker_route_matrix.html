@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasks Bundle Worker Route Matrix</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #08100f; color: #f4fbf8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(89, 194, 170, .16), transparent 34%), linear-gradient(315deg, rgba(238, 181, 91, .15), transparent 38%), #08100f; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(244, 251, 248, .15); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #59c2aa; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.65; color: #c9d9d4; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(244, 251, 248, .22); background: #f4fbf8; color: #08100f; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(8, 16, 15, .94); color: #f4fbf8; }
+    label { display: grid; gap: 6px; color: #ecf6f3; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #59c2aa; }
+    .toolbar, .panel, .matrix, .log { border: 1px solid rgba(244, 251, 248, .15); background: rgba(8, 16, 15, .86); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(138px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .matrix { padding: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .route { min-height: 190px; border: 1px solid rgba(244, 251, 248, .14); background: #101b19; padding: 12px; display: grid; gap: 8px; align-content: start; }
+    .route strong { color: #f4fbf8; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 251, 248, .24); padding: 5px 8px; color: #edf8f5; font-size: .78rem; margin-right: 6px; }
+    .pass { border-color: rgba(89, 194, 170, .84); background: rgba(89, 194, 170, .14); }
+    .warn { border-color: rgba(238, 181, 91, .84); background: rgba(238, 181, 91, .14); }
+    .bad { border-color: rgba(218, 85, 108, .84); background: rgba(218, 85, 108, .14); }
+    .bar { height: 12px; background: #263532; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #59c2aa, #eeb55b); }
+    .value { color: #eeb55b; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(244, 251, 248, .13); background: #101b19; padding: 10px; min-height: 72px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.35rem); color: #f4fbf8; font-variant-numeric: tabular-nums; }
+    .timeline { margin-top: 12px; height: 180px; border: 1px solid rgba(244, 251, 248, .14); background: #040908; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .log { margin-top: 14px; padding: 12px; height: 124px; overflow: auto; white-space: pre-wrap; color: #e8f2ef; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 940px) {
+      .toolbar, .layout, .grid, .meters { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Tasks Bundle Worker Route Matrix</h1>
+    <p>MediaPipe Tasks Web の ESM / IIFE / npm worker 経路を、WASM base path、CSP、offline、cross-origin isolation、Vite worker packaging の観点で比較する自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>App shell <select id="shell"><option value="plain">plain browser</option><option value="vite">Vite worker app</option><option value="pwa">PWA offline shell</option></select><span class="value">loader context</span></label>
+    <label>CSP strictness <input id="csp" type="range" min="0" max="100" value="46"><span id="cspValue" class="value">46</span></label>
+    <label>Network jitter <input id="jitter" type="range" min="0" max="100" value="28"><span id="jitterValue" class="value">28</span></label>
+    <label>WASM path health <input id="wasm" type="range" min="0" max="100" value="82"><span id="wasmValue" class="value">82</span></label>
+    <label>Worker load <input id="worker" type="range" min="0" max="100" value="38"><span id="workerValue" class="value">38</span></label>
+    <button id="probe">Run probe</button>
+    <button id="loop" class="secondary">Start loop</button>
+    <button id="offline" class="secondary">Toggle offline</button>
+    <button id="isolation" class="secondary">Toggle isolation</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Route assumptions</h2>
+      <p>公式 Web setup の CDN / npm 導入、MediaPipe v1.0.0 の IIFE bundle 追加、v0.10.35 の Vite worker 対応を、実装前に壊れやすい条件として分解します。</p>
+      <div id="assumptions"></div>
+    </aside>
+    <section class="matrix">
+      <h2>Loader route matrix</h2>
+      <div id="routes" class="grid"></div>
+      <div class="meters" id="meters"></div>
+      <div class="timeline"><canvas id="chart" width="920" height="180"></canvas></div>
+    </section>
+  </div>
+  <div id="log" class="log"></div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("chart").getContext("2d");
+const state = { tick: 0, offline: false, isolated: false, loop: false, history: [], best: "ESM CDN", failures: 0 };
+const routeDefs = [
+  { name: "ESM CDN", setup: 36, csp: 34, offline: 70, worker: 30, note: "vision_bundle.mjs + CDN base path" },
+  { name: "IIFE CDN", setup: 28, csp: 22, offline: 66, worker: 44, note: "release note の IIFE bundle を想定" },
+  { name: "npm Worker", setup: 48, csp: 18, offline: 36, worker: 18, note: "Vite / worker packaging 向け" }
+];
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function labels() {
+  ["csp", "jitter", "wasm", "worker"].forEach((id) => { $(`${id}Value`).textContent = $(id).value; });
+}
+
+function log(message) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${message}\n${$("log").textContent}`.slice(0, 2300);
+}
+
+function scoreRoute(route) {
+  const shell = $("shell").value;
+  const csp = Number($("csp").value);
+  const jitter = Number($("jitter").value);
+  const wasm = Number($("wasm").value);
+  const worker = Number($("worker").value);
+  const shellFit = shell === "vite" ? (route.name === "npm Worker" ? 20 : -8) : shell === "pwa" ? (route.name === "npm Worker" ? 12 : -2) : (route.name.includes("CDN") ? 10 : 0);
+  const cspRisk = Math.max(0, csp - route.csp) * .72;
+  const offlineRisk = state.offline ? route.offline * .8 : 0;
+  const workerRisk = Math.max(0, worker - route.worker) * .55;
+  const wasmRisk = Math.max(0, 68 - wasm) * .9;
+  const isoBonus = state.isolated && route.name === "npm Worker" ? 8 : 0;
+  const loadMs = route.setup + jitter * .7 + cspRisk + offlineRisk + workerRisk + wasmRisk - shellFit - isoBonus;
+  const health = clamp(100 - loadMs * .55 + wasm * .18 + shellFit + isoBonus, 0, 100);
+  const status = health > 72 ? "pass" : health > 43 ? "warn" : "bad";
+  return { ...route, loadMs, health, status, cspRisk, offlineRisk, workerRisk, wasmRisk };
+}
+
+function probe() {
+  labels();
+  state.tick += 1;
+  const results = routeDefs.map(scoreRoute).sort((a, b) => b.health - a.health);
+  state.best = results[0].name;
+  state.failures += results.filter((item) => item.status === "bad").length;
+  state.history.push(results.map((item) => item.health));
+  state.history = state.history.slice(-54);
+  render(results);
+  log(`probe ${state.tick}: best=${state.best}, offline=${state.offline ? "on" : "off"}, isolation=${state.isolated ? "on" : "off"}`);
+}
+
+function render(results) {
+  $("assumptions").innerHTML = [
+    chip(`shell: ${$("shell").value}`, "pass"),
+    chip(`offline: ${state.offline ? "on" : "off"}`, state.offline ? "warn" : "pass"),
+    chip(`cross-origin isolation: ${state.isolated ? "on" : "off"}`, state.isolated ? "pass" : "warn"),
+    chip(`WASM path: ${$("wasm").value}/100`, Number($("wasm").value) > 64 ? "pass" : "bad")
+  ].join("");
+  $("routes").innerHTML = results.map((item) => `
+    <article class="route">
+      <div><span class="chip ${item.status}">${item.status.toUpperCase()}</span><strong>${item.name}</strong></div>
+      <p>${item.note}</p>
+      ${bar("health", item.health, 100)}
+      ${bar("load estimate", item.loadMs, 180)}
+      <p>CSP risk <span class="value">${item.cspRisk.toFixed(0)}</span> / offline risk <span class="value">${item.offlineRisk.toFixed(0)}</span> / worker risk <span class="value">${item.workerRisk.toFixed(0)}</span></p>
+    </article>
+  `).join("");
+  $("meters").innerHTML = [
+    meter("Best route", state.best, "pass"),
+    meter("Probe count", state.tick, "pass"),
+    meter("Bad routes", results.filter((item) => item.status === "bad").length, results.some((item) => item.status === "bad") ? "warn" : "pass"),
+    meter("Total failures", state.failures, state.failures ? "warn" : "pass")
+  ].join("");
+  draw();
+}
+
+function chip(text, tone) {
+  return `<span class="chip ${tone}">${text}</span>`;
+}
+
+function bar(label, value, max) {
+  const width = clamp((value / max) * 100, 4, 100);
+  return `<div><p>${label}: <span class="value">${value.toFixed(0)}</span></p><div class="bar"><span style="width:${width}%"></span></div></div>`;
+}
+
+function meter(label, value, tone) {
+  return `<div class="meter ${tone}"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 920, 180);
+  ctx.fillStyle = "#040908";
+  ctx.fillRect(0, 0, 920, 180);
+  ctx.strokeStyle = "rgba(244,251,248,.08)";
+  for (let x = 0; x < 920; x += 46) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 180);
+    ctx.stroke();
+  }
+  const colors = ["#59c2aa", "#eeb55b", "#da556c"];
+  routeDefs.forEach((route, index) => {
+    ctx.strokeStyle = colors[index];
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    state.history.forEach((points, i) => {
+      const x = 20 + i * 16;
+      const y = 162 - points[index] * 1.38;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = colors[index];
+    ctx.fillText(route.name, 20 + index * 130, 18);
+  });
+}
+
+$("probe").addEventListener("click", probe);
+$("loop").addEventListener("click", () => {
+  state.loop = !state.loop;
+  $("loop").textContent = state.loop ? "Stop loop" : "Start loop";
+});
+$("offline").addEventListener("click", () => { state.offline = !state.offline; probe(); });
+$("isolation").addEventListener("click", () => { state.isolated = !state.isolated; probe(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { tick: 0, offline: false, isolated: false, loop: false, history: [], best: "ESM CDN", failures: 0 });
+  $("loop").textContent = "Start loop";
+  probe();
+});
+["shell", "csp", "jitter", "wasm", "worker"].forEach((id) => $(id).addEventListener("input", probe));
+setInterval(() => {
+  if (!state.loop) return;
+  $("jitter").value = clamp(Number($("jitter").value) + Math.sin(state.tick * .7) * 9, 0, 100);
+  probe();
+}, 900);
+probe();
+</script>
+</body>
+</html>

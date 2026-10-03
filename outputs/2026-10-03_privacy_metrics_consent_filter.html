@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Metrics Consent Filter</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0c0f12; color: #f7faf8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(145deg, rgba(86, 174, 204, .16), transparent 36%), linear-gradient(315deg, rgba(225, 108, 118, .13), transparent 38%), #0c0f12; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(247, 250, 248, .14); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.65rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #56aecc; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.65; color: #cad5d2; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(247, 250, 248, .22); background: #f7faf8; color: #0c0f12; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(12, 15, 18, .94); color: #f7faf8; }
+    label { display: grid; gap: 6px; color: #eef4f1; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #56aecc; }
+    .toolbar, .panel, .queue, .log { border: 1px solid rgba(247, 250, 248, .14); background: rgba(12, 15, 18, .86); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .queue { padding: 14px; }
+    .row { border: 1px solid rgba(247, 250, 248, .12); background: #14191d; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .chip { display: inline-block; border: 1px solid rgba(247, 250, 248, .23); padding: 5px 8px; color: #eef4f1; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(86, 174, 204, .84); background: rgba(86, 174, 204, .14); }
+    .warn { border-color: rgba(230, 184, 87, .84); background: rgba(230, 184, 87, .14); }
+    .bad { border-color: rgba(225, 108, 118, .84); background: rgba(225, 108, 118, .14); }
+    .value { color: #e6b857; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(247, 250, 248, .12); background: #14191d; padding: 10px; min-height: 72px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.35rem); color: #f7faf8; font-variant-numeric: tabular-nums; }
+    .canvasWrap { margin-top: 12px; height: 270px; border: 1px solid rgba(247, 250, 248, .14); background: #050708; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .log { margin-top: 14px; padding: 12px; height: 116px; overflow: auto; white-space: pre-wrap; color: #e8f0ee; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Privacy Metrics Consent Filter</h1>
+    <p>MediaPipe Tasks は入力データを端末内で処理する前提と、性能・利用状況 metrics への同意説明を分けて扱う必要があります。これはイベントを送信・集計・破棄に振り分ける小さな派生試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Consent mode <select id="consent"><option value="full">metrics allowed</option><option value="minimal">minimal diagnostics</option><option value="none">no metrics</option></select><span class="value">user choice</span></label>
+    <label>Event rate <input id="rate" type="range" min="1" max="12" value="6"><span id="rateValue" class="value">6 / tick</span></label>
+    <label>Detail level <input id="detail" type="range" min="0" max="100" value="48"><span id="detailValue" class="value">48</span></label>
+    <label>Retention <input id="retention" type="range" min="0" max="100" value="38"><span id="retentionValue" class="value">38</span></label>
+    <label>Device stress <input id="stress" type="range" min="0" max="100" value="41"><span id="stressValue" class="value">41</span></label>
+    <button id="tick">Process tick</button>
+    <button id="loop" class="secondary">Start loop</button>
+    <button id="notice" class="secondary">Mark notice read</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Consent gates</h2>
+      <p>カメラ画像・音声・テキストそのものを送らない設計と、runtime metrics の説明・同意・最小化を別レーンで扱います。</p>
+      <div id="chips"></div>
+      <div class="meters" id="meters"></div>
+    </aside>
+    <section class="queue">
+      <h2>Filtered event queue</h2>
+      <div id="events"></div>
+      <div class="canvasWrap"><canvas id="chart" width="760" height="270"></canvas></div>
+    </section>
+  </div>
+  <div id="log" class="log"></div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("chart").getContext("2d");
+const state = { tick: 0, loop: false, noticeRead: false, sent: 0, summarized: 0, dropped: 0, held: 0, history: [], events: [] };
+const kinds = ["init_ms", "delegate_fallback", "frame_budget", "model_cache", "task_error", "input_shape"];
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function labels() {
+  $("rateValue").textContent = `${$("rate").value} / tick`;
+  ["detail", "retention", "stress"].forEach((id) => { $(`${id}Value`).textContent = $(id).value; });
+}
+
+function log(message) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${message}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function classify(event) {
+  const consent = $("consent").value;
+  const detail = Number($("detail").value);
+  const retention = Number($("retention").value);
+  const noticePenalty = state.noticeRead ? 0 : 32;
+  const identRisk = event.detail + retention * .3 + noticePenalty;
+  if (consent === "none") return { route: "drop", tone: "bad", reason: "no metrics consent" };
+  if (identRisk > 86) return { route: "hold", tone: "warn", reason: "needs review" };
+  if (consent === "minimal" || detail > 62) return { route: "summarize", tone: "warn", reason: "aggregate only" };
+  return { route: "send", tone: "pass", reason: "metrics ok" };
+}
+
+function makeEvent(i) {
+  const stress = Number($("stress").value);
+  const detail = Number($("detail").value);
+  const kind = kinds[(state.tick + i) % kinds.length];
+  const value = Math.round(10 + stress * .9 + Math.sin((state.tick + i) * .8) * 16 + i * 3);
+  return { id: `${state.tick}-${i}`, kind, value, detail: clamp(detail + (i % 4) * 11 + (kind === "task_error" ? 18 : 0), 0, 100) };
+}
+
+function processTick() {
+  labels();
+  state.tick += 1;
+  const batch = Array.from({ length: Number($("rate").value) }, (_, i) => makeEvent(i));
+  const routed = batch.map((event) => ({ ...event, ...classify(event) }));
+  for (const item of routed) {
+    if (item.route === "send") state.sent += 1;
+    if (item.route === "summarize") state.summarized += 1;
+    if (item.route === "drop") state.dropped += 1;
+    if (item.route === "hold") state.held += 1;
+  }
+  state.events = [...routed, ...state.events].slice(0, 9);
+  state.history.push({ sent: state.sent, summarized: state.summarized, dropped: state.dropped, held: state.held });
+  state.history = state.history.slice(-48);
+  render();
+  log(`tick ${state.tick}: send=${routed.filter((e) => e.route === "send").length}, summarize=${routed.filter((e) => e.route === "summarize").length}, hold/drop=${routed.filter((e) => e.route === "hold" || e.route === "drop").length}`);
+}
+
+function render() {
+  const consent = $("consent").value;
+  $("chips").innerHTML = [
+    chip(`notice: ${state.noticeRead ? "read" : "unread"}`, state.noticeRead ? "pass" : "warn"),
+    chip(`consent: ${consent}`, consent === "full" ? "pass" : consent === "minimal" ? "warn" : "bad"),
+    chip(`input payload: local only`, "pass"),
+    chip(`retention: ${$("retention").value}/100`, Number($("retention").value) > 70 ? "warn" : "pass")
+  ].join("");
+  $("meters").innerHTML = [
+    meter("Sent", state.sent, "pass"),
+    meter("Summarized", state.summarized, "warn"),
+    meter("Held", state.held, state.held ? "warn" : "pass"),
+    meter("Dropped", state.dropped, state.dropped ? "bad" : "pass")
+  ].join("");
+  $("events").innerHTML = state.events.map((event) => `
+    <div class="row ${event.tone}">
+      <div><strong>${event.kind}</strong><p>value <span class="value">${event.value}</span> / detail <span class="value">${event.detail}</span> / ${event.reason}</p></div>
+      <span class="chip ${event.tone}">${event.route}</span>
+    </div>
+  `).join("");
+  draw();
+}
+
+function chip(text, tone) {
+  return `<span class="chip ${tone}">${text}</span>`;
+}
+
+function meter(label, value, tone) {
+  return `<div class="meter ${tone}"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 760, 270);
+  ctx.fillStyle = "#050708";
+  ctx.fillRect(0, 0, 760, 270);
+  const max = Math.max(1, ...state.history.flatMap((h) => [h.sent, h.summarized, h.held, h.dropped]));
+  const series = [
+    ["sent", "#56aecc"],
+    ["summarized", "#e6b857"],
+    ["held", "#ba86e8"],
+    ["dropped", "#e16c76"]
+  ];
+  series.forEach(([key, color], index) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    state.history.forEach((point, i) => {
+      const x = 22 + i * 15;
+      const y = 238 - (point[key] / max) * 196;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fillText(key, 22 + index * 120, 22);
+  });
+}
+
+$("tick").addEventListener("click", processTick);
+$("loop").addEventListener("click", () => {
+  state.loop = !state.loop;
+  $("loop").textContent = state.loop ? "Stop loop" : "Start loop";
+});
+$("notice").addEventListener("click", () => { state.noticeRead = !state.noticeRead; render(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { tick: 0, loop: false, noticeRead: false, sent: 0, summarized: 0, dropped: 0, held: 0, history: [], events: [] });
+  $("loop").textContent = "Start loop";
+  processTick();
+});
+["consent", "rate", "detail", "retention", "stress"].forEach((id) => $(id).addEventListener("input", processTick));
+setInterval(() => {
+  if (!state.loop) return;
+  $("stress").value = clamp(Number($("stress").value) + Math.sin(state.tick * .5) * 7, 0, 100);
+  processTick();
+}, 1000);
+processTick();
+</script>
+</body>
+</html>

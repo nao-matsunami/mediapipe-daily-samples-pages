@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-03",
+  "category": "MediaPipe / Google AI Edge / Tasks Web / Web ML",
+  "headline": "Tasks Web は bundle と worker の経路を先に選べる形にする",
+  "headlineEn": "Tasks Web benefits from choosing bundle and worker routes before model hookup",
+  "summary": "Google AI Edge の Web setup、MediaPipe Tasks Vision Web README、MediaPipe releases、mediapipe-samples-web を確認し、自作サンプルを2本追加しました。本命は ESM CDN / IIFE CDN / npm worker の読み込み経路を CSP、offline、WASM path、worker load で比較する Tasks Bundle Worker Route Matrix、派生はローカル入力処理と metrics consent を分けて send / summarize / hold / drop に振り分ける Privacy Metrics Consent Filter です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, MediaPipe Tasks Vision Web README, MediaPipe releases, and mediapipe-samples-web, this adds two original samples. The main sample is Tasks Bundle Worker Route Matrix, comparing ESM CDN, IIFE CDN, and npm worker loading routes across CSP, offline, WASM path, and worker load constraints. The derivative is Privacy Metrics Consent Filter, which separates local input processing from metrics consent and routes events to send / summarize / hold / drop.",
+  "keyTopics": [
+    "Web setup guide は `@mediapipe/tasks-vision` などの package、CDN / npm 導入、`FilesetResolver`、BaseOptions、model path、delegate を整理している。",
+    "MediaPipe v1.0.0 release notes では JavaScript IIFE bundles、MediaPipe Tasks Privacy Notice、VisionTaskRunner の running mode cache など Web 統合に効く項目が並んでいる。",
+    "MediaPipe v0.10.35 release notes では JavaScript package export fix と Vite worker で Task files を扱いやすくする変更が示されている。",
+    "Tasks Vision Web README は Vision package の対象 task と、入力データが端末内で処理されるという Privacy Notice 系の前提を確認する入口になる。",
+    "Web ML の公開前チェックでは、精度検証だけでなく、bundle route、WASM base path、CSP、offline、worker packaging、metrics consent を小さく可視化しておくと障害の切り分けが速くなる。"
+  ],
+  "keyTopicsEn": [
+    "The Web setup guide organizes packages such as `@mediapipe/tasks-vision`, CDN / npm installation, `FilesetResolver`, BaseOptions, model paths, and delegates.",
+    "The MediaPipe v1.0.0 release notes include Web integration items such as JavaScript IIFE bundles, the MediaPipe Tasks Privacy Notice, and VisionTaskRunner running mode caching.",
+    "The MediaPipe v0.10.35 release notes mention a JavaScript package export fix and changes that make Task files easier to use in Vite workers.",
+    "The Tasks Vision Web README is an entry point for the Vision package task list and the privacy premise that input data is processed on device.",
+    "Before publishing a Web ML app, it helps to visualize not only accuracy but also bundle route, WASM base path, CSP, offline behavior, worker packaging, and metrics consent so failures can be separated quickly."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Tasks Bundle Worker Route Matrix",
+      "url": "../outputs/2026-10-03_tasks_bundle_worker_route_matrix.html"
+    },
+    {
+      "label": "Today's derivative sample: Privacy Metrics Consent Filter",
+      "url": "../outputs/2026-10-03_privacy_metrics_consent_filter.html"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: google-ai-edge/mediapipe",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-03-tasks-bundle-worker-route-matrix.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Gesture / Object / Image Segmenter など個別 task の前にある読み込み経路です。Web setup guide は CDN と npm の両方を示し、MediaPipe v1.0.0 では IIFE bundle と Privacy Notice が追加され、v0.10.35 では JavaScript package export fix や Vite worker で扱いやすくする変更が出ています。つまり Web ML アプリでは、モデル精度より先に bundle route、WASM base path、worker packaging、CSP、offline を見える化する価値があります。",
+      "bodyEn": "Today's notable angle is the loading route that sits before individual tasks such as Gesture, Object, or Image Segmenter. The Web setup guide shows both CDN and npm paths; MediaPipe v1.0.0 added IIFE bundles and the Privacy Notice; v0.10.35 included JavaScript package export fixes and changes that make Task files easier to use in Vite workers. For Web ML apps, it is valuable to visualize bundle route, WASM base path, worker packaging, CSP, and offline behavior before model accuracy work."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Tasks Bundle Worker Route Matrix` は ESM CDN、IIFE CDN、npm Worker の3ルートを、App shell、CSP strictness、Network jitter、WASM path health、Worker load、offline、cross-origin isolation で比較します。派生の `Privacy Metrics Consent Filter` は入力 payload は local only のまま、runtime metrics だけを同意状態、detail level、retention、device stress に応じて send / summarize / hold / drop へ振り分けます。",
+      "bodyEn": "The main sample, `Tasks Bundle Worker Route Matrix`, compares ESM CDN, IIFE CDN, and npm Worker routes through app shell, CSP strictness, network jitter, WASM path health, worker load, offline mode, and cross-origin isolation. The derivative, `Privacy Metrics Consent Filter`, keeps input payloads local-only while routing runtime metrics to send / summarize / hold / drop based on consent mode, detail level, retention, and device stress."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは package route、WASM base path health、CSP risk、offline risk、worker load、startup estimate、fallback count、consent mode、notice read state、metrics route、retention score、device stress です。MediaPipe Tasks Vision、Text、Audio、LLM Inference、Service Worker Cache Storage、Resource Timing、PerformanceObserver、IndexedDB、Vite worker、PWA manifest と組み合わせると、実モデル接続後も同じ preflight UI で導入環境差と同意状態を追えます。",
+      "bodyEn": "The samples can accumulate package route, WASM base path health, CSP risk, offline risk, worker load, startup estimate, fallback count, consent mode, notice-read state, metrics route, retention score, and device stress. Combined with MediaPipe Tasks Vision, Text, Audio, LLM Inference, Service Worker Cache Storage, Resource Timing, PerformanceObserver, IndexedDB, Vite workers, and PWA manifests, the same preflight UI can track deployment environment differences and consent state after real model hookup."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `FilesetResolver.forVisionTasks()` の base path、CDN の `vision_bundle.mjs`、npm package から worker へ渡す import path、IIFE bundle の global namespace を別々に計測します。Vite では worker 内 import と asset copy の扱い、PWA では Service Worker cache と offline fallback、CSP では `script-src` / `worker-src` / `wasm-unsafe-eval` 相当の制約を UI に出すと調査が楽になります。Privacy Notice は入力が端末内で処理される説明と、performance / utilization metrics の説明を別のチェック項目に分けるのが実装上わかりやすいです。",
+      "bodyEn": "In implementation, measure the `FilesetResolver.forVisionTasks()` base path, CDN `vision_bundle.mjs`, import paths passed from npm packages into workers, and IIFE bundle globals separately. With Vite, inspect worker imports and asset copying; with PWAs, inspect Service Worker cache and offline fallback; with CSP, surface constraints such as `script-src`, `worker-src`, and Wasm evaluation policy. For the Privacy Notice, it is clearer to separate the explanation that inputs are processed on device from performance / utilization metrics disclosure."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は MediaPipe releases の JavaScript / WASM / bundle / worker 関連、Web setup guide の CDN snippet 変更、`mediapipe-samples-web` の worker 実装差分、npm `@mediapipe/tasks-vision` / `tasks-text` / `tasks-audio` の package export、Google AI Edge 側の Privacy Notice 表記変更を見ます。",
+      "bodyEn": "Next, watch JavaScript / WASM / bundle / worker notes in MediaPipe releases, CDN snippet changes in the Web setup guide, worker implementation diffs in `mediapipe-samples-web`, package exports for npm `@mediapipe/tasks-vision` / `tasks-text` / `tasks-audio`, and wording changes around the Google AI Edge Privacy Notice."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Tasks Bundle Worker Route Matrix` で App shell を Vite worker app にし、CSP strictness と Worker load を上げてから Toggle isolation を押すと、npm Worker route が強くなる条件と CDN route の詰まり方が見えます。派生では Consent mode を minimal diagnostics にし、Detail level と Retention を上げて Mark notice read を切り替えると、metrics を送る・集計する・保留する境界が見えます。",
+      "bodyEn": "In `Tasks Bundle Worker Route Matrix`, set App shell to Vite worker app, raise CSP strictness and Worker load, then toggle isolation to see when the npm Worker route becomes stronger and where CDN routes get constrained. In the derivative, set Consent mode to minimal diagnostics, raise Detail level and Retention, then toggle Mark notice read to see the boundary between sending, aggregating, and holding metrics."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Web setup guide、Tasks Vision Web README、MediaPipe releases、google-ai-edge/mediapipe、mediapipe-samples-web を確認。設計: 外部デモ一覧ではなく、bundle / worker route と consent filter の自作 UI にする。実装: 本命 HTML に ESM CDN / IIFE CDN / npm Worker matrix、CSP、offline、WASM health、worker load、timeline を追加。派生 HTML に consent mode、notice read、event route、retention、device stress、queue chart を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Web setup guide, Tasks Vision Web README, MediaPipe releases, google-ai-edge/mediapipe, and mediapipe-samples-web. Design: instead of listing external demos, create original UIs for bundle / worker routes and consent filtering. Implementation: added an ESM CDN / IIFE CDN / npm Worker matrix, CSP, offline, WASM health, worker load, and timeline to the main HTML. Added consent mode, notice read, event routing, retention, device stress, and queue chart to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は Object Detector の modelAssetPath / delegate / cache warmup を扱いました。今日はさらに外側へ出て、Tasks Web をアプリへ入れるときの bundle route と worker route、そして Privacy Notice / metrics consent を扱いました。これで日次サンプルはモデル実行、フレーム運用、資産プリフライト、配布経路、同意 UI までつながりました。",
+      "bodyEn": "Yesterday handled Object Detector modelAssetPath / delegate / cache warmup. Today moves one layer outward to bundle routes, worker routes, and Privacy Notice / metrics consent when bringing Tasks Web into an app. The daily samples now connect model execution, frame operations, asset preflight, distribution route, and consent UI."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Tasks Bundle Worker Route Matrix` です。実際に動く部分は ESM CDN / IIFE CDN / npm Worker の route health、CSP risk、offline risk、worker risk、WASM path health、best route timeline です。次に足すなら実 `import()` probe、worker startup probe、Resource Timing、CSP violation event、package version pin 表示を足します。派生試作は `Privacy Metrics Consent Filter` で、実際に動く部分は consent mode、notice read、event rate、detail level、retention、device stress による send / summarize / hold / drop routing です。次に足すなら同意 version の保存、明示的な Privacy Notice リンク、local-only debug export、metrics schema allowlist を足します。",
+      "bodyEn": "The selected main prototype is `Tasks Bundle Worker Route Matrix`. The working pieces are route health for ESM CDN / IIFE CDN / npm Worker, CSP risk, offline risk, worker risk, WASM path health, and best-route timeline. Next additions should include real `import()` probes, worker startup probes, Resource Timing, CSP violation events, and package version pin display. The derivative prototype is `Privacy Metrics Consent Filter`; the working pieces are send / summarize / hold / drop routing based on consent mode, notice read, event rate, detail level, retention, and device stress. Next additions should include persisted consent version, an explicit Privacy Notice link, local-only debug export, and a metrics schema allowlist.",
+      "links": [
+        {
+          "label": "Open Tasks Bundle Worker Route Matrix",
+          "url": "../outputs/2026-10-03_tasks_bundle_worker_route_matrix.html"
+        },
+        {
+          "label": "Open Privacy Metrics Consent Filter",
+          "url": "../outputs/2026-10-03_privacy_metrics_consent_filter.html"
+        }
+      ]
+    }
+  ]
+}
