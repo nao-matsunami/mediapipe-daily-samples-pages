@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Custom Model Metadata Gate</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0e1016; color: #f8f9fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(104, 153, 218, .18), transparent 36%), linear-gradient(315deg, rgba(219, 116, 95, .14), transparent 40%), #0e1016; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(248, 249, 251, .14); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #6899da; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.65; color: #cdd2da; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(248, 249, 251, .22); background: #f8f9fb; color: #0e1016; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(14, 16, 22, .94); color: #f8f9fb; }
+    label { display: grid; gap: 6px; color: #eff2f7; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #6899da; }
+    .toolbar, .panel, .gate, .log { border: 1px solid rgba(248, 249, 251, .14); background: rgba(14, 16, 22, .86); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .gate { padding: 14px; }
+    .checks { display: grid; gap: 9px; }
+    .check { border: 1px solid rgba(248, 249, 251, .13); background: #171b24; padding: 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .chip { display: inline-block; border: 1px solid rgba(248, 249, 251, .23); padding: 5px 8px; color: #eff2f7; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(104, 153, 218, .86); background: rgba(104, 153, 218, .14); }
+    .warn { border-color: rgba(232, 181, 92, .86); background: rgba(232, 181, 92, .14); }
+    .bad { border-color: rgba(219, 116, 95, .86); background: rgba(219, 116, 95, .14); }
+    .value { color: #e8b55c; font-variant-numeric: tabular-nums; }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(248, 249, 251, .12); background: #171b24; padding: 10px; min-height: 72px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.35rem); color: #f8f9fb; font-variant-numeric: tabular-nums; }
+    .canvasWrap { margin-top: 12px; height: 250px; border: 1px solid rgba(248, 249, 251, .14); background: #07090d; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .log { margin-top: 14px; padding: 12px; height: 110px; overflow: auto; white-space: pre-wrap; color: #edf0f5; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) {
+      .toolbar, .layout, .meters { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Custom Model Metadata Gate</h1>
+    <p>MediaPipe Studio の custom model / custom input の導線を参考に、モデルを選ぶ前に metadata、tensor shape、label map、delegate、threshold 調整範囲を確認する派生試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Task type <select id="task"><option value="image">Image Classifier</option><option value="object">Object Detector</option><option value="segmenter">Image Segmenter</option><option value="text">Text Classifier</option></select><span class="value">candidate task</span></label>
+    <label>Metadata completeness <input id="meta" type="range" min="0" max="100" value="74"><span id="metaValue" class="value">74</span></label>
+    <label>Tensor match <input id="tensor" type="range" min="0" max="100" value="82"><span id="tensorValue" class="value">82</span></label>
+    <label>Label quality <input id="labels" type="range" min="0" max="100" value="68"><span id="labelsValue" class="value">68</span></label>
+    <label>Calibration coverage <input id="calibration" type="range" min="0" max="100" value="56"><span id="calibrationValue" class="value">56</span></label>
+    <button id="run">Run gate</button>
+    <button id="loop" class="secondary">Start loop</button>
+    <button id="customInput" class="secondary">Toggle custom input</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Studio-style checks</h2>
+      <p>公式デモでユーザーの画像やモデルを試す前に、アプリ側で弾ける項目を小さく可視化します。</p>
+      <div id="chips"></div>
+      <div class="meters" id="meters"></div>
+    </aside>
+    <section class="gate">
+      <h2>Preflight checklist</h2>
+      <div class="checks" id="checks"></div>
+      <div class="canvasWrap"><canvas id="chart" width="760" height="250"></canvas></div>
+    </section>
+  </div>
+  <div id="log" class="log"></div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("chart").getContext("2d");
+const state = { tick: 0, customInput: false, loop: false, history: [] };
+const checks = [
+  { key: "metadata", label: "Metadata schema", source: "meta", weight: 1.1 },
+  { key: "tensor", label: "Input / output tensor", source: "tensor", weight: 1.2 },
+  { key: "labels", label: "Label map and locale", source: "labels", weight: .9 },
+  { key: "calibration", label: "Threshold calibration", source: "calibration", weight: .85 },
+  { key: "delegate", label: "CPU / GPU delegate fallback", source: "tensor", weight: .72 },
+  { key: "input", label: "Custom input smoke test", source: "calibration", weight: .78 }
+];
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function labels() {
+  ["meta", "tensor", "labels", "calibration"].forEach((id) => { $(`${id}Value`).textContent = $(id).value; });
+}
+
+function log(message) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${message}\n${$("log").textContent}`.slice(0, 2100);
+}
+
+function scoreCheck(check, index) {
+  const task = $("task").value;
+  const base = Number($(check.source).value) * check.weight;
+  const taskPenalty = task === "object" && check.key === "labels" ? 8 : task === "segmenter" && check.key === "tensor" ? 10 : task === "text" && check.key === "delegate" ? -5 : 0;
+  const inputBonus = state.customInput && check.key === "input" ? 18 : state.customInput ? 3 : -6;
+  const wave = Math.sin((state.tick + index) * .7) * 4;
+  const score = clamp(base + inputBonus - taskPenalty + wave, 0, 100);
+  const status = score > 76 ? "pass" : score > 52 ? "review" : "block";
+  const tone = status === "pass" ? "pass" : status === "review" ? "warn" : "bad";
+  return { ...check, score, status, tone };
+}
+
+function runGate() {
+  labels();
+  state.tick += 1;
+  const results = checks.map(scoreCheck);
+  const avg = results.reduce((sum, item) => sum + item.score, 0) / results.length;
+  state.history.push(results.map((item) => item.score));
+  state.history = state.history.slice(-44);
+  render(results, avg);
+  log(`gate ${state.tick}: avg=${avg.toFixed(0)}, pass=${results.filter((r) => r.status === "pass").length}, block=${results.filter((r) => r.status === "block").length}`);
+}
+
+function render(results, avg) {
+  const blocked = results.filter((item) => item.status === "block").length;
+  $("chips").innerHTML = [
+    chip(`task: ${$("task").value}`, "pass"),
+    chip(`custom input: ${state.customInput ? "ready" : "off"}`, state.customInput ? "pass" : "warn"),
+    chip(`model gate: ${blocked ? "blocked" : avg > 76 ? "ready" : "review"}`, blocked ? "bad" : avg > 76 ? "pass" : "warn")
+  ].join("");
+  $("meters").innerHTML = [
+    meter("Average", avg.toFixed(0), avg > 76 ? "pass" : avg > 52 ? "warn" : "bad"),
+    meter("Pass", results.filter((item) => item.status === "pass").length, "pass"),
+    meter("Review", results.filter((item) => item.status === "review").length, "warn"),
+    meter("Block", blocked, blocked ? "bad" : "pass")
+  ].join("");
+  $("checks").innerHTML = results.map((item) => `
+    <div class="check ${item.tone}">
+      <div><strong>${item.label}</strong><p>score <span class="value">${item.score.toFixed(0)}</span> / source ${item.source}</p></div>
+      <span class="chip ${item.tone}">${item.status}</span>
+    </div>
+  `).join("");
+  draw();
+}
+
+function chip(text, tone) {
+  return `<span class="chip ${tone}">${text}</span>`;
+}
+
+function meter(label, value, tone) {
+  return `<div class="meter ${tone}"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 760, 250);
+  ctx.fillStyle = "#07090d";
+  ctx.fillRect(0, 0, 760, 250);
+  const colors = ["#6899da", "#e8b55c", "#db745f", "#80c98f", "#bb89de", "#57c2be"];
+  checks.forEach((check, index) => {
+    ctx.strokeStyle = colors[index];
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    state.history.forEach((points, i) => {
+      const x = 22 + i * 16;
+      const y = 222 - points[index] * 1.8;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = colors[index];
+    ctx.fillText(check.key, 22 + (index % 3) * 130, 20 + Math.floor(index / 3) * 18);
+  });
+}
+
+$("run").addEventListener("click", runGate);
+$("loop").addEventListener("click", () => {
+  state.loop = !state.loop;
+  $("loop").textContent = state.loop ? "Stop loop" : "Start loop";
+});
+$("customInput").addEventListener("click", () => { state.customInput = !state.customInput; runGate(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { tick: 0, customInput: false, loop: false, history: [] });
+  $("loop").textContent = "Start loop";
+  runGate();
+});
+["task", "meta", "tensor", "labels", "calibration"].forEach((id) => $(id).addEventListener("input", runGate));
+setInterval(() => {
+  if (!state.loop) return;
+  $("calibration").value = clamp(Number($("calibration").value) + Math.sin(state.tick * .55) * 8, 0, 100);
+  runGate();
+}, 1000);
+runGate();
+</script>
+</body>
+</html>

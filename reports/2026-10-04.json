@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-04",
+  "category": "MediaPipe / Google AI Edge / LiteRT-LM / Web ML",
+  "headline": "端末内生成 AI はモデル実行前に fit gate を作る",
+  "headlineEn": "On-device generative AI needs a fit gate before model execution",
+  "summary": "Google AI Edge の Web setup、LLM Inference Web guide、MediaPipe Studio、MediaPipe releases、mediapipe-samples-web を確認し、自作サンプルを2本追加しました。本命は LiteRT-LM / Gemma 3n / legacy LLM Inference の候補を WebGPU、メモリ、prompt tokens、privacy/offline 要件で比較する LiteRT-LM Device Fit Planner、派生は custom model を受け入れる前に metadata、tensor shape、label map、calibration、delegate fallback を見る Custom Model Metadata Gate です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, LLM Inference Web guide, MediaPipe Studio, MediaPipe releases, and mediapipe-samples-web, this adds two original samples. The main sample is LiteRT-LM Device Fit Planner, comparing LiteRT-LM, Gemma 3n, and legacy LLM Inference candidates across WebGPU, memory, prompt tokens, and privacy/offline requirements. The derivative is Custom Model Metadata Gate, which checks metadata, tensor shape, label map, calibration, and delegate fallback before accepting a custom model.",
+  "keyTopics": [
+    "LLM Inference Web guide は MediaPipe LLM Inference API が maintenance-only で、Web project は LiteRT-LM JavaScript API への移行を推奨していると示している。",
+    "同 guide は WebGPU compatibility、`@mediapipe/tasks-genai`、CDN script、model path、Gemma 3n 系の入力対応を確認する入口になる。",
+    "Web setup guide は Vision / Text / Audio / GenAI の package、CDN / npm 導入、BaseOptions、`modelAssetPath` / `modelAssetBuffer`、CPU / GPU delegate を整理している。",
+    "MediaPipe Studio は custom input と custom model file を試せるが、compatible metadata と task ごとの入出力要件をアプリ側で先に検査する余地がある。",
+    "MediaPipe releases と mediapipe-samples-web は、IIFE bundle、Privacy Notice、worker / package export、Web demos の実装差分を追う一次情報として使える。"
+  ],
+  "keyTopicsEn": [
+    "The LLM Inference Web guide says the MediaPipe LLM Inference API is maintenance-only and recommends migrating Web projects to the LiteRT-LM JavaScript API.",
+    "The same guide is an entry point for WebGPU compatibility, `@mediapipe/tasks-genai`, CDN scripts, model paths, and Gemma 3n input support.",
+    "The Web setup guide organizes Vision / Text / Audio / GenAI packages, CDN / npm setup, BaseOptions, `modelAssetPath` / `modelAssetBuffer`, and CPU / GPU delegates.",
+    "MediaPipe Studio supports custom input and custom model files, but app-side preflight can inspect compatible metadata and task-specific input/output requirements before model selection.",
+    "MediaPipe releases and mediapipe-samples-web are useful primary sources for IIFE bundles, Privacy Notice changes, worker / package export changes, and Web demo implementation diffs."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: LiteRT-LM Device Fit Planner",
+      "url": "../outputs/2026-10-04_litert_lm_device_fit_planner.html"
+    },
+    {
+      "label": "Today's derivative sample: Custom Model Metadata Gate",
+      "url": "../outputs/2026-10-04_custom_model_metadata_gate.html"
+    },
+    {
+      "label": "Google AI Edge: LLM Inference guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/genai/llm_inference/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: Instant Demos / MediaPipe Studio",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/studio"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-04-litert-lm-device-fit-planner.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe LLM Inference API が maintenance-only になり、Web project は LiteRT-LM JavaScript API への移行を推奨されている点です。これは単なる package 差し替えではなく、WebGPU、モデル形式、prompt 長、メモリ、offline/privacy 要件を最初に判定する UI を持つと、実モデル接続前に失敗条件をかなり減らせるという話です。Studio の custom model 導線も同じで、metadata と入出力 shape の前処理をアプリ内に置く価値があります。",
+      "bodyEn": "Today's notable point is that the MediaPipe LLM Inference API is in maintenance-only mode and Web projects are encouraged to migrate to the LiteRT-LM JavaScript API. This is not just a package swap: a first-run UI that checks WebGPU, model format, prompt length, memory, and offline/privacy requirements can remove many failure cases before real model hookup. The same applies to the Studio custom-model path, where metadata and input/output shape preflight belong in the app."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `LiteRT-LM Device Fit Planner` は LiteRT-LM small、Gemma 3n task、legacy LLM Inference を候補にして、Use case、Device memory、Prompt tokens、WebGPU score、Privacy need、offline toggle を動かすと ship / pilot / defer が変わります。派生の `Custom Model Metadata Gate` は Studio 風に task type と model readiness を選び、metadata、tensor match、label quality、calibration coverage、custom input smoke test で pass / review / block を出します。",
+      "bodyEn": "The main sample, `LiteRT-LM Device Fit Planner`, compares LiteRT-LM small, Gemma 3n task, and legacy LLM Inference. Changing use case, device memory, prompt tokens, WebGPU score, privacy need, and offline mode changes the ship / pilot / defer decision. The derivative, `Custom Model Metadata Gate`, follows a Studio-like custom model flow and routes metadata, tensor match, label quality, calibration coverage, and custom input smoke tests to pass / review / block."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは WebGPU readiness、device memory bucket、prompt token budget、model format、privacy/offline requirement、migration score、metadata completeness、tensor compatibility、label map quality、threshold calibration、custom input smoke result です。MediaPipe Tasks GenAI、LiteRT-LM JavaScript、Vision / Text task、MediaPipe Studio、Service Worker、IndexedDB、PerformanceObserver、Resource Timing、model card、privacy notice version と組み合わせると、端末ごとに推奨モデル・fallback・同意説明を切り替える入口になります。",
+      "bodyEn": "The samples can accumulate WebGPU readiness, device memory bucket, prompt token budget, model format, privacy/offline requirement, migration score, metadata completeness, tensor compatibility, label-map quality, threshold calibration, and custom-input smoke results. Combined with MediaPipe Tasks GenAI, LiteRT-LM JavaScript, Vision / Text tasks, MediaPipe Studio, Service Workers, IndexedDB, PerformanceObserver, Resource Timing, model cards, and privacy notice versions, this becomes an entry point for per-device model recommendations, fallback, and consent explanations."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `navigator.gpu` の有無だけでなく adapter request の失敗、GPU delegate fallback、first-token latency、modelAssetPath / modelAssetBuffer の読み込み経路、`.task` / `.litertlm` の形式、prompt token cap を別々に記録します。custom model では TFLite metadata、input normalization、output tensor name、label map locale、score threshold の調整幅、custom input smoke test を最初に出すと、Studio で試せるものを自前アプリに入れる前の gate として使えます。",
+      "bodyEn": "In implementation, track not only whether `navigator.gpu` exists but also adapter request failures, GPU delegate fallback, first-token latency, modelAssetPath / modelAssetBuffer loading routes, `.task` / `.litertlm` format, and prompt token caps separately. For custom models, surfacing TFLite metadata, input normalization, output tensor names, label-map locale, score-threshold range, and a custom-input smoke test provides a gate before moving Studio-tested models into a real app."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は LiteRT-LM JavaScript API の公開ドキュメント更新、LLM Inference Web guide の maintenance-only 表記、Gemma 3n の `.task` / `.litertlm` 配布形式、MediaPipe releases の WebGPU / package export / IIFE bundle 差分、Studio の custom model UI と Model Maker 連携の変更を見ます。",
+      "bodyEn": "Next, watch public LiteRT-LM JavaScript API documentation updates, maintenance-only wording in the LLM Inference Web guide, Gemma 3n `.task` / `.litertlm` distribution formats, WebGPU / package export / IIFE bundle changes in MediaPipe releases, and changes in Studio custom-model UI and Model Maker integration."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`LiteRT-LM Device Fit Planner` で Use case を Gemma 3n multimodal、Device memory を 4GB、Prompt tokens を 4096 以上、WebGPU score を 50 以下にすると、実行候補が ship から pilot / defer へ落ちる境界が見えます。派生では Task type を Object Detector にし、Label quality と Calibration coverage を下げて Toggle custom input を押すと、metadata だけでは通せない項目が可視化されます。",
+      "bodyEn": "In `LiteRT-LM Device Fit Planner`, set the use case to Gemma 3n multimodal, device memory to 4 GB, prompt tokens above 4096, and WebGPU score below 50 to see candidates fall from ship into pilot / defer. In the derivative, set task type to Object Detector, lower label quality and calibration coverage, then toggle custom input to see which checks cannot pass on metadata alone."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: LLM Inference Web guide、Web setup guide、MediaPipe Studio、MediaPipe releases、mediapipe-samples-web を確認。設計: 実モデルを呼ばずに、モデル候補 fit gate と custom model metadata gate の2本に分ける。実装: 本命 HTML に memory / tokens / WebGPU / privacy / offline と候補カード、履歴チャートを追加。派生 HTML に task type / metadata / tensor / labels / calibration / custom input と checklist を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the LLM Inference Web guide, Web setup guide, MediaPipe Studio, MediaPipe releases, and mediapipe-samples-web. Design: without calling a real model, split the work into a model candidate fit gate and a custom-model metadata gate. Implementation: added memory / tokens / WebGPU / privacy / offline controls, candidate cards, and a history chart to the main HTML. Added task type / metadata / tensor / labels / calibration / custom input controls and checklist to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は Tasks Web の bundle / worker route と metrics consent を扱いました。今日はさらに GenAI と custom model の前段に進み、実モデル接続前の端末・形式・metadata の gate を作りました。MediaPipe / Google AI Edge の日次サンプルは、task 実行、frame budget、asset path、bundle route、privacy consent、model fit まで一続きで見られるようになっています。",
+      "bodyEn": "Yesterday covered Tasks Web bundle / worker routes and metrics consent. Today moves one step into GenAI and custom-model preparation by adding device, format, and metadata gates before real model hookup. The MediaPipe / Google AI Edge daily samples now connect task execution, frame budget, asset path, bundle route, privacy consent, and model fit."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `LiteRT-LM Device Fit Planner` です。実際に動く部分は LiteRT-LM small、Gemma 3n task、legacy LLM Inference の fit score、ship / pilot / defer routing、first-token estimate、offline/privacy toggle、履歴チャートです。次に足すなら `navigator.gpu` adapter probe、実 package import probe、`.litertlm` model manifest、tokenizer estimate を足します。派生試作は `Custom Model Metadata Gate` で、実際に動く部分は task type、metadata、tensor、label、calibration、custom input smoke test の pass / review / block 判定です。次に足すなら実 `.task` metadata parser、model card 表示、label locale lint、IndexedDB への preflight 保存を足します。",
+      "bodyEn": "The selected main prototype is `LiteRT-LM Device Fit Planner`. The working pieces are fit scores for LiteRT-LM small, Gemma 3n task, and legacy LLM Inference; ship / pilot / defer routing; first-token estimates; offline/privacy toggles; and a history chart. Next additions should include a real `navigator.gpu` adapter probe, package import probe, `.litertlm` model manifest, and tokenizer estimate. The derivative prototype is `Custom Model Metadata Gate`; the working pieces are pass / review / block decisions for task type, metadata, tensor, labels, calibration, and custom-input smoke tests. Next additions should include a real `.task` metadata parser, model-card display, label-locale linting, and IndexedDB storage for preflight results.",
+      "links": [
+        {
+          "label": "Open LiteRT-LM Device Fit Planner",
+          "url": "../outputs/2026-10-04_litert_lm_device_fit_planner.html"
+        },
+        {
+          "label": "Open Custom Model Metadata Gate",
+          "url": "../outputs/2026-10-04_custom_model_metadata_gate.html"
+        }
+      ]
+    }
+  ]
+}

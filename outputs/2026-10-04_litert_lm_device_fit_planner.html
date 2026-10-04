@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LiteRT-LM Device Fit Planner</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #071013; color: #f4faf9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(68, 178, 190, .18), transparent 36%), linear-gradient(315deg, rgba(234, 171, 83, .15), transparent 42%), #071013; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(244, 250, 249, .14); }
+    h1 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.7rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; font-size: 1rem; color: #44b2be; letter-spacing: 0; }
+    p { margin: 0; line-height: 1.65; color: #c7d5d4; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(244, 250, 249, .22); background: #f4faf9; color: #071013; padding: 8px 11px; cursor: pointer; }
+    button.secondary, select { background: rgba(7, 16, 19, .94); color: #f4faf9; }
+    label { display: grid; gap: 6px; color: #ecf4f3; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #44b2be; }
+    .toolbar, .panel, .board, .log { border: 1px solid rgba(244, 250, 249, .14); background: rgba(7, 16, 19, .86); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(136px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel, .board { padding: 14px; }
+    .models { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .model { min-height: 220px; border: 1px solid rgba(244, 250, 249, .13); background: #101a1d; padding: 12px; display: grid; gap: 8px; align-content: start; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 250, 249, .24); padding: 5px 8px; color: #edf6f4; font-size: .78rem; margin: 8px 8px 0 0; }
+    .pass { border-color: rgba(68, 178, 190, .86); background: rgba(68, 178, 190, .14); }
+    .warn { border-color: rgba(234, 171, 83, .86); background: rgba(234, 171, 83, .14); }
+    .bad { border-color: rgba(220, 91, 111, .86); background: rgba(220, 91, 111, .14); }
+    .value { color: #eaab53; font-variant-numeric: tabular-nums; }
+    .bar { height: 12px; background: #243236; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: linear-gradient(90deg, #44b2be, #eaab53); }
+    .meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .meter { border: 1px solid rgba(244, 250, 249, .12); background: #101a1d; padding: 10px; min-height: 72px; }
+    .meter strong { display: block; margin-top: 4px; font-size: clamp(1.05rem, 3vw, 1.32rem); color: #f4faf9; font-variant-numeric: tabular-nums; }
+    .canvasWrap { margin-top: 12px; height: 210px; border: 1px solid rgba(244, 250, 249, .14); background: #030709; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .log { margin-top: 14px; padding: 12px; height: 116px; overflow: auto; white-space: pre-wrap; color: #e7f1ef; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 920px) {
+      .toolbar, .layout, .models, .meters { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>LiteRT-LM Device Fit Planner</h1>
+    <p>MediaPipe LLM Inference Web の maintenance-only 注意と LiteRT-LM 移行を前提に、WebGPU、モデル形式、メモリ、入力長、privacy/offline 要件から端末内生成 AI の候補を選ぶ自作ミニ試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Use case <select id="usecase"><option value="summary">summary</option><option value="qa">local Q&A</option><option value="multimodal">Gemma 3n multimodal</option></select><span class="value">task target</span></label>
+    <label>Device memory <input id="memory" type="range" min="2" max="32" value="8"><span id="memoryValue" class="value">8 GB</span></label>
+    <label>Prompt tokens <input id="tokens" type="range" min="256" max="8192" step="128" value="2048"><span id="tokensValue" class="value">2048</span></label>
+    <label>WebGPU score <input id="gpu" type="range" min="0" max="100" value="72"><span id="gpuValue" class="value">72</span></label>
+    <label>Privacy need <input id="privacy" type="range" min="0" max="100" value="80"><span id="privacyValue" class="value">80</span></label>
+    <button id="probe">Score fit</button>
+    <button id="loop" class="secondary">Start loop</button>
+    <button id="offline" class="secondary">Toggle offline</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Migration gates</h2>
+      <p>LLM Inference API を新規採用するか、LiteRT-LM JavaScript API へ寄せるかを、モデル形式と WebGPU 前提で先に分けます。</p>
+      <div id="chips"></div>
+      <div class="meters" id="meters"></div>
+    </aside>
+    <section class="board">
+      <h2>Model fit board</h2>
+      <div class="models" id="models"></div>
+      <div class="canvasWrap"><canvas id="chart" width="820" height="210"></canvas></div>
+    </section>
+  </div>
+  <div class="log" id="log"></div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("chart").getContext("2d");
+const state = { tick: 0, offline: false, loop: false, best: "LiteRT-LM small", history: [] };
+const candidates = [
+  { name: "LiteRT-LM small", format: ".litertlm", memory: 4, gpu: 45, tokens: 4096, migration: 96, multi: 42 },
+  { name: "Gemma 3n task", format: ".task / .litertlm", memory: 6, gpu: 62, tokens: 4096, migration: 82, multi: 86 },
+  { name: "Legacy LLM Inference", format: "@mediapipe/tasks-genai", memory: 8, gpu: 70, tokens: 2048, migration: 44, multi: 58 }
+];
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function labels() {
+  $("memoryValue").textContent = `${$("memory").value} GB`;
+  $("tokensValue").textContent = $("tokens").value;
+  ["gpu", "privacy"].forEach((id) => { $(`${id}Value`).textContent = $(id).value; });
+}
+
+function log(message) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${message}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function score(candidate) {
+  const usecase = $("usecase").value;
+  const memory = Number($("memory").value);
+  const tokens = Number($("tokens").value);
+  const gpu = Number($("gpu").value);
+  const privacy = Number($("privacy").value);
+  const memoryPenalty = Math.max(0, candidate.memory - memory) * 18;
+  const tokenPenalty = Math.max(0, tokens - candidate.tokens) / 72;
+  const gpuPenalty = Math.max(0, candidate.gpu - gpu) * .9;
+  const offlineBonus = state.offline ? (candidate.name === "Legacy LLM Inference" ? -8 : 10) : 0;
+  const privacyBonus = privacy > 70 ? 12 : privacy > 40 ? 5 : 0;
+  const multimodalBonus = usecase === "multimodal" ? candidate.multi * .22 : usecase === "qa" ? 8 : 3;
+  const fit = clamp(candidate.migration * .48 + gpu * .22 + memory * 1.9 + privacyBonus + offlineBonus + multimodalBonus - memoryPenalty - tokenPenalty - gpuPenalty, 0, 100);
+  const latency = clamp(240 + candidate.memory * 34 + tokens * .065 + Math.max(0, candidate.gpu - gpu) * 7, 120, 1200);
+  const route = fit > 72 ? "ship" : fit > 46 ? "pilot" : "defer";
+  const tone = route === "ship" ? "pass" : route === "pilot" ? "warn" : "bad";
+  return { ...candidate, fit, latency, route, tone, memoryPenalty, tokenPenalty, gpuPenalty };
+}
+
+function probe() {
+  labels();
+  state.tick += 1;
+  const results = candidates.map(score).sort((a, b) => b.fit - a.fit);
+  state.best = results[0].name;
+  state.history.push(results.map((item) => item.fit));
+  state.history = state.history.slice(-48);
+  render(results);
+  log(`probe ${state.tick}: best=${state.best}, route=${results[0].route}, offline=${state.offline ? "on" : "off"}`);
+}
+
+function render(results) {
+  $("chips").innerHTML = [
+    chip("LLM Inference: maintenance-only", "warn"),
+    chip("LiteRT-LM: preferred migration path", "pass"),
+    chip(`offline: ${state.offline ? "required" : "optional"}`, state.offline ? "pass" : "warn"),
+    chip(`use: ${$("usecase").value}`, "pass")
+  ].join("");
+  $("meters").innerHTML = [
+    meter("Best", state.best, "pass"),
+    meter("WebGPU", $("gpu").value, Number($("gpu").value) > 58 ? "pass" : "warn"),
+    meter("Memory", `${$("memory").value} GB`, Number($("memory").value) >= 6 ? "pass" : "warn"),
+    meter("Prompt", $("tokens").value, Number($("tokens").value) > 4096 ? "warn" : "pass")
+  ].join("");
+  $("models").innerHTML = results.map((item) => `
+    <article class="model ${item.tone}">
+      <div><span class="chip ${item.tone}">${item.route.toUpperCase()}</span><strong>${item.name}</strong></div>
+      <p>${item.format} / min ${item.memory} GB / target ${item.tokens} tokens</p>
+      ${bar("fit", item.fit, 100)}
+      ${bar("first-token estimate", item.latency, 1200)}
+      <p>memory penalty <span class="value">${item.memoryPenalty.toFixed(0)}</span> / token penalty <span class="value">${item.tokenPenalty.toFixed(0)}</span> / gpu penalty <span class="value">${item.gpuPenalty.toFixed(0)}</span></p>
+    </article>
+  `).join("");
+  draw();
+}
+
+function chip(text, tone) {
+  return `<span class="chip ${tone}">${text}</span>`;
+}
+
+function meter(label, value, tone) {
+  return `<div class="meter ${tone}"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function bar(label, value, max) {
+  const width = clamp((value / max) * 100, 4, 100);
+  return `<div><p>${label}: <span class="value">${value.toFixed(0)}</span></p><div class="bar"><span style="width:${width}%"></span></div></div>`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 820, 210);
+  ctx.fillStyle = "#030709";
+  ctx.fillRect(0, 0, 820, 210);
+  const colors = ["#44b2be", "#eaab53", "#dc5b6f"];
+  candidates.forEach((candidate, index) => {
+    ctx.strokeStyle = colors[index];
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    state.history.forEach((points, i) => {
+      const x = 22 + i * 16;
+      const y = 184 - points[index] * 1.48;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = colors[index];
+    ctx.fillText(candidate.name, 22 + index * 190, 22);
+  });
+}
+
+$("probe").addEventListener("click", probe);
+$("loop").addEventListener("click", () => {
+  state.loop = !state.loop;
+  $("loop").textContent = state.loop ? "Stop loop" : "Start loop";
+});
+$("offline").addEventListener("click", () => { state.offline = !state.offline; probe(); });
+$("reset").addEventListener("click", () => {
+  Object.assign(state, { tick: 0, offline: false, loop: false, best: "LiteRT-LM small", history: [] });
+  $("loop").textContent = "Start loop";
+  probe();
+});
+["usecase", "memory", "tokens", "gpu", "privacy"].forEach((id) => $(id).addEventListener("input", probe));
+setInterval(() => {
+  if (!state.loop) return;
+  $("gpu").value = clamp(Number($("gpu").value) + Math.sin(state.tick * .62) * 8, 0, 100);
+  probe();
+}, 950);
+probe();
+</script>
+</body>
+</html>
