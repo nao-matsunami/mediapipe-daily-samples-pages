@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-05",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "カメラ系 Tasks は推論前に permission と frame budget を見る",
+  "headlineEn": "Camera-based Tasks need permission and frame-budget preflight before inference",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、Hand Landmarker Web guide、Web setup guide、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases を確認し、自作サンプルを2本追加しました。本命は camera permission、secure context、resolution、FPS、同期推論コスト、tracking confidence から direct / throttle / worker を見積もる Camera Permission Frame Budget Lab、派生は getUserMedia constraints と代表的な camera error から fallback ladder を選ぶ Camera Constraint Fallback Router です。",
+  "summaryEn": "After checking the Google AI Edge Gesture Recognizer Web guide, Hand Landmarker Web guide, Web setup guide, MediaPipe Tasks Vision Web README, mediapipe-samples-web, and MediaPipe releases, this adds two original samples. The main sample is Camera Permission Frame Budget Lab, which estimates direct / throttle / worker routing from camera permission, secure context, resolution, FPS, synchronous inference cost, and tracking confidence. The derivative is Camera Constraint Fallback Router, which chooses a fallback ladder from getUserMedia constraints and common camera errors.",
+  "keyTopics": [
+    "Gesture Recognizer Web guide は `@mediapipe/tasks-vision`、model asset、IMAGE / VIDEO running mode、手の検出・presence・tracking confidence、canned gesture classifier options を整理している。",
+    "同 guide と Hand Landmarker Web guide は、`recognizeForVideo()` / `detectForVideo()` が同期的に UI thread を block し得るため、camera frame では worker 化を検討するよう示している。",
+    "Hand Landmarker Web guide は palm detection と lightweight hand tracking の切り替わりを confidence threshold と関連づけて説明しており、起動前に threshold と reacquire cost を可視化する余地がある。",
+    "Web setup guide は Vision / Text / Audio / GenAI package、CDN bundle、`BaseOptions`、`modelAssetPath` / `modelAssetBuffer`、CPU / GPU delegate を確認する入口になる。",
+    "mediapipe-samples-web と MediaPipe releases は公式デモの camera/image flow、IIFE bundle、Privacy Notice、running mode cache など、公開前 preflight に効く差分を追う一次情報として使える。"
+  ],
+  "keyTopicsEn": [
+    "The Gesture Recognizer Web guide organizes `@mediapipe/tasks-vision`, model assets, IMAGE / VIDEO running modes, hand detection / presence / tracking confidence, and canned gesture classifier options.",
+    "The Gesture Recognizer and Hand Landmarker Web guides note that `recognizeForVideo()` / `detectForVideo()` can synchronously block the UI thread, making workers worth considering for camera frames.",
+    "The Hand Landmarker Web guide relates palm detection versus lightweight hand tracking to confidence thresholds, leaving room to visualize threshold and reacquire cost before startup.",
+    "The Web setup guide is the entry point for Vision / Text / Audio / GenAI packages, CDN bundles, `BaseOptions`, `modelAssetPath` / `modelAssetBuffer`, and CPU / GPU delegates.",
+    "mediapipe-samples-web and MediaPipe releases are useful primary sources for official camera/image flows, IIFE bundles, Privacy Notice changes, running-mode cache, and other deployment preflight details."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Camera Permission Frame Budget Lab",
+      "url": "../outputs/2026-10-05_camera_permission_frame_budget_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Camera Constraint Fallback Router",
+      "url": "../outputs/2026-10-05_camera_constraint_fallback_router.html"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-05-camera-permission-frame-budget.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Gesture Recognizer と Hand Landmarker の Web guide がどちらも camera / video frame の同期推論による UI thread blocking に触れている点です。公式デモはすぐ試せる入口として有用ですが、実アプリでは permission、secure context、解像度、FPS、confidence threshold、worker handoff を起動前に見せるだけで、失敗時の体験をかなり整えられます。",
+      "bodyEn": "Today's notable point is that both the Gesture Recognizer and Hand Landmarker Web guides call out UI-thread blocking from synchronous camera / video-frame inference. Official demos are useful entry points, but a real app benefits from showing permission, secure context, resolution, FPS, confidence thresholds, and worker handoff before startup."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Camera Permission Frame Budget Lab` は task、resolution、FPS、inference cost、tracking confidence を動かすと direct / throttle / worker の推奨が変わり、合成 camera canvas と timeline で skip / block を見せます。派生の `Camera Constraint Fallback Router` は facingMode、width、height、FPS、NotAllowedError / NotFoundError / OverconstrainedError / NotReadableError を選ぶと、requested から balanced、landmark safe、image mode へ落ちる ladder が更新されます。",
+      "bodyEn": "The main sample, `Camera Permission Frame Budget Lab`, changes direct / throttle / worker recommendations as task, resolution, FPS, inference cost, and tracking confidence are adjusted, with a synthetic camera canvas and skip / block timeline. The derivative, `Camera Constraint Fallback Router`, updates a ladder from requested to balanced, landmark safe, and image mode based on facingMode, width, height, FPS, and simulated NotAllowedError / NotFoundError / OverconstrainedError / NotReadableError."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは permission state、secure context、camera constraints、target FPS、resolution、estimated sync inference cost、tracking confidence、reacquire risk、fallback route、error type、worker recommendation です。MediaPipe Hand Landmarker、Gesture Recognizer、Holistic Landmarker、Object Detector、PerformanceObserver、Long Task API、Web Worker、OffscreenCanvas、IndexedDB、privacy notice version と組み合わせると、端末ごとに camera 起動条件と worker / throttle policy を保存できます。",
+      "bodyEn": "The samples can accumulate permission state, secure context, camera constraints, target FPS, resolution, estimated synchronous inference cost, tracking confidence, reacquire risk, fallback route, error type, and worker recommendations. Combined with MediaPipe Hand Landmarker, Gesture Recognizer, Holistic Landmarker, Object Detector, PerformanceObserver, the Long Task API, Web Workers, OffscreenCanvas, IndexedDB, and privacy notice versions, an app can store camera startup and worker / throttle policy per device."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は `navigator.permissions.query({name: 'camera'})` が使えない browser もある前提で、permission query、明示的な getUserMedia request、error name、constraints fallback を分けて記録します。MediaPipe Tasks 側では IMAGE / VIDEO running mode の切り替え、`setOptions()` のタイミング、duplicate timestamp 回避、`detectForVideo()` / `recognizeForVideo()` の同期コスト、worker handoff の queue depth を別々に見ると運用しやすいです。",
+      "bodyEn": "In implementation, treat permission queries, explicit getUserMedia requests, error names, and constraint fallback as separate records because `navigator.permissions.query({name: 'camera'})` is not uniformly available. On the MediaPipe Tasks side, track IMAGE / VIDEO running mode changes, `setOptions()` timing, duplicate timestamp avoidance, synchronous `detectForVideo()` / `recognizeForVideo()` cost, and worker-handoff queue depth separately."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は mediapipe-samples-web の camera demo 実装、MediaPipe releases の JavaScript / IIFE / running mode 関連差分、Google AI Edge guide の Tasks Web 更新、WebGPU / WebNN 周辺の browser 実装、camera permission / privacy UX の platform 差を見ます。",
+      "bodyEn": "Next, watch camera-demo implementations in mediapipe-samples-web, JavaScript / IIFE / running-mode changes in MediaPipe releases, Tasks Web guide updates in Google AI Edge docs, browser-side WebGPU / WebNN changes, and platform differences in camera permission / privacy UX."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Camera Permission Frame Budget Lab` で Holistic Landmarker、1080p、60fps、infer cost 40ms 以上にすると worker 推奨へ傾く様子が見えます。派生では Error を OverconstrainedError にし、environment camera、1920x1080、60fps にすると requested が落ち、balanced / landmark safe へ切り替える意味が分かります。",
+      "bodyEn": "In `Camera Permission Frame Budget Lab`, select Holistic Landmarker, 1080p, 60fps, and inference cost above 40ms to see the route tilt toward worker handoff. In the derivative, set Error to OverconstrainedError, use the environment camera, and request 1920x1080 at 60fps to see why requested constraints should fall back to balanced / landmark safe routes."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、Hand Landmarker Web guide、Web setup guide、Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases を確認。設計: 実カメラを自動で起動せず、permission / frame budget と constraints fallback の2本に分ける。実装: 本命 HTML に synthetic camera、preflight chips、budget cards、timeline、permission query を追加。派生 HTML に constraints ladder、error simulator、preview canvas、route metrics を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer Web guide, Hand Landmarker Web guide, Web setup guide, Tasks Vision Web README, mediapipe-samples-web, and MediaPipe releases. Design: avoid auto-starting a real camera and split the work into permission / frame budget and constraints fallback. Implementation: added a synthetic camera, preflight chips, budget cards, timeline, and permission query to the main HTML. Added a constraints ladder, error simulator, preview canvas, and route metrics to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は LiteRT-LM と custom model のモデル適合 gate を扱いました。今日は実モデルの前に、camera 入力と UI thread を守る gate を追加しました。MediaPipe / Google AI Edge の日次サンプルは、asset / bundle / metadata / privacy / camera / frame budget という、公開 Web ML アプリの入口部分がだいぶ揃ってきました。",
+      "bodyEn": "Yesterday covered model-fit gates for LiteRT-LM and custom models. Today adds gates that protect camera input and the UI thread before real-model execution. The MediaPipe / Google AI Edge daily samples now cover much of the public Web ML app entry path: assets, bundles, metadata, privacy, camera, and frame budget."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Camera Permission Frame Budget Lab` です。実際に動く部分は task / resolution / FPS / infer cost / tracking confidence から direct / throttle / worker route、reacquire risk、UI block 見積もり、synthetic camera timeline を出すところです。次に足すなら実 `getUserMedia()` smoke test、worker 内 fake inference、PerformanceObserver の long task 計測、IndexedDB 保存を足します。派生試作は `Camera Constraint Fallback Router` で、実際に動く部分は facingMode / width / height / FPS / error name から requested / balanced / landmark safe / image mode の fallback ladder を組むところです。次に足すなら実 camera device enumeration、constraint retry 実行、ユーザー向け permission recovery copy、task ごとの default constraints を足します。",
+      "bodyEn": "The selected main prototype is `Camera Permission Frame Budget Lab`. The working pieces are direct / throttle / worker routing, reacquire risk, UI-block estimates, and a synthetic camera timeline based on task / resolution / FPS / inference cost / tracking confidence. Next additions should include a real `getUserMedia()` smoke test, fake inference inside a worker, PerformanceObserver long-task measurement, and IndexedDB storage. The derivative prototype is `Camera Constraint Fallback Router`; the working pieces are a requested / balanced / landmark safe / image mode fallback ladder based on facingMode / width / height / FPS / error name. Next additions should include real camera device enumeration, constraint retry execution, user-facing permission recovery copy, and per-task default constraints.",
+      "links": [
+        {
+          "label": "Open Camera Permission Frame Budget Lab",
+          "url": "../outputs/2026-10-05_camera_permission_frame_budget_lab.html"
+        },
+        {
+          "label": "Open Camera Constraint Fallback Router",
+          "url": "../outputs/2026-10-05_camera_constraint_fallback_router.html"
+        }
+      ]
+    }
+  ]
+}

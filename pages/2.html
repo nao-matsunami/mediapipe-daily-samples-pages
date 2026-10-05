@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Face Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Object Detector</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / WASM / Delegate routing</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Face Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Object Detector</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-09-23</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span></p>
+      <h2>Interactive Segmenter は stroke protocol から設計する</h2>
+      <p class="en">Design Interactive Segmenter from the stroke protocol first</p>
+      <p>Google AI Edge の Web setup、Interactive Segmenter API、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm @mediapipe/tasks-vision を確認し、Interactive Segmenter を実モデルにつなぐ前の自作サンプルを2本追加しました。本命は positive / negative / box / lasso の入力を合成マスクに反映する Stroke Arbitrator、派生は pointermove の点列を request 前に圧縮して replay できる Stroke Replay Compressor です。</p>
+      <div class="actions">
+        <a href="../days/2026-09-23.html">日付ページ</a>
+        <a href="../outputs/2026-09-23_interactive_segmenter_stroke_arbitrator.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-09-23_stroke_replay_compressor.html"><span>MediaPipe</span>Stroke Replay Compressor</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-09-22</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span></p>
       <h2>Gesture Recognizer の worker queue を先に設計する</h2>
       <p class="en">Designing the Gesture Recognizer worker queue first</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-09-12_object_detector_roi_decay_board.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-12_detector_label_policy_sandbox.html"><span>MediaPipe</span>Detector Label Policy Sandbox</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-11</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / WASM / Delegate routing</span></p>
-      <h2>Tasks Web の delegate fallback と WASM asset 解決を先に見える化する</h2>
-      <p class="en">Making Tasks Web delegate fallback and WASM asset resolution visible first</p>
-      <p>Google AI Edge の JavaScript API reference、MediaPipe GitHub、Tasks Web Vision README、公式 mediapipe-samples-web、公式デモページを確認し、MediaPipe Tasks Web で起きやすい delegate 選択、GPU fallback、running mode、WASM asset path の失敗をモデル接続前に点検する自作サンプルを2本追加しました。本命は合成フレームの latency router、派生は FilesetResolver 用 base path の sentinel です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-11.html">日付ページ</a>
-        <a href="../outputs/2026-09-11_delegate_fallback_latency_router.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-11_wasm_asset_path_sentinel.html"><span>MediaPipe</span>WASM Asset Path Sentinel</a></div>
     </article></div>
   </main>
 </body>

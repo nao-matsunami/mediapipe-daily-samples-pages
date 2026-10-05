@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camera Constraint Fallback Router</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; background: #0b0f13; color: #f6f8fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, rgba(108, 150, 255, .18), transparent 38%), linear-gradient(315deg, rgba(117, 205, 159, .16), transparent 44%), #0b0f13; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
+    header { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid rgba(246, 248, 251, .15); }
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.55rem); line-height: 1.08; letter-spacing: 0; }
+    h2 { margin: 0 0 8px; color: #75cd9f; font-size: 1rem; letter-spacing: 0; }
+    p { margin: 0; color: #c8d0dc; line-height: 1.65; }
+    button, input, select { font: inherit; }
+    button { min-height: 40px; border: 1px solid rgba(246, 248, 251, .24); background: #f6f8fb; color: #0b0f13; padding: 8px 12px; cursor: pointer; }
+    button.secondary, select { background: rgba(11, 15, 19, .95); color: #f6f8fb; }
+    label { display: grid; gap: 6px; color: #edf2f8; font-size: .92rem; }
+    input[type="range"] { width: 100%; accent-color: #75cd9f; }
+    .toolbar, .panel, .board, .log { border: 1px solid rgba(246, 248, 251, .14); background: rgba(11, 15, 19, .87); }
+    .toolbar { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; padding: 14px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; margin-top: 14px; }
+    .panel, .board { padding: 14px; }
+    .ladder { display: grid; gap: 10px; }
+    .step { border: 1px solid rgba(246, 248, 251, .13); background: #121922; padding: 12px; display: grid; grid-template-columns: 86px minmax(0, 1fr) 88px; gap: 10px; align-items: center; min-height: 72px; }
+    .badge { display: inline-block; border: 1px solid rgba(246, 248, 251, .23); padding: 5px 8px; font-size: .78rem; text-align: center; }
+    .pass { border-color: rgba(117, 205, 159, .84); background: rgba(117, 205, 159, .14); }
+    .warn { border-color: rgba(238, 181, 95, .84); background: rgba(238, 181, 95, .14); }
+    .bad { border-color: rgba(226, 91, 118, .84); background: rgba(226, 91, 118, .14); }
+    .value { color: #eeb55f; font-variant-numeric: tabular-nums; }
+    .preview { height: 350px; border: 1px solid rgba(246, 248, 251, .14); background: #06090d; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .metric { border: 1px solid rgba(246, 248, 251, .13); background: #121922; padding: 10px; min-height: 74px; }
+    .metric strong { display: block; margin-top: 5px; font-size: 1.25rem; color: #f6f8fb; font-variant-numeric: tabular-nums; }
+    .log { margin-top: 14px; padding: 12px; height: 108px; overflow: auto; white-space: pre-wrap; color: #e9eef6; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 900px) { .toolbar, .layout, .metrics, .step { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Camera Constraint Fallback Router</h1>
+    <p>MediaPipe Tasks の Web カメラ入力を想定し、facingMode、解像度、FPS、permission error、overconstrained error から、どの constraints へ落とすかを即座に見られる派生試作です。</p>
+  </header>
+
+  <section class="toolbar">
+    <label>Facing mode <select id="facing"><option value="user">user</option><option value="environment">environment</option></select><span class="value">camera intent</span></label>
+    <label>Width <input id="width" type="range" min="320" max="1920" step="160" value="1280"><span id="widthValue" class="value">1280</span></label>
+    <label>Height <input id="height" type="range" min="240" max="1080" step="120" value="720"><span id="heightValue" class="value">720</span></label>
+    <label>FPS <input id="fps" type="range" min="10" max="60" step="5" value="30"><span id="fpsValue" class="value">30</span></label>
+    <label>Error <select id="error"><option value="none">none</option><option value="NotAllowedError">NotAllowedError</option><option value="NotFoundError">NotFoundError</option><option value="OverconstrainedError">OverconstrainedError</option><option value="NotReadableError">NotReadableError</option></select><span class="value">simulated</span></label>
+    <button id="route">Route constraints</button>
+    <button id="stress" class="secondary">Stress tick</button>
+    <button id="reset" class="secondary">Reset</button>
+  </section>
+
+  <div class="layout">
+    <section class="board">
+      <h2>Fallback ladder</h2>
+      <div class="ladder" id="ladder"></div>
+    </section>
+    <aside class="panel">
+      <h2>Preview</h2>
+      <div class="preview"><canvas id="view" width="360" height="350"></canvas></div>
+      <div class="metrics" id="metrics"></div>
+    </aside>
+  </div>
+  <div class="log" id="log"></div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const ctx = $("view").getContext("2d");
+const state = { tick: 0, last: null };
+
+function label() {
+  ["width", "height", "fps"].forEach((id) => { $(`${id}Value`).textContent = $(id).value; });
+}
+
+function log(message) {
+  const stamp = new Date().toLocaleTimeString("ja-JP", { hour12: false });
+  $("log").textContent = `${stamp} ${message}\n${$("log").textContent}`.slice(0, 2200);
+}
+
+function variants() {
+  const width = Number($("width").value);
+  const height = Number($("height").value);
+  const fps = Number($("fps").value);
+  const facing = $("facing").value;
+  return [
+    { name: "requested", width, height, fps, facing, note: "user selected constraints" },
+    { name: "balanced", width: Math.min(width, 960), height: Math.min(height, 540), fps: Math.min(fps, 30), facing, note: "stable detectForVideo budget" },
+    { name: "landmark safe", width: 640, height: 480, fps: Math.min(fps, 24), facing: "user", note: "hand / gesture fallback" },
+    { name: "image mode", width: 480, height: 360, fps: 0, facing: "none", note: "file / still-image path" }
+  ];
+}
+
+function score(item) {
+  const error = $("error").value;
+  let risk = 0;
+  risk += item.width > 1280 ? 18 : 0;
+  risk += item.height > 720 ? 14 : 0;
+  risk += item.fps > 30 ? 18 : 0;
+  risk += item.facing === "environment" ? 8 : 0;
+  if (error === "NotAllowedError") risk += item.name === "image mode" ? -12 : 80;
+  if (error === "NotFoundError") risk += item.facing === "environment" ? 55 : 25;
+  if (error === "OverconstrainedError") risk += item.name === "requested" ? 70 : item.name === "balanced" ? 20 : 0;
+  if (error === "NotReadableError") risk += item.name === "requested" ? 42 : 12;
+  const ok = Math.max(0, 100 - risk);
+  const route = ok > 68 ? "try" : ok > 38 ? "ask/retry" : "skip";
+  return { risk, ok, route, tone: route === "try" ? "pass" : route === "ask/retry" ? "warn" : "bad" };
+}
+
+function route() {
+  label();
+  const rows = variants().map((item) => ({ ...item, ...score(item) }));
+  state.last = rows.find((item) => item.route === "try") || rows.at(-1);
+  $("ladder").innerHTML = rows.map((item, index) => {
+    const constraints = item.fps ? `${item.width}x${item.height} ${item.fps}fps ${item.facing}` : `${item.width}x${item.height} still image`;
+    return `<div class="step"><span class="badge ${item.tone}">${index + 1}. ${item.route}</span><div><strong>${item.name}</strong><p>${constraints} - ${item.note}</p></div><span class="value">${item.ok.toFixed(0)}%</span></div>`;
+  }).join("");
+  $("metrics").innerHTML = [
+    ["Selected", state.last.name],
+    ["Camera score", `${state.last.ok.toFixed(0)}%`],
+    ["Route", state.last.route]
+  ].map(([k, v]) => `<div class="metric"><p>${k}</p><strong>${v}</strong></div>`).join("");
+  draw();
+  log(`selected: ${state.last.name} / ${state.last.route}`);
+}
+
+function draw() {
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#070b10";
+  ctx.fillRect(0, 0, w, h);
+  const item = state.last || variants()[0];
+  const ratio = Math.min(w * .78 / item.width, h * .6 / item.height);
+  const rw = Math.max(80, item.width * ratio);
+  const rh = Math.max(56, item.height * ratio);
+  const x = (w - rw) / 2;
+  const y = 66;
+  ctx.strokeStyle = item.route === "try" ? "#75cd9f" : item.route === "ask/retry" ? "#eeb55f" : "#e25b76";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(x, y, rw, rh);
+  for (let i = 0; i < 9; i++) {
+    const px = x + 24 + ((i * 37 + state.tick * 11) % Math.max(40, rw - 48));
+    const py = y + 20 + Math.sin(i + state.tick * .4) * 18 + (i % 3) * rh / 4;
+    ctx.fillStyle = i % 2 ? "#6c96ff" : "#75cd9f";
+    ctx.fillRect(px, py, 8, 8);
+  }
+  ctx.fillStyle = "#f6f8fb";
+  ctx.font = "15px ui-monospace, monospace";
+  ctx.fillText(`${item.width}x${item.height} ${item.fps || "still"} ${item.facing}`, 24, 28);
+  ctx.fillText(`error=${$("error").value}`, 24, h - 28);
+}
+
+["facing", "width", "height", "fps", "error"].forEach((id) => $(id).addEventListener("input", route));
+$("route").addEventListener("click", route);
+$("stress").addEventListener("click", () => { state.tick += 1; route(); });
+$("reset").addEventListener("click", () => {
+  $("facing").value = "user";
+  $("width").value = 1280;
+  $("height").value = 720;
+  $("fps").value = 30;
+  $("error").value = "none";
+  state.tick = 0;
+  route();
+});
+
+route();
+</script>
+</body>
+</html>
