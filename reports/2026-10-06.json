@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-06",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "セグメンテーション後は mask の差分合成と寿命管理を見る",
+  "headlineEn": "After segmentation, watch mask delta compositing and lifecycle management",
+  "summary": "Google AI Edge の Image Segmenter Web guide、Web setup guide、MediaPipe Tasks Vision Web README、mediapipe-samples-web、公式デモ、MediaPipe releases を確認し、自作サンプルを2本追加しました。本命は category / confidence mask を想定して full frame、delta tile、budget capped の合成コストを比較する Mask Delta Compositor Lab、派生は tile ごとに send / hold / reuse / drop を決める Mask Tile Scheduler Playground です。",
+  "summaryEn": "After checking the Google AI Edge Image Segmenter Web guide, Web setup guide, MediaPipe Tasks Vision Web README, mediapipe-samples-web, the official demo page, and MediaPipe releases, this adds two original samples. The main sample is Mask Delta Compositor Lab, which compares full-frame, delta-tile, and budget-capped compositing costs for category / confidence masks. The derivative is Mask Tile Scheduler Playground, which routes each mask tile to send, hold, reuse, or drop.",
+  "keyTopics": [
+    "Image Segmenter Web guide は category mask と confidence mask を扱い、Web アプリでは推論結果の mask をどう描画・転送するかが体験の差になる。",
+    "Web setup guide と Tasks Vision Web README は `@mediapipe/tasks-vision`、WASM fileset、model asset、CPU / GPU delegate を確認する入口になる。",
+    "mediapipe-samples-web は公式 Task demo の image / webcam 切り替え、設定 UI、delegate fallback、privacy notice の扱いを見る一次情報として使える。",
+    "MediaPipe releases では Web task module、IIFE bundle、Privacy Notice、Web LLM など、ブラウザ配布時の運用差分を継続して追う価値がある。",
+    "実アプリでは Image Segmenter の後段で Canvas 2D、OffscreenCanvas、Web Worker、ImageBitmap、WebGL texture atlas のどこに境界を置くかを早めに決めるとよい。"
+  ],
+  "keyTopicsEn": [
+    "The Image Segmenter Web guide covers category and confidence masks, and the way a Web app draws and transfers those masks can shape the experience.",
+    "The Web setup guide and Tasks Vision Web README are entry points for `@mediapipe/tasks-vision`, WASM filesets, model assets, and CPU / GPU delegates.",
+    "mediapipe-samples-web is a useful primary source for official Task demo image / webcam switching, settings UI, delegate fallback, and Privacy Notice handling.",
+    "MediaPipe releases remain worth watching for Web task modules, IIFE bundles, Privacy Notice changes, Web LLM notes, and other browser-delivery details.",
+    "In real apps, it helps to decide early where the boundary sits among Canvas 2D, OffscreenCanvas, Web Worker, ImageBitmap, and a WebGL texture atlas after Image Segmenter output."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Mask Delta Compositor Lab",
+      "url": "../outputs/2026-10-06_mask_delta_compositor_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Mask Tile Scheduler Playground",
+      "url": "../outputs/2026-10-06_mask_tile_scheduler_playground.html"
+    },
+    {
+      "label": "Google AI Edge: Image segmentation guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-06-mask-delta-compositor.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Image Segmenter の結果が「推論できた」で終わらず、その後に mask をどう合成し続けるかで UI の軽さが大きく変わる点です。category mask / confidence mask を毎フレーム全面描画するのか、変化した tile だけを送るのか、worker や OffscreenCanvas に渡すのかを分けて考えると、公式デモから実アプリへ移すときの設計判断が見えやすくなります。",
+      "bodyEn": "Today's notable point is that Image Segmenter output does not end at successful inference; UI responsiveness depends on how masks keep being composited afterward. Thinking separately about full-frame category / confidence mask drawing, changed-tile transfer, and worker / OffscreenCanvas handoff makes the design choices clearer when moving from official demos to real apps."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命サンプル `Mask Delta Compositor Lab` は mask mode、render policy、tile size、motion、confidence gate、frame budget を動かすと、full / delta / skip の route と合成コストが変わります。派生の `Mask Tile Scheduler Playground` は bandwidth、TTL、sensitivity、priority mode から各 tile を send / hold / reuse / drop に振り分け、mask 更新を queue として見る感覚を作ります。",
+      "bodyEn": "The main sample, `Mask Delta Compositor Lab`, changes the full / delta / skip route and compositing estimate as mask mode, render policy, tile size, motion, confidence gate, and frame budget are adjusted. The derivative, `Mask Tile Scheduler Playground`, routes each tile to send / hold / reuse / drop from bandwidth, TTL, sensitivity, and priority mode, making mask updates feel like a queue."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは mask mode、tile size、changed tile count、full / delta cost、paint budget、skip count、tile age、send / hold / reuse / drop decision です。Image Segmenter、Interactive Segmenter、Pose Landmarker segmentation mask、Canvas 2D、OffscreenCanvas、Web Worker、ImageBitmap、WebGL texture atlas、PerformanceObserver、Long Task API、IndexedDB と組み合わせると、端末別に mask 更新ポリシーを記録し、描画が重い時だけ delta 合成へ切り替える実験ができます。",
+      "bodyEn": "The samples can accumulate mask mode, tile size, changed tile count, full / delta cost, paint budget, skip count, tile age, and send / hold / reuse / drop decisions. Combined with Image Segmenter, Interactive Segmenter, Pose Landmarker segmentation masks, Canvas 2D, OffscreenCanvas, Web Workers, ImageBitmap, WebGL texture atlases, PerformanceObserver, the Long Task API, and IndexedDB, an app can record per-device mask update policy and switch to delta compositing only when painting gets expensive."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は、推論時間、mask 転送、canvas paint、古い bitmap / texture の破棄を別々に計測します。`segmentForVideo()` の結果をすぐ UI thread で全面描画する設計は単純ですが、解像度と FPS が上がると Long Task の温床になります。mask を tile 化し、変化量と TTL で送信優先度を決めると、見た目の鮮度と描画予算を交換しやすくなります。",
+      "bodyEn": "In implementation, measure inference time, mask transfer, canvas paint, and disposal of stale bitmaps / textures separately. Drawing a full mask on the UI thread immediately after `segmentForVideo()` is simple, but higher resolution and FPS can create long tasks. Tiling the mask and prioritizing transfer by change amount and TTL makes visual freshness easier to trade against paint budget."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Image Segmenter / Interactive Segmenter の公式 guide 更新、mediapipe-samples-web の worker / webcam 実装、MediaPipe releases の Web task 差分、WebGPU / WebNN / OffscreenCanvas の browser 実装差、WebGL texture 部分更新の実測を見ます。",
+      "bodyEn": "Next, watch Image Segmenter / Interactive Segmenter guide updates, worker / webcam implementations in mediapipe-samples-web, Web task changes in MediaPipe releases, browser differences around WebGPU / WebNN / OffscreenCanvas, and measured partial-update behavior for WebGL textures."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Mask Delta Compositor Lab` で render policy を budget capped にし、motion を上げ、frame budget を 8ms 前後にすると skip / hold last mask が出やすくなります。派生では bandwidth を低く、sensitivity を低くすると hold が増え、TTL を短くすると drop が増えるため、mask 更新をフレーム内 queue として捉えやすくなります。",
+      "bodyEn": "In `Mask Delta Compositor Lab`, set render policy to budget capped, raise motion, and set frame budget around 8ms to make skip / hold-last-mask behavior appear. In the derivative, low bandwidth and low sensitivity increase hold decisions, while a short TTL increases drops, making mask updates easier to understand as an in-frame queue."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Image Segmenter Web guide、Web setup guide、Tasks Vision Web README、mediapipe-samples-web、公式デモ、MediaPipe releases を確認。設計: 実モデルではなく synthetic mask で、合成後段の policy を独立して試す。実装: 本命 HTML に mask canvas、policy controls、cost split、frame timeline を追加。派生 HTML に tile board、scheduler controls、send / hold / reuse / drop counters を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Image Segmenter Web guide, Web setup guide, Tasks Vision Web README, mediapipe-samples-web, official demo page, and MediaPipe releases. Design: use synthetic masks instead of a real model so the post-compositing policy can be tested independently. Implementation: added mask canvas, policy controls, cost split, and frame timeline to the main HTML. Added a tile board, scheduler controls, and send / hold / reuse / drop counters to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は camera permission と frame budget の入口を扱いました。今日は推論後の mask 合成と転送を扱い、Web ML アプリの詰まりどころを一段後ろへ進めました。MediaPipe / Google AI Edge の日次サンプルは、入力 preflight、asset / delegate、privacy、running mode、post-inference rendering まで一連の運用ノードが揃ってきています。",
+      "bodyEn": "Yesterday covered the camera permission and frame-budget entry point. Today moves one stage later to post-inference mask compositing and transfer, another common Web ML bottleneck. The MediaPipe / Google AI Edge daily samples now cover a chain of operational nodes: input preflight, assets / delegates, privacy, running modes, and post-inference rendering."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Mask Delta Compositor Lab` です。実際に動く部分は synthetic mask を描き、full frame / delta tiles / budget capped の route、changed tile count、cost split、frame timeline を更新するところです。次に足すなら実 Image Segmenter の category mask / confidence mask 入力、worker 内 tile diff、WebGL texture atlas 部分更新、古い ImageBitmap の close 計測を足します。派生試作は `Mask Tile Scheduler Playground` で、実際に動く部分は tile ごとに change、age、priority を計算し、send / hold / reuse / drop を可視化するところです。次に足すなら実 mask bitmap の tile 化、transfer queue、Long Task API の警告、IndexedDB への端末別 policy 保存を足します。",
+      "bodyEn": "The selected main prototype is `Mask Delta Compositor Lab`. The working pieces draw a synthetic mask and update full-frame / delta-tile / budget-capped routes, changed tile counts, cost split, and a frame timeline. Next additions should include real Image Segmenter category / confidence mask input, worker-side tile diffing, partial WebGL texture-atlas updates, and stale ImageBitmap close measurement. The derivative prototype is `Mask Tile Scheduler Playground`; the working pieces compute change, age, and priority per tile and visualize send / hold / reuse / drop. Next additions should include real mask bitmap tiling, a transfer queue, Long Task API warnings, and IndexedDB storage for per-device policies.",
+      "links": [
+        {
+          "label": "Open Mask Delta Compositor Lab",
+          "url": "../outputs/2026-10-06_mask_delta_compositor_lab.html"
+        },
+        {
+          "label": "Open Mask Tile Scheduler Playground",
+          "url": "../outputs/2026-10-06_mask_tile_scheduler_playground.html"
+        }
+      ]
+    }
+  ]
+}

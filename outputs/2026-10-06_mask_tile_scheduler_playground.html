@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mask Tile Scheduler Playground</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; color: #f7fbff; background: #090e13; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #111b24, #09100f 62%, #151218); }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: end; border-bottom: 1px solid rgba(184, 232, 255, .18); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; }
+    p { color: #bfccd4; line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: 330px 1fr; gap: 16px; margin-top: 18px; }
+    .panel, .tile, .stat { border: 1px solid rgba(184, 232, 255, .18); background: rgba(9, 16, 19, .78); box-shadow: 0 18px 48px rgba(0,0,0,.26); }
+    .panel { padding: 16px; }
+    label { display: grid; gap: 7px; margin-bottom: 12px; color: #e9f6ff; font-size: .86rem; }
+    input, select { width: 100%; accent-color: #82ccff; color: #f7fbff; background: #101820; border: 1px solid rgba(184, 232, 255, .22); padding: 9px 10px; }
+    .board { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; }
+    .tile { min-height: 54px; padding: 7px; position: relative; overflow: hidden; }
+    .tile strong { position: relative; z-index: 1; font-size: .76rem; }
+    .tile::after { content: ""; position: absolute; inset: auto 0 0; height: var(--h); background: var(--c); opacity: .72; }
+    .send { --c: linear-gradient(180deg, #82ccff, #67f0b5); }
+    .hold { --c: linear-gradient(180deg, #ffe08a, #ffb35f); }
+    .reuse { --c: linear-gradient(180deg, #bca7ff, #85a7ff); }
+    .drop { --c: linear-gradient(180deg, #ff8f8f, #d55765); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .stat { padding: 12px; }
+    .stat span { color: #82ccff; font-size: .72rem; text-transform: uppercase; }
+    .stat b { display: block; font-size: 1.4rem; }
+    .log { display: grid; gap: 8px; margin-top: 14px; }
+    .log div { border-top: 1px solid rgba(184, 232, 255, .13); padding-top: 8px; color: #bfccd4; }
+    .chip { display: inline-flex; border: 1px solid rgba(130, 204, 255, .28); padding: 5px 8px; color: #82ccff; background: rgba(130, 204, 255, .08); text-transform: uppercase; font-size: .76rem; }
+    @media (max-width: 860px) { header { align-items: start; flex-direction: column; } .grid { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } .board { grid-template-columns: repeat(6, 1fr); } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <span class="chip">derivative prototype</span>
+      <h1>Mask Tile Scheduler Playground</h1>
+      <p>Image Segmenter のマスクを tile 単位に分け、変化量、鮮度、帯域、優先度から send / hold / reuse / drop を決める派生試作です。</p>
+    </div>
+    <p>次に足すなら、実 ImageBitmap の close 監視、Worker 経由の tile queue、WebGL texture atlas への部分更新をつなげます。</p>
+  </header>
+  <section class="grid">
+    <aside class="panel">
+      <h2>Scheduler controls</h2>
+      <label>Bandwidth per frame <span id="bandwidthLabel"></span>
+        <input id="bandwidth" type="range" min="4" max="32" value="14">
+      </label>
+      <label>Freshness TTL <span id="ttlLabel"></span>
+        <input id="ttl" type="range" min="1" max="12" value="5">
+      </label>
+      <label>Change sensitivity <span id="sensitivityLabel"></span>
+        <input id="sensitivity" type="range" min="10" max="90" value="45">
+      </label>
+      <label>Priority mode
+        <select id="priority">
+          <option value="motion">motion first</option>
+          <option value="edge">edge first</option>
+          <option value="center">center first</option>
+        </select>
+      </label>
+      <section class="log" id="log"></section>
+    </aside>
+    <section>
+      <div class="stats">
+        <div class="stat"><span>send</span><b id="send">0</b></div>
+        <div class="stat"><span>hold</span><b id="hold">0</b></div>
+        <div class="stat"><span>reuse</span><b id="reuse">0</b></div>
+        <div class="stat"><span>drop</span><b id="drop">0</b></div>
+      </div>
+      <div class="board" id="board"></div>
+    </section>
+  </section>
+</main>
+<script>
+const ids = ["bandwidth","ttl","sensitivity","priority","bandwidthLabel","ttlLabel","sensitivityLabel","send","hold","reuse","drop","board","log"];
+const el = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+let frame = 0;
+const ages = Array.from({ length: 96 }, () => 0);
+
+function scoreTile(i, cfg) {
+  const x = i % 12;
+  const y = Math.floor(i / 12);
+  const center = 1 - Math.min(1, Math.hypot(x - 5.5, y - 3.5) / 6.8);
+  const edge = Math.max(x / 11, y / 7, 1 - x / 11, 1 - y / 7);
+  const motion = (Math.sin(frame * .18 + x * .6) + Math.cos(frame * .14 + y * .8) + 2) / 4;
+  const base = cfg.priority === "center" ? center : cfg.priority === "edge" ? edge : motion;
+  const change = Math.abs(Math.sin(frame * .08 + i * .37)) * .68 + motion * .32;
+  return { base, change, urgency: base * .5 + change * .38 + Math.min(1, ages[i] / cfg.ttl) * .12 };
+}
+
+function update() {
+  const cfg = {
+    bandwidth: Number(el.bandwidth.value),
+    ttl: Number(el.ttl.value),
+    sensitivity: Number(el.sensitivity.value) / 100,
+    priority: el.priority.value
+  };
+  el.bandwidthLabel.textContent = `${cfg.bandwidth} tiles`;
+  el.ttlLabel.textContent = `${cfg.ttl} frames`;
+  el.sensitivityLabel.textContent = `${Math.round(cfg.sensitivity * 100)}%`;
+  const scored = ages.map((_, i) => ({ i, ...scoreTile(i, cfg) })).sort((a, b) => b.urgency - a.urgency);
+  const sendSet = new Set(scored.filter(t => t.change > cfg.sensitivity).slice(0, cfg.bandwidth).map(t => t.i));
+  const counts = { send: 0, hold: 0, reuse: 0, drop: 0 };
+  const tiles = ages.map((age, i) => {
+    const s = scoreTile(i, cfg);
+    let state = "reuse";
+    if (sendSet.has(i)) {
+      state = "send";
+      ages[i] = 0;
+    } else if (age > cfg.ttl + 3) {
+      state = "drop";
+      ages[i] += 1;
+    } else if (s.change > cfg.sensitivity) {
+      state = "hold";
+      ages[i] += 1;
+    } else {
+      state = "reuse";
+      ages[i] += 1;
+    }
+    counts[state] += 1;
+    const height = Math.round(Math.max(.1, s.urgency) * 100);
+    return `<div class="tile ${state}" style="--h:${height}%"><strong>${state}</strong></div>`;
+  }).join("");
+  el.board.innerHTML = tiles;
+  for (const key of Object.keys(counts)) el[key].textContent = counts[key];
+  el.log.innerHTML = [
+    `frame ${frame}: ${counts.send} tiles sent within ${cfg.bandwidth} tile budget`,
+    `${counts.hold} changed tiles held for next frame`,
+    `${counts.drop} stale tiles dropped to protect paint budget`
+  ].map(line => `<div>${line}</div>`).join("");
+  frame++;
+  setTimeout(update, 170);
+}
+update();
+</script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mask Delta Compositor Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #07100d;
+      color: #f4fbf6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 18% 10%, rgba(115, 224, 168, .18), transparent 28%),
+        linear-gradient(145deg, #07100d 0%, #12231f 58%, #0c1217 100%);
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; align-items: end; border-bottom: 1px solid rgba(188, 244, 212, .18); padding-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4.2rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #bdd0c7; line-height: 1.7; }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(188, 244, 212, .2);
+      background: rgba(8, 18, 17, .78);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    label { display: grid; gap: 7px; color: #eaf8f0; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #73e0a8;
+      color: #f4fbf6;
+      background: #0c1715;
+      border: 1px solid rgba(188, 244, 212, .22);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 530px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; }
+    .metric b { display: block; font-size: 1.25rem; }
+    .metric span, .chip { color: #8ee8b8; font-size: .76rem; text-transform: uppercase; }
+    .side { display: grid; gap: 12px; }
+    .bar { height: 12px; background: rgba(188, 244, 212, .12); overflow: hidden; margin-top: 8px; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #73e0a8, #79b9ff); }
+    .timeline { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 34px; background: rgba(188, 244, 212, .1); border: 1px solid rgba(188, 244, 212, .1); }
+    .tick.full { background: rgba(255, 205, 107, .36); }
+    .tick.delta { background: rgba(115, 224, 168, .38); }
+    .tick.skip { background: rgba(255, 118, 118, .3); }
+    .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .chip { border: 1px solid rgba(142, 232, 184, .28); padding: 5px 8px; background: rgba(142, 232, 184, .08); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 440px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks Vision / Image Segmenter</p>
+      <h1>Mask Delta Compositor Lab</h1>
+      <p>Image Segmenter の confidence mask / category mask を想定し、毎フレーム全面合成する場合と、変化した tile だけを転送する場合のコスト差を可視化する自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Compositor controls</h2>
+      <div class="controls">
+        <label>Mask mode
+          <select id="mode">
+            <option value="confidence">confidence mask</option>
+            <option value="category">category mask</option>
+            <option value="hybrid">category + confidence</option>
+          </select>
+        </label>
+        <label>Render policy
+          <select id="policy">
+            <option value="delta">delta tiles</option>
+            <option value="full">full frame</option>
+            <option value="budget">budget capped</option>
+          </select>
+        </label>
+        <label>Tile size <span id="tileLabel"></span>
+          <input id="tile" type="range" min="12" max="64" value="28">
+        </label>
+        <label>Motion <span id="motionLabel"></span>
+          <input id="motion" type="range" min="1" max="100" value="42">
+        </label>
+        <label>Confidence gate <span id="gateLabel"></span>
+          <input id="gate" type="range" min="15" max="90" value="58">
+        </label>
+        <label>Frame budget <span id="budgetLabel"></span>
+          <input id="budget" type="range" min="4" max="24" value="12">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="900" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>route</span><b id="route">delta</b></div>
+        <div class="metric"><span>changed tiles</span><b id="changed">0</b></div>
+        <div class="metric"><span>estimate</span><b id="cost">0 ms</b></div>
+        <div class="metric"><span>action</span><b id="action">draw</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Mask lifecycle note</h2>
+        <p>MediaPipe の Image Segmenter Web guide は category mask と confidence mask を扱います。実装では mask を canvas / ImageBitmap / WebGL texture に渡す境界で、古い bitmap を閉じる、差分更新を測る、UI thread の合成を詰まらせない、の3点を分けて見ます。</p>
+      </section>
+      <section class="panel">
+        <h2>Cost split</h2>
+        <div class="bar"><i id="computeBar"></i></div>
+        <p id="computeText"></p>
+        <div class="bar"><i id="transferBar"></i></div>
+        <p id="transferText"></p>
+        <div class="bar"><i id="paintBar"></i></div>
+        <p id="paintText"></p>
+      </section>
+      <section class="panel">
+        <h2>Frame timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <div class="legend">
+          <span class="chip">green delta</span>
+          <span class="chip">amber full</span>
+          <span class="chip">red skipped</span>
+        </div>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const els = Object.fromEntries(["mode","policy","tile","motion","gate","budget","route","changed","cost","action","tileLabel","motionLabel","gateLabel","budgetLabel","computeBar","transferBar","paintBar","computeText","transferText","paintText","timeline"].map(id => [id, document.querySelector("#" + id)]));
+let frame = 0;
+let history = [];
+
+function read() {
+  return {
+    mode: els.mode.value,
+    policy: els.policy.value,
+    tile: Number(els.tile.value),
+    motion: Number(els.motion.value),
+    gate: Number(els.gate.value) / 100,
+    budget: Number(els.budget.value)
+  };
+}
+
+function drawMask(config) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const tile = config.tile;
+  const cols = Math.ceil(w / tile);
+  const rows = Math.ceil(h / tile);
+  const t = frame * .035 * (config.motion / 38);
+  let changed = 0;
+  ctx.clearRect(0, 0, w, h);
+  const bg = ctx.createLinearGradient(0, 0, w, h);
+  bg.addColorStop(0, "#10251d");
+  bg.addColorStop(1, "#101623");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const cx = x * tile + tile / 2;
+      const cy = y * tile + tile / 2;
+      const wave = Math.sin(cx * .015 + t * 2.2) + Math.cos(cy * .018 - t * 1.7);
+      const blobA = Math.hypot(cx - w * (.36 + Math.sin(t) * .08), cy - h * .48);
+      const blobB = Math.hypot(cx - w * (.67 + Math.cos(t * .7) * .06), cy - h * (.5 + Math.sin(t * 1.3) * .1));
+      const confidence = Math.max(0, Math.min(1, .78 - Math.min(blobA, blobB) / 360 + wave * .11));
+      const active = confidence > config.gate;
+      const delta = Math.abs(Math.sin((x + y) * .37 + t * 3)) > .52 + config.gate * .24;
+      if (active && delta) changed++;
+      const hue = config.mode === "category" ? (active ? 156 : 210) : Math.round(120 + confidence * 100);
+      ctx.fillStyle = active
+        ? `hsla(${hue}, 72%, ${config.mode === "confidence" ? 54 + confidence * 18 : 58}%, ${config.mode === "category" ? .42 : .24 + confidence * .42})`
+        : "rgba(255,255,255,.025)";
+      ctx.fillRect(x * tile, y * tile, tile - 1, tile - 1);
+      if (active && delta) {
+        ctx.strokeStyle = "rgba(244, 251, 246, .32)";
+        ctx.strokeRect(x * tile + 1, y * tile + 1, tile - 3, tile - 3);
+      }
+    }
+  }
+  ctx.fillStyle = "rgba(244,251,246,.9)";
+  ctx.font = "18px Inter, system-ui, sans-serif";
+  ctx.fillText(`${config.mode} / ${config.policy}`, 24, 36);
+  return { changed, total: cols * rows };
+}
+
+function update() {
+  const config = read();
+  els.tileLabel.textContent = `${config.tile}px`;
+  els.motionLabel.textContent = `${config.motion}%`;
+  els.gateLabel.textContent = `${Math.round(config.gate * 100)}%`;
+  els.budgetLabel.textContent = `${config.budget}ms`;
+  const mask = drawMask(config);
+  const fullCost = 5.2 + mask.total * .018 + config.motion * .028;
+  const deltaCost = 2.1 + mask.changed * .041 + config.motion * .012;
+  let route = config.policy === "full" ? "full" : "delta";
+  let cost = route === "full" ? fullCost : deltaCost;
+  if (config.policy === "budget" && deltaCost > config.budget) {
+    route = "skip";
+    cost = deltaCost;
+  } else if (config.policy === "budget") {
+    route = "delta";
+  }
+  const action = route === "skip" ? "hold last mask" : route === "full" ? "paint full" : "paint delta";
+  history.push(route);
+  history = history.slice(-30);
+  els.route.textContent = route;
+  els.changed.textContent = `${mask.changed}/${mask.total}`;
+  els.cost.textContent = `${cost.toFixed(1)} ms`;
+  els.action.textContent = action;
+  const compute = Math.min(100, (2.4 + config.motion * .035) / config.budget * 100);
+  const transfer = Math.min(100, (route === "full" ? fullCost * .55 : mask.changed * .035) / config.budget * 100);
+  const paint = Math.min(100, (route === "skip" ? 1.2 : cost * .42) / config.budget * 100);
+  els.computeBar.style.width = compute + "%";
+  els.transferBar.style.width = transfer + "%";
+  els.paintBar.style.width = paint + "%";
+  els.computeText.textContent = `推論後処理 estimate: ${compute.toFixed(0)}% of budget`;
+  els.transferText.textContent = `mask transfer estimate: ${transfer.toFixed(0)}% of budget`;
+  els.paintText.textContent = `canvas paint estimate: ${paint.toFixed(0)}% of budget`;
+  els.timeline.innerHTML = history.map(v => `<span class="tick ${v === "full" ? "full" : v === "skip" ? "skip" : "delta"}"></span>`).join("");
+  frame++;
+  requestAnimationFrame(update);
+}
+update();
+</script>
+</body>
+</html>
