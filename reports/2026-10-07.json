@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-07",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "複数 Vision Task は 1 フレーム内の推論レーンと stale overlay を分けて扱う",
+  "headlineEn": "Treat multitask Vision inference lanes and stale overlays as separate Web ML concerns",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、GestureRecognizer JavaScript API、Object Detector guide、MediaPipe releases、公式 MediaPipe Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Hand / Gesture、Object、Face の推論レーンをフレーム予算・鮮度・優先度で選ぶ Multitask Vision Lane Scheduler、派生は周期の違う検出結果を fade / hide / ghost で扱う Result Staleness Overlay Probe です。",
+  "summaryEn": "After checking the Google AI Edge Gesture Recognizer Web guide, GestureRecognizer JavaScript API, Object Detector guide, MediaPipe releases, and the official MediaPipe Tasks Web demo, this adds two original samples. The main sample is Multitask Vision Lane Scheduler, which selects Hand / Gesture, Object, or Face inference lanes from frame budget, freshness, and priority. The derivative is Result Staleness Overlay Probe, which compares fade / hide / ghost handling for detection results that update at different cadences.",
+  "keyTopics": [
+    "Gesture Recognizer Web guide は video mode で timestamp 付きの `recognizeForVideo()` を使う流れを示しており、連続 video frame では呼び出し周期の設計が重要になる。",
+    "GestureRecognizer JavaScript API は `recognizeForVideo()` が同期的に応答を待つことを明記しているため、UI thread 上で複数 Task を直列に積む時は frame budget を先に決めたい。",
+    "Object Detector guide は静止画像と連続 video stream の両方を対象にしており、hand / face / object の結果周期を分けて考える題材になる。",
+    "公式 MediaPipe Tasks Web demo は task 切り替え、webcam / image 経路、GPU unavailable 表示を確認する入口で、実アプリの preflight と fallback UI の参考になる。",
+    "MediaPipe releases と Tasks Web 実装は、Web task module、WASM、delegate、同期 API の運用差分を毎日見る一次情報として引き続き重要。"
+  ],
+  "keyTopicsEn": [
+    "The Gesture Recognizer Web guide shows `recognizeForVideo()` with timestamps in video mode, making call cadence a key design choice for continuous frames.",
+    "The GestureRecognizer JavaScript API states that `recognizeForVideo()` waits synchronously for the response, so frame budgets should be planned before serially stacking multiple tasks on the UI thread.",
+    "The Object Detector guide covers both static images and continuous video streams, making it a useful reference for treating hand / face / object results as different cadence streams.",
+    "The official MediaPipe Tasks Web demo is a useful reference for task switching, webcam / image routes, and GPU-unavailable UI, all of which inform real-app preflight and fallback design.",
+    "MediaPipe releases and Tasks Web implementation details remain primary sources for Web task modules, WASM, delegates, and operational differences around synchronous APIs."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Multitask Vision Lane Scheduler",
+      "url": "../outputs/2026-10-07_multitask_vision_lane_scheduler.html"
+    },
+    {
+      "label": "Today's derivative sample: Result Staleness Overlay Probe",
+      "url": "../outputs/2026-10-07_result_staleness_overlay_probe.html"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: GestureRecognizer JavaScript API",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.gesturerecognizer"
+    },
+    {
+      "label": "Google AI Edge: Object Detector task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/object_detector"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-07-multitask-vision-lane-scheduler.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe Tasks の Web アプリで複数の Vision Task を同時に使いたくなった時、実際には「全部を毎フレーム実行する」よりも、どの Task をいつ走らせ、古い結果をどう表示するかが体験を左右する点です。公式 guide と API reference は video mode と同期応答の前提を示しているため、サンプルでは実モデル読み込みではなくレーン配分と overlay 鮮度を独立して可視化しました。",
+      "bodyEn": "Today's notable point is that when a Web app wants to use multiple MediaPipe Vision Tasks, the experience is shaped less by running everything every frame and more by deciding which task runs when and how stale results remain visible. The official guides and API reference establish video mode and synchronous responses, so these samples isolate lane scheduling and overlay freshness instead of loading real models."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Multitask Vision Lane Scheduler` は scheduler policy、frame budget、scene activity、device pressure を動かすと、hand / object / face のどれを今フレームで走らせるかが変わります。派生の `Result Staleness Overlay Probe` は fresh window、jitter、dropout、overlay policy を動かし、古い box や landmark を fade / hide / ghost する差を見ます。",
+      "bodyEn": "The main sample, `Multitask Vision Lane Scheduler`, changes which hand / object / face lane runs in the current frame as scheduler policy, frame budget, scene activity, and device pressure are adjusted. The derivative, `Result Staleness Overlay Probe`, changes fresh window, jitter, dropout, and overlay policy to compare fading, hiding, and ghosting stale boxes or landmarks."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは task lane、last run age、estimated cost、stale count、selected lane、skip count、overlay policy、fresh window、visible overlay count、warning count です。Gesture Recognizer、Hand Landmarker、Object Detector、Face Detector、Holistic Landmarker、PerformanceObserver、Long Task API、requestVideoFrameCallback、Web Worker、ImageBitmap、IndexedDB と組み合わせると、端末ごとに最適な推論周期と stale 表示ポリシーを自動調整できます。",
+      "bodyEn": "The samples can accumulate task lane, last-run age, estimated cost, stale count, selected lane, skip count, overlay policy, fresh window, visible overlay count, and warning count. Combined with Gesture Recognizer, Hand Landmarker, Object Detector, Face Detector, Holistic Landmarker, PerformanceObserver, the Long Task API, requestVideoFrameCallback, Web Workers, ImageBitmap, and IndexedDB, an app can adapt inference cadence and stale-display policy per device."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "`recognizeForVideo()` や `detectForVideo()` を同じ frame callback 内で複数回呼ぶ場合、推論時間だけでなく overlay 描画、結果の有効期限、次フレームの入力取得まで含めて予算化します。最低限、Task ごとの lastRun timestamp、maxAge、confidence、UI action を持たせると、古い結果を残すべきか消すべきかを一貫して判断できます。",
+      "bodyEn": "When calling `recognizeForVideo()` or `detectForVideo()` multiple times inside the same frame callback, budget not only inference time but also overlay drawing, result expiration, and acquisition of the next input frame. At minimum, keeping lastRun timestamps, maxAge, confidence, and UI action per task makes stale-result display decisions consistent."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Tasks Vision Web README、Gesture / Hand / Object / Face の Web guide、公式 Tasks demo の GPU fallback 表示、MediaPipe releases の Web task 差分、`requestVideoFrameCallback` と worker 転送の browser 実装差、WebNN / WebGPU delegate 周辺の一次情報を追います。",
+      "bodyEn": "Next, watch the Tasks Vision Web README, Gesture / Hand / Object / Face Web guides, GPU fallback behavior in the official Tasks demo, Web task changes in MediaPipe releases, browser differences around `requestVideoFrameCallback` and worker transfer, and primary information around WebNN / WebGPU delegates."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Multitask Vision Lane Scheduler` で policy を interaction first、frame budget を 12ms 前後、device pressure を高めにすると hand / gesture が優先され、object / face が stale になりやすくなります。派生では policy を ghost、fresh window を短く、dropout を上げると、古い overlay を警告付きで残す意味が分かりやすくなります。",
+      "bodyEn": "In `Multitask Vision Lane Scheduler`, set policy to interaction first, frame budget around 12ms, and device pressure high to prioritize hand / gesture while object / face become stale. In the derivative, use ghost policy, a short fresh window, and high dropout to make the value of warning-marked stale overlays easier to see."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、GestureRecognizer JS API、Object Detector guide、公式 Tasks Web demo、MediaPipe releases を確認。設計: 実モデルのロードではなく、複数 Vision Task を使うアプリのスケジューリングだけを小さく再現。実装: 本命 HTML に task lane、cost estimate、stale counter、dispatch timeline を追加。派生 HTML に overlay age、fade / hide / ghost policy、warning counter を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer Web guide, GestureRecognizer JS API, Object Detector guide, official Tasks Web demo, and MediaPipe releases. Design: reproduce only the scheduling issue in multitask Vision apps rather than loading real models. Implementation: added task lanes, cost estimates, stale counters, and dispatch timeline to the main HTML. Added overlay age, fade / hide / ghost policy, and warning counters to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は Image Segmenter の post-inference mask 合成を扱いました。今日はさらに広げて、複数 Task を同じカメラ体験に載せる時のレーン配分と結果鮮度に進めました。日次サンプル群としては、入力 preflight、asset / delegate、running mode、post-render、multi-task scheduling まで、Web ML 実装の詰まりどころを横断できるようになってきています。",
+      "bodyEn": "Yesterday focused on post-inference mask compositing for Image Segmenter. Today broadens that into lane scheduling and result freshness when multiple tasks share one camera experience. Across the daily samples, the collection now spans input preflight, assets / delegates, running modes, post-rendering, and multitask scheduling bottlenecks in Web ML implementation."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Multitask Vision Lane Scheduler` です。実際に動く部分は synthetic scene 上で hand / object / face の lane age と推定コストを更新し、frame budget 内で走らせる Task を選ぶところです。次に足すなら実 `recognizeForVideo()` / `detectForVideo()` の計測、`requestVideoFrameCallback`、worker queue、端末別 preset 保存を追加します。派生試作は `Result Staleness Overlay Probe` で、実際に動く部分は周期の違う synthetic overlay を fresh window と policy に応じて fade / hide / ghost するところです。次に足すなら実 confidence、Long Task API、誤操作ログ、古い overlay クリック抑制を追加します。",
+      "bodyEn": "The selected main prototype is `Multitask Vision Lane Scheduler`. The working pieces update lane age and estimated cost for hand / object / face on a synthetic scene, then choose which task runs within the frame budget. Next additions should include real `recognizeForVideo()` / `detectForVideo()` measurement, `requestVideoFrameCallback`, worker queues, and per-device preset storage. The derivative prototype is `Result Staleness Overlay Probe`; the working pieces fade, hide, or ghost synthetic overlays with different cadences according to the fresh window and policy. Next additions should include real confidence values, the Long Task API, mis-action logging, and click suppression for stale overlays.",
+      "links": [
+        {
+          "label": "Open Multitask Vision Lane Scheduler",
+          "url": "../outputs/2026-10-07_multitask_vision_lane_scheduler.html"
+        },
+        {
+          "label": "Open Result Staleness Overlay Probe",
+          "url": "../outputs/2026-10-07_result_staleness_overlay_probe.html"
+        }
+      ]
+    }
+  ]
+}

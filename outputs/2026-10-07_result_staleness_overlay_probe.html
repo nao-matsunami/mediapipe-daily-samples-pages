@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Result Staleness Overlay Probe</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b0d11;
+      color: #fbfcff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(140deg, rgba(112, 221, 255, .14), transparent 35%), linear-gradient(320deg, rgba(255, 122, 98, .13), transparent 42%), #0b0d11; }
+    main { width: min(1120px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(230, 239, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; }
+    p { color: #c6ced9; line-height: 1.7; }
+    .panel, .stage, .metric { border: 1px solid rgba(230, 239, 255, .17); background: rgba(12, 16, 23, .82); box-shadow: 0 22px 58px rgba(0, 0, 0, .3); }
+    .panel { padding: 16px; }
+    .chip, .metric span { color: #70ddff; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(112, 221, 255, .3); padding: 5px 8px; background: rgba(112, 221, 255, .08); }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f4f7ff; font-size: .86rem; }
+    input, select { width: 100%; accent-color: #70ddff; color: #fbfcff; background: #0d1520; border: 1px solid rgba(230, 239, 255, .22); padding: 9px 10px; }
+    .layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .metric { padding: 12px; }
+    .metric b { display: block; font-size: 1.28rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .decision { display: grid; gap: 8px; }
+    .row { display: grid; grid-template-columns: 74px 1fr 58px; gap: 8px; align-items: center; border-top: 1px solid rgba(230, 239, 255, .12); padding: 9px 0; }
+    .bar { height: 10px; background: rgba(230, 239, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #70ddff, #ff9c83); }
+    @media (max-width: 850px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 460px; }
+      .hud { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe result freshness / overlay UX</p>
+      <h1>Result Staleness Overlay Probe</h1>
+      <p>複数 Task の出力が別々の周期で更新されるとき、古い bounding box や landmark overlay をどこまで表示し続けるかを試す派生サンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Overlay controls</h2>
+      <div class="controls">
+        <label>Overlay policy
+          <select id="policy">
+            <option value="fade">fade stale output</option>
+            <option value="hide">hide stale output</option>
+            <option value="ghost">ghost with warning</option>
+          </select>
+        </label>
+        <label>Fresh window <span id="freshLabel"></span>
+          <input id="fresh" type="range" min="60" max="260" value="130">
+        </label>
+        <label>Detector jitter <span id="jitterLabel"></span>
+          <input id="jitter" type="range" min="0" max="100" value="46">
+        </label>
+        <label>Dropout chance <span id="dropLabel"></span>
+          <input id="drop" type="range" min="0" max="75" value="22">
+        </label>
+      </div>
+    </section>
+  </header>
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="860" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>visible overlays</span><b id="visible">0</b></div>
+        <div class="metric"><span>warnings</span><b id="warnings">0</b></div>
+        <div class="metric"><span>policy action</span><b id="action">fade</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Freshness decisions</h2>
+        <div id="decisions" class="decision"></div>
+      </section>
+      <section class="panel">
+        <h2>Next addition</h2>
+        <p>次に足すなら、実際の `detectForVideo()` / `recognizeForVideo()` の timestamp、PerformanceObserver の long task、overlay ごとの confidence を入れて、古い結果を残す UI と消す UI の誤操作率を比較します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["policy","fresh","jitter","drop","freshLabel","jitterLabel","dropLabel","visible","warnings","action","decisions"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const tracks = [
+  { id: "hand", label: "Hand landmarks", color: "#70ddff", cadence: 66 },
+  { id: "object", label: "Object box", color: "#ffcf70", cadence: 150 },
+  { id: "face", label: "Face box", color: "#ff9c83", cadence: 110 }
+];
+const state = Object.fromEntries(tracks.map(track => [track.id, { last: 0, x: .5, y: .5, ok: true }]));
+let t = 0;
+let tick = 0;
+
+function config() {
+  return {
+    policy: els.policy.value,
+    fresh: Number(els.fresh.value),
+    jitter: Number(els.jitter.value),
+    drop: Number(els.drop.value) / 100
+  };
+}
+
+function updateTracks(c) {
+  tracks.forEach((track, index) => {
+    const due = t - state[track.id].last > track.cadence + index * 18;
+    const wave = Math.sin(t * .004 + index);
+    if (due) {
+      const dropWave = (Math.sin(t * .017 + index * 2.1) + 1) / 2;
+      state[track.id].ok = dropWave > c.drop;
+      if (state[track.id].ok) {
+        state[track.id].last = t;
+        state[track.id].x = .5 + Math.sin(t * .0025 + index * 1.7) * (.22 + c.jitter * .0016);
+        state[track.id].y = .48 + Math.cos(t * .002 + index * 1.3) * (.16 + c.jitter * .0012);
+      }
+    }
+  });
+}
+
+function overlayAlpha(age, c) {
+  if (age <= c.fresh) return 1;
+  if (c.policy === "hide") return 0;
+  if (c.policy === "ghost") return .26;
+  return Math.max(.08, 1 - (age - c.fresh) / 360);
+}
+
+function draw(c) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#121a24");
+  grad.addColorStop(1, "#101019");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(251,252,255,.08)";
+  for (let x = 60; x < w; x += 80) {
+    ctx.beginPath();
+    ctx.moveTo(x, 40);
+    ctx.lineTo(x, h - 40);
+    ctx.stroke();
+  }
+  let visible = 0;
+  let warnings = 0;
+  tracks.forEach((track, index) => {
+    const item = state[track.id];
+    const age = t - item.last;
+    const alpha = overlayAlpha(age, c);
+    if (alpha > 0) visible++;
+    if (age > c.fresh) warnings++;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = track.color;
+    ctx.lineWidth = age > c.fresh ? 2 : 4;
+    const x = item.x * w;
+    const y = item.y * h;
+    if (track.id === "hand") {
+      for (let i = 0; i < 9; i++) {
+        const px = x + Math.sin(i + tick * .05) * (24 + i * 2);
+        const py = y + Math.cos(i * 1.7 + tick * .04) * (20 + i);
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
+      const bw = track.id === "object" ? 170 : 120;
+      const bh = track.id === "object" ? 104 : 132;
+      ctx.strokeRect(x - bw / 2, y - bh / 2, bw, bh);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = track.color;
+    ctx.font = "16px Inter, system-ui, sans-serif";
+    ctx.fillText(`${track.label} ${Math.round(age)}ms`, x - 56, y - 58 - index * 8);
+  });
+  els.visible.textContent = visible;
+  els.warnings.textContent = warnings;
+}
+
+function renderDecisions(c) {
+  els.decisions.innerHTML = tracks.map(track => {
+    const age = t - state[track.id].last;
+    const pct = Math.min(100, age / c.fresh * 100);
+    const status = age <= c.fresh ? "fresh" : c.policy;
+    return `<div class="row"><span class="chip">${track.id}</span><div><b>${track.label}</b><div class="bar"><i style="width:${pct}%;background:${track.color}"></i></div></div><span>${status}</span></div>`;
+  }).join("");
+}
+
+function loop() {
+  const c = config();
+  els.freshLabel.textContent = `${c.fresh}ms`;
+  els.jitterLabel.textContent = `${c.jitter}%`;
+  els.dropLabel.textContent = `${Math.round(c.drop * 100)}%`;
+  els.action.textContent = c.policy;
+  t += 33;
+  tick++;
+  updateTracks(c);
+  draw(c);
+  renderDecisions(c);
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

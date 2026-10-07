@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Face Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Face Landmarker</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Gesture Recognizer</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-09-25</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span></p>
+      <h2>Text Classifier は同期 classify をキューとポリシーで受け止める</h2>
+      <p class="en">Handle synchronous Text Classifier calls with queues and policy adapters</p>
+      <p>Google AI Edge の TextClassifier JavaScript API、tasks-text package / FilesetResolver、mediapipe-samples-web の Text Classifier worker、MediaPipe releases、Tasks Web README の Privacy Notice、npm @mediapipe/tasks-text を確認し、自作サンプルを2本追加しました。本命は同期 classify() を連打入力から守る Text Classifier Queue Guard、派生は category score を allow / hold / review / block に変換する Text Policy Score Tuner です。</p>
+      <div class="actions">
+        <a href="../days/2026-09-25.html">日付ページ</a>
+        <a href="../outputs/2026-09-25_text_classifier_queue_guard.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-09-25_text_policy_score_tuner.html"><span>MediaPipe</span>Text Policy Score Tuner</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-09-24</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span></p>
       <h2>Image Segmenter は mask confidence と lifecycle を分けて設計する</h2>
       <p class="en">Design Image Segmenter around mask confidence and lifecycle separately</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-09-14_gesture_stream_backpressure_console.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-14_gesture_command_policy_sandbox.html"><span>MediaPipe</span>Gesture Command Policy Sandbox</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-13</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Hand Landmarker</span></p>
-      <h2>Hand Landmarker の normalized 座標を UI 座標と奥行きゲートへ変換する</h2>
-      <p class="en">Converting Hand Landmarker normalized coordinates into UI coordinates and depth gates</p>
-      <p>Google AI Edge の Hand Landmarker Web guide、Face Landmarker Web guide、Web setup guide、NormalizedKeypoint / NormalizedRect API reference、MediaPipe release notes、Tasks Vision Web README を確認し、ランドマーク座標をそのまま描く前に mirror、crop、presence、tracking、z-depth を検証する自作サンプルを2本追加しました。本命は 21 点 hand landmark の座標キャリブレータ、派生は mirrored preview と letterbox による ROI rect のズレを見る probe です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-13.html">日付ページ</a>
-        <a href="../outputs/2026-09-13_hand_landmark_coordinate_calibrator.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-13_roi_rect_mirror_letterbox_probe.html"><span>MediaPipe</span>ROI Rect Mirror Letterbox Probe</a></div>
     </article></div>
   </main>
 </body>

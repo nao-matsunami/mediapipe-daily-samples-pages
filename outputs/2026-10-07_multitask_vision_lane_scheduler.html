@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multitask Vision Lane Scheduler</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #080d12;
+      color: #f7fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(55, 196, 155, .16), transparent 34%),
+        linear-gradient(315deg, rgba(255, 188, 92, .13), transparent 38%),
+        #080d12;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 370px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(214, 236, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4.3rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bed0dc; line-height: 1.65; }
+    .chip, .metric span { color: #7ef0c3; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(126, 240, 195, .28); padding: 5px 8px; background: rgba(126, 240, 195, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(214, 236, 255, .17);
+      background: rgba(11, 18, 26, .82);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .3);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #eef7ff; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #7ef0c3;
+      color: #f7fbff;
+      background: #0b141c;
+      border: 1px solid rgba(214, 236, 255, .22);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.35rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .task { display: grid; grid-template-columns: 72px 1fr 54px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid rgba(214, 236, 255, .12); }
+    .bar { height: 10px; background: rgba(214, 236, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7ef0c3, #ffd17a); }
+    .timeline { display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 30px; background: rgba(214, 236, 255, .09); border: 1px solid rgba(214, 236, 255, .1); }
+    .tick.hand { background: rgba(126, 240, 195, .42); }
+    .tick.object { background: rgba(255, 209, 122, .4); }
+    .tick.face { background: rgba(132, 178, 255, .42); }
+    .tick.skip { background: rgba(255, 117, 117, .32); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 460px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks Vision / Web ML scheduler</p>
+      <h1>Multitask Vision Lane Scheduler</h1>
+      <p>Hand Landmarker、Gesture Recognizer、Object Detector、Face Detector を同じ camera frame に載せる想定で、同期推論の呼び出し順と鮮度を調整する自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Lane controls</h2>
+      <div class="controls">
+        <label>Scheduler policy
+          <select id="policy">
+            <option value="freshness">freshness first</option>
+            <option value="interaction">interaction first</option>
+            <option value="balanced">balanced</option>
+          </select>
+        </label>
+        <label>Frame budget <span id="budgetLabel"></span>
+          <input id="budget" type="range" min="7" max="32" value="17">
+        </label>
+        <label>Scene activity <span id="activityLabel"></span>
+          <input id="activity" type="range" min="5" max="100" value="58">
+        </label>
+        <label>Device pressure <span id="pressureLabel"></span>
+          <input id="pressure" type="range" min="0" max="90" value="28">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="900" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>selected lane</span><b id="lane">hand</b></div>
+        <div class="metric"><span>cost</span><b id="cost">0 ms</b></div>
+        <div class="metric"><span>stale outputs</span><b id="stale">0</b></div>
+        <div class="metric"><span>action</span><b id="action">run</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Task lanes</h2>
+        <div id="tasks"></div>
+      </section>
+      <section class="panel">
+        <h2>Dispatch timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: hand / gesture, amber: object, blue: face, red: over budget skip</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>MediaPipe Tasks の video mode 呼び出しは結果を同期的に返すため、複数 Task を同じ UI frame で連続実行すると描画待ちが発生しやすくなります。ここでは実モデルの代わりに合成コストで、優先度と stale 許容を分けて見ます。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["policy","budget","activity","pressure","budgetLabel","activityLabel","pressureLabel","lane","cost","stale","action","tasks","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const lanes = [
+  { id: "hand", label: "Hand / Gesture", color: "#7ef0c3", base: 7.1, maxAge: 84, interaction: 1.4 },
+  { id: "object", label: "Object", color: "#ffd17a", base: 10.8, maxAge: 180, interaction: .75 },
+  { id: "face", label: "Face", color: "#84b2ff", base: 8.5, maxAge: 140, interaction: .95 }
+];
+let frame = 0;
+let now = 0;
+let history = [];
+const state = Object.fromEntries(lanes.map(lane => [lane.id, { lastRun: -200, cost: lane.base, runs: 0 }]));
+
+function settings() {
+  return {
+    policy: els.policy.value,
+    budget: Number(els.budget.value),
+    activity: Number(els.activity.value),
+    pressure: Number(els.pressure.value)
+  };
+}
+
+function scoreLane(lane, config) {
+  const age = now - state[lane.id].lastRun;
+  const freshness = Math.min(2.4, age / lane.maxAge);
+  const interaction = config.policy === "interaction" ? lane.interaction : 1;
+  const balance = config.policy === "balanced" ? (lane.id === "object" ? 1.05 : 1) : 1;
+  const motionBoost = lane.id === "hand" ? config.activity / 85 : config.activity / 140;
+  return freshness * interaction * balance + motionBoost;
+}
+
+function estimatedCost(lane, config) {
+  const jitter = Math.sin(frame * .17 + lane.base) * 1.1;
+  const pressure = 1 + config.pressure / 120;
+  const activity = lane.id === "object" ? config.activity * .045 : config.activity * .028;
+  return Math.max(3, lane.base * pressure + activity + jitter);
+}
+
+function choose(config) {
+  const ranked = lanes.map(lane => ({ lane, score: scoreLane(lane, config), cost: estimatedCost(lane, config) }))
+    .sort((a, b) => b.score - a.score);
+  const pick = ranked.find(item => item.cost <= config.budget) || ranked[0];
+  const skipped = pick.cost > config.budget;
+  if (!skipped) {
+    state[pick.lane.id].lastRun = now;
+    state[pick.lane.id].runs += 1;
+    state[pick.lane.id].cost = pick.cost;
+  }
+  return { ...pick, skipped };
+}
+
+function draw(config, dispatch) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#0c1922");
+  grad.addColorStop(1, "#10111a");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  const t = frame * .05;
+  for (let i = 0; i < 24; i++) {
+    const x = (i % 6) * 148 + 80 + Math.sin(t + i) * config.activity * .16;
+    const y = Math.floor(i / 6) * 110 + 76 + Math.cos(t * .8 + i) * config.activity * .1;
+    ctx.strokeStyle = "rgba(247,251,255,.12)";
+    ctx.strokeRect(x - 42, y - 30, 84, 60);
+  }
+  lanes.forEach((lane, index) => {
+    const laneY = 112 + index * 132;
+    const age = Math.max(0, now - state[lane.id].lastRun);
+    ctx.fillStyle = "rgba(255,255,255,.04)";
+    ctx.fillRect(80, laneY, w - 160, 74);
+    ctx.fillStyle = lane.color;
+    ctx.globalAlpha = lane.id === dispatch.lane.id && !dispatch.skipped ? 1 : .36;
+    ctx.fillRect(80, laneY, Math.min(w - 160, age * 2.4), 74);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#f7fbff";
+    ctx.font = "22px Inter, system-ui, sans-serif";
+    ctx.fillText(lane.label, 102, laneY + 34);
+    ctx.font = "14px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "#bed0dc";
+    ctx.fillText(`age ${Math.round(age)}ms / max ${lane.maxAge}ms`, 102, laneY + 56);
+  });
+}
+
+function renderTasks() {
+  els.tasks.innerHTML = lanes.map(lane => {
+    const age = Math.max(0, now - state[lane.id].lastRun);
+    const pct = Math.min(100, age / lane.maxAge * 100);
+    return `<div class="task"><span class="chip">${lane.id}</span><div><b>${lane.label}</b><div class="bar"><i style="width:${pct}%;background:${lane.color}"></i></div></div><span>${Math.round(age)}ms</span></div>`;
+  }).join("");
+}
+
+function update() {
+  const config = settings();
+  els.budgetLabel.textContent = `${config.budget}ms`;
+  els.activityLabel.textContent = `${config.activity}%`;
+  els.pressureLabel.textContent = `${config.pressure}%`;
+  now += 33;
+  const dispatch = choose(config);
+  draw(config, dispatch);
+  const staleCount = lanes.filter(lane => now - state[lane.id].lastRun > lane.maxAge).length;
+  els.lane.textContent = dispatch.skipped ? "skip" : dispatch.lane.id;
+  els.cost.textContent = `${dispatch.cost.toFixed(1)} ms`;
+  els.stale.textContent = staleCount;
+  els.action.textContent = dispatch.skipped ? "hold UI" : "run task";
+  history.unshift(dispatch.skipped ? "skip" : dispatch.lane.id);
+  history = history.slice(0, 28);
+  els.timeline.innerHTML = history.map(item => `<span class="tick ${item}"></span>`).join("");
+  renderTasks();
+  frame++;
+  requestAnimationFrame(update);
+}
+
+update();
+</script>
+</body>
+</html>
