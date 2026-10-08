@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confidence Event Quarantine Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #100d0a;
+      color: #fffaf1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(244, 194, 92, .16), transparent 34%),
+        linear-gradient(315deg, rgba(91, 201, 177, .14), transparent 40%),
+        #100d0a;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(255, 244, 220, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #d7c7af; line-height: 1.65; }
+    .chip, .metric span { color: #f4c25c; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(244, 194, 92, .32); padding: 5px 8px; background: rgba(244, 194, 92, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(255, 244, 220, .16);
+      background: rgba(20, 15, 10, .84);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .32);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #fff7e8; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #f4c25c;
+      color: #fffaf1;
+      background: #17120d;
+      border: 1px solid rgba(255, 244, 220, .22);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 330px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.35rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .queue { display: grid; gap: 8px; }
+    .event { display: grid; grid-template-columns: 70px 1fr 62px; gap: 10px; align-items: center; padding: 9px; border: 1px solid rgba(255, 244, 220, .13); }
+    .event.send { background: rgba(91, 201, 177, .14); }
+    .event.review { background: rgba(244, 194, 92, .14); }
+    .event.drop { background: rgba(255, 118, 103, .12); }
+    .event.hold { background: rgba(111, 152, 255, .12); }
+    .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
+    .bars i { height: 80px; align-self: end; background: #f4c25c; display: block; }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 460px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / event quarantine</p>
+      <h1>Confidence Event Quarantine Router</h1>
+      <p>低信頼な Vision イベントをそのままUI操作へ流さず、send / review / hold / drop に振り分ける派生試作です。</p>
+    </div>
+    <section class="panel">
+      <h2>Router controls</h2>
+      <div class="controls">
+        <label>Route policy
+          <select id="policy">
+            <option value="balanced">balanced</option>
+            <option value="strict">strict</option>
+            <option value="fast">fast</option>
+          </select>
+        </label>
+        <label>Review band <span id="bandLabel"></span>
+          <input id="band" type="range" min="4" max="26" value="13">
+        </label>
+        <label>TTL <span id="ttlLabel"></span>
+          <input id="ttl" type="range" min="80" max="520" value="260">
+        </label>
+        <label>Event rate <span id="rateLabel"></span>
+          <input id="rate" type="range" min="1" max="9" value="4">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="900" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>send</span><b id="send">0</b></div>
+        <div class="metric"><span>review</span><b id="review">0</b></div>
+        <div class="metric"><span>hold</span><b id="hold">0</b></div>
+        <div class="metric"><span>drop</span><b id="drop">0</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Recent events</h2>
+        <div id="queue" class="queue"></div>
+      </section>
+      <section class="panel">
+        <h2>Route mix</h2>
+        <div class="bars"><i id="barSend"></i><i id="barReview"></i><i id="barHold"></i><i id="barDrop"></i></div>
+        <p>send / review / hold / drop の比率を見ながら、confidence 閾値と TTL を決めるための小さな検証です。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["policy","band","ttl","rate","bandLabel","ttlLabel","rateLabel","send","review","hold","drop","queue","barSend","barReview","barHold","barDrop"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+let frame = 0;
+let now = 0;
+let queue = [];
+let counters = { send: 0, review: 0, hold: 0, drop: 0 };
+const labels = ["pinch", "face-present", "pose-lean", "object-near"];
+
+function config() {
+  return {
+    policy: els.policy.value,
+    band: Number(els.band.value),
+    ttl: Number(els.ttl.value),
+    rate: Number(els.rate.value)
+  };
+}
+
+function threshold(policy) {
+  if (policy === "strict") return 78;
+  if (policy === "fast") return 58;
+  return 68;
+}
+
+function route(event, c) {
+  const min = threshold(c.policy);
+  if (now - event.created > c.ttl) return "drop";
+  if (event.confidence >= min && event.freshness > .4) return "send";
+  if (event.confidence >= min - c.band && event.freshness > .25) return "review";
+  if (event.freshness > .18) return "hold";
+  return "drop";
+}
+
+function spawn(c) {
+  if (frame % Math.max(5, 18 - c.rate * 2) !== 0) return;
+  const index = Math.floor((frame / 7) % labels.length);
+  const confidence = Math.round(45 + Math.sin(frame * .23 + index) * 24 + c.rate * 3 + index * 2);
+  queue.unshift({
+    id: Math.random().toString(36).slice(2, 7),
+    label: labels[index],
+    confidence: Math.max(8, Math.min(96, confidence)),
+    freshness: 1,
+    created: now,
+    x: 110 + Math.random() * 650,
+    y: 90 + Math.random() * 300
+  });
+  queue = queue.slice(0, 10);
+}
+
+function step(c) {
+  queue.forEach(event => {
+    event.freshness = Math.max(0, 1 - (now - event.created) / c.ttl);
+    event.route = route(event, c);
+  });
+  queue.forEach(event => {
+    if (!event.counted && event.route !== "hold") {
+      counters[event.route] += 1;
+      event.counted = true;
+    }
+  });
+}
+
+function draw(c) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#19130d");
+  grad.addColorStop(1, "#111f1d");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(255,250,241,.12)";
+  for (let x = 80; x < w; x += 90) {
+    ctx.beginPath();
+    ctx.moveTo(x, 58);
+    ctx.lineTo(x + Math.sin(frame * .02 + x) * 34, h - 102);
+    ctx.stroke();
+  }
+  queue.forEach(event => {
+    const colors = { send: "#5bc9b1", review: "#f4c25c", hold: "#6f98ff", drop: "#ff7667" };
+    ctx.globalAlpha = Math.max(.18, event.freshness);
+    ctx.fillStyle = colors[event.route] || "#6f98ff";
+    ctx.fillRect(event.x - 38, event.y - 28, 76, 56);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fffaf1";
+    ctx.font = "14px Inter, system-ui, sans-serif";
+    ctx.fillText(event.label, event.x - 34, event.y - 4);
+    ctx.fillText(`${event.confidence}%`, event.x - 18, event.y + 17);
+  });
+}
+
+function render(c) {
+  els.bandLabel.textContent = `${c.band}%`;
+  els.ttlLabel.textContent = `${c.ttl}ms`;
+  els.rateLabel.textContent = `${c.rate}/9`;
+  Object.entries(counters).forEach(([key, value]) => {
+    els[key].textContent = value;
+  });
+  els.queue.innerHTML = queue.slice(0, 6).map(event => `<div class="event ${event.route}"><span class="chip">${event.route || "new"}</span><b>${event.label}</b><span>${event.confidence}%</span></div>`).join("");
+  const max = Math.max(1, ...Object.values(counters));
+  els.barSend.style.height = `${20 + counters.send / max * 70}px`;
+  els.barReview.style.height = `${20 + counters.review / max * 70}px`;
+  els.barHold.style.height = `${20 + counters.hold / max * 70}px`;
+  els.barDrop.style.height = `${20 + counters.drop / max * 70}px`;
+  els.barSend.style.background = "#5bc9b1";
+  els.barReview.style.background = "#f4c25c";
+  els.barHold.style.background = "#6f98ff";
+  els.barDrop.style.background = "#ff7667";
+}
+
+function loop() {
+  const c = config();
+  frame += 1;
+  now += 16.67;
+  spawn(c);
+  step(c);
+  draw(c);
+  render(c);
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks / Face Detector / Web ML</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks / Web ML / Packaging</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe</span><span class="badge">MediaPipe Tasks / Face Detector / Web ML</span><span class="badge">MediaPipe Tasks / Face Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe Tasks / Google AI Edge / LiteRT.js</span><span class="badge">MediaPipe Tasks / Hand Landmarker / Web ML</span><span class="badge">MediaPipe Tasks / Image Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe Tasks / Web ML / Google AI Edge</span><span class="badge">MediaPipe Tasks / Web ML / Packaging</span><span class="badge">MediaPipe Tasks GenAI / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-08-31</span><span class="badge">MediaPipe Tasks / Gesture Recognizer / Web ML</span></p>
+      <h2>Gesture Recognizer の同期推論をフレーム予算内に収める最小スケジューラ</h2>
+      <p class="en">A minimal frame scheduler for keeping Gesture Recognizer sync inference within budget</p>
+      <p>Google AI Edge の Gesture Recognizer guide、Web guide、MediaPipe Tasks Vision README、公式 mediapipe-samples-web、legacy Hands pipeline note を参考に、Gesture Recognizer の同期推論を目標FPS、同一フレームskip、疑似UI block、latency meter で観察する自作サンプルを追加しました。派生試作として、認識結果をそのまま操作に使わず、投票窓、最低得票、cooldown でコマンド化する小さなルータも追加しました。</p>
+      <div class="actions">
+        <a href="../days/2026-08-31.html">日付ページ</a>
+        <a href="../outputs/2026-08-31_gesture_recognizer_frame_scheduler.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-08-31_gesture_vote_command_router.html"><span>MediaPipe</span>Gesture Vote Command Router</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-08-30</span><span class="badge">Google AI Edge / LiteRT-LM / Web ML</span></p>
       <h2>LiteRT-LM JS 移行前に WebGPU とモデル入口を検査する最小 preflight</h2>
       <p class="en">A minimal WebGPU and model-entry preflight before moving to LiteRT-LM JS</p>
@@ -141,16 +151,6 @@
       <div class="actions">
         <a href="../days/2026-08-20.html">日付ページ</a>
         <a href="../outputs/2026-08-20_genai_stream_cancel_console.html">サンプル</a>
-      </div>
-      
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-08-19</span><span class="badge">MediaPipe Tasks / Web ML</span></p>
-      <h2>detectForVideo の前にフレーム予算を決める Governor</h2>
-      <p class="en">A frame-budget governor before detectForVideo loops</p>
-      <p>Google AI Edge の Hand / Face / Object Web guides と公式 MediaPipe samples web を参考に、連続 `detectForVideo()` を何 fps で回すべきかを試す自作ミニサンプルを追加しました。カメラ FPS、推論コスト、Worker lane、キュー上限、adaptive skip を動かすと、UI thread ブロック、古いフレーム処理、drop の関係を 60 フレームのタイムラインで確認できます。</p>
-      <div class="actions">
-        <a href="../days/2026-08-19.html">日付ページ</a>
-        <a href="../outputs/2026-08-19_vision_task_frame_budget_governor.html">サンプル</a>
       </div>
       
     </article></div>

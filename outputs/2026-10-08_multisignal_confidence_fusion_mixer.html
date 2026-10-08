@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multisignal Confidence Fusion Mixer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #09100f;
+      color: #f7fbf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(79, 205, 153, .16), transparent 34%),
+        linear-gradient(315deg, rgba(124, 158, 255, .16), transparent 42%),
+        #09100f;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(231, 247, 236, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4.1rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bdd3ca; line-height: 1.65; }
+    .chip, .metric span { color: #8af0ba; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(138, 240, 186, .32); padding: 5px 8px; background: rgba(138, 240, 186, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(231, 247, 236, .16);
+      background: rgba(10, 19, 17, .84);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .3);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #effaf2; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #8af0ba;
+      color: #f7fbf7;
+      background: #0c1715;
+      border: 1px solid rgba(231, 247, 236, .22);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.35rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .signal { display: grid; grid-template-columns: 78px 1fr 56px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid rgba(231, 247, 236, .12); }
+    .bar { height: 10px; background: rgba(231, 247, 236, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8af0ba, #7c9eff); }
+    .timeline { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 30px; background: rgba(231, 247, 236, .09); border: 1px solid rgba(231, 247, 236, .1); }
+    .tick.fire { background: rgba(138, 240, 186, .46); }
+    .tick.review { background: rgba(255, 214, 116, .44); }
+    .tick.hold { background: rgba(124, 158, 255, .42); }
+    .tick.block { background: rgba(255, 116, 116, .34); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 460px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / confidence fusion</p>
+      <h1>Multisignal Confidence Fusion Mixer</h1>
+      <p>Hand、Face、Pose、Object の合成結果を、信頼度・鮮度・同意度で混ぜて「操作に使ってよいか」を判定する自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Fusion controls</h2>
+      <div class="controls">
+        <label>Intent preset
+          <select id="preset">
+            <option value="gesture">gesture command</option>
+            <option value="attention">attention cue</option>
+            <option value="safety">safety alert</option>
+          </select>
+        </label>
+        <label>Fire threshold <span id="thresholdLabel"></span>
+          <input id="threshold" type="range" min="42" max="92" value="68">
+        </label>
+        <label>Fresh window <span id="freshLabel"></span>
+          <input id="fresh" type="range" min="80" max="420" value="210">
+        </label>
+        <label>Sensor noise <span id="noiseLabel"></span>
+          <input id="noise" type="range" min="0" max="80" value="24">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="900" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>fused score</span><b id="score">0%</b></div>
+        <div class="metric"><span>decision</span><b id="decision">hold</b></div>
+        <div class="metric"><span>fresh signals</span><b id="freshCount">0/4</b></div>
+        <div class="metric"><span>risk note</span><b id="risk">none</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Signals</h2>
+        <div id="signals"></div>
+      </section>
+      <section class="panel">
+        <h2>Decision timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: fire, amber: review, blue: hold, red: block</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実アプリでは Tasks の confidence、landmark presence、tracking confidence、timestamp、ユーザー同意状態を別々に保存し、UI action の直前で合成します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["preset","threshold","fresh","noise","thresholdLabel","freshLabel","noiseLabel","score","decision","freshCount","risk","signals","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const sources = [
+  { id: "hand", label: "Hand", color: "#8af0ba", base: .72, cadence: 72 },
+  { id: "face", label: "Face", color: "#7c9eff", base: .66, cadence: 124 },
+  { id: "pose", label: "Pose", color: "#ffd674", base: .61, cadence: 156 },
+  { id: "object", label: "Object", color: "#ff8c7a", base: .58, cadence: 190 }
+];
+const weightsByPreset = {
+  gesture: { hand: .44, face: .16, pose: .28, object: .12 },
+  attention: { hand: .18, face: .42, pose: .25, object: .15 },
+  safety: { hand: .18, face: .14, pose: .25, object: .43 }
+};
+let frame = 0;
+let now = 0;
+let history = [];
+const state = Object.fromEntries(sources.map(source => [source.id, { value: source.base, last: -300 }]));
+
+function config() {
+  return {
+    preset: els.preset.value,
+    threshold: Number(els.threshold.value),
+    fresh: Number(els.fresh.value),
+    noise: Number(els.noise.value)
+  };
+}
+
+function updateSignals(c) {
+  sources.forEach((source, index) => {
+    const due = now - state[source.id].last > source.cadence + c.noise * (index + 1) * .22;
+    if (due) {
+      const wave = Math.sin(frame * .06 + index * 1.7) * .17;
+      const jitter = Math.sin(frame * .21 + index) * c.noise * .0028;
+      state[source.id].value = Math.max(.05, Math.min(.98, source.base + wave + jitter));
+      state[source.id].last = now;
+    }
+  });
+}
+
+function decide(c) {
+  const weights = weightsByPreset[c.preset];
+  let total = 0;
+  let freshCount = 0;
+  sources.forEach(source => {
+    const age = now - state[source.id].last;
+    const freshness = Math.max(0, 1 - age / c.fresh);
+    if (freshness > .2) freshCount += 1;
+    total += state[source.id].value * freshness * weights[source.id];
+  });
+  const score = Math.round(total * 100);
+  const missing = freshCount < 3;
+  const privacy = c.preset === "attention" && state.face.value > .72 && state.object.value < .48;
+  let decision = "hold";
+  let risk = missing ? "stale" : "none";
+  if (score >= c.threshold && !missing && !privacy) decision = "fire";
+  else if (score >= c.threshold - 10 && !missing) { decision = "review"; risk = privacy ? "privacy" : "border"; }
+  else if (missing && score > c.threshold - 6) { decision = "block"; risk = "stale"; }
+  history.push(decision);
+  history = history.slice(-30);
+  return { score, decision, freshCount, risk };
+}
+
+function draw(c, result) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#0d1917");
+  grad.addColorStop(1, "#101425");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(247,251,247,.12)";
+  for (let i = 0; i < 8; i++) {
+    const y = 78 + i * 48;
+    ctx.beginPath();
+    ctx.moveTo(74, y);
+    ctx.bezierCurveTo(260, y - 42, 500, y + 48, 826, y - 12);
+    ctx.stroke();
+  }
+  sources.forEach((source, index) => {
+    const x = 190 + index * 170;
+    const age = now - state[source.id].last;
+    const radius = 42 + state[source.id].value * 78;
+    const alpha = Math.max(.14, 1 - age / c.fresh);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = source.color;
+    ctx.beginPath();
+    ctx.arc(x, 236 + Math.sin(frame * .04 + index) * 28, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#f7fbf7";
+    ctx.font = "22px Inter, system-ui, sans-serif";
+    ctx.fillText(source.label, x - 34, 396);
+    ctx.font = "14px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "#bdd3ca";
+    ctx.fillText(`${Math.round(state[source.id].value * 100)}% / ${Math.round(age)}ms`, x - 44, 420);
+  });
+  ctx.strokeStyle = result.decision === "fire" ? "#8af0ba" : result.decision === "review" ? "#ffd674" : result.decision === "block" ? "#ff7474" : "#7c9eff";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(42, 42, w - 84, h - 84);
+  ctx.lineWidth = 1;
+}
+
+function renderSignals(c) {
+  els.signals.innerHTML = sources.map(source => {
+    const age = now - state[source.id].last;
+    const pct = Math.round(state[source.id].value * 100);
+    return `<div class="signal"><span class="chip">${source.id}</span><div><b>${source.label}</b><div class="bar"><i style="width:${pct}%;background:${source.color}"></i></div></div><span>${Math.round(age)}ms</span></div>`;
+  }).join("");
+}
+
+function renderTimeline() {
+  els.timeline.innerHTML = history.map(item => `<div class="tick ${item}"></div>`).join("");
+}
+
+function loop() {
+  const c = config();
+  els.thresholdLabel.textContent = `${c.threshold}%`;
+  els.freshLabel.textContent = `${c.fresh}ms`;
+  els.noiseLabel.textContent = `${c.noise}%`;
+  frame += 1;
+  now += 16.67;
+  updateSignals(c);
+  const result = decide(c);
+  draw(c, result);
+  renderSignals(c);
+  renderTimeline();
+  els.score.textContent = `${result.score}%`;
+  els.decision.textContent = result.decision;
+  els.freshCount.textContent = `${result.freshCount}/4`;
+  els.risk.textContent = result.risk;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-08",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "複数Taskの結果は信頼度・鮮度・同意状態を合成してからUI操作に使う",
+  "headlineEn": "Fuse confidence, freshness, and consent before using multitask results for UI actions",
+  "summary": "Google AI Edge の Gesture Recognizer Web guide、Hand Landmarker Web guide、Holistic Landmarker Web guide、MediaPipe Tasks Vision Web README、公式 MediaPipe Tasks Web demo、MediaPipe releases を確認し、自作サンプルを2本追加しました。本命は Hand / Face / Pose / Object の合成信頼度を操作前に判定する Multisignal Confidence Fusion Mixer、派生は低信頼イベントを send / review / hold / drop に隔離する Confidence Event Quarantine Router です。",
+  "summaryEn": "After checking the Google AI Edge Gesture Recognizer Web guide, Hand Landmarker Web guide, Holistic Landmarker Web guide, MediaPipe Tasks Vision Web README, the official MediaPipe Tasks Web demo, and MediaPipe releases, this adds two original samples. The main sample is Multisignal Confidence Fusion Mixer, which gates Hand / Face / Pose / Object signals before actions. The derivative is Confidence Event Quarantine Router, which quarantines low-confidence events into send / review / hold / drop routes.",
+  "keyTopics": [
+    "Gesture Recognizer Web guide は video mode で timestamp 付きの `recognizeForVideo()` を使うため、結果を操作に使う前に frame 時刻と鮮度を持たせたい。",
+    "Hand Landmarker Web guide は `minHandPresenceConfidence` や `minTrackingConfidence` のような閾値を持つため、単一の gesture label だけでなく presence / tracking も UI gate に入れると安定する。",
+    "Holistic Landmarker Web guide は face / pose / hands の複数出力をまとめて扱う入口で、multi-signal fusion の題材として相性がよい。",
+    "MediaPipe Tasks Vision Web README と公式 demo は、同じWebページ上で複数 Task を切り替える実装・検証の入口になる。",
+    "GitHub の MediaPipe releases は、Web task bundle、WASM、delegate、API挙動の差分を毎日追う一次情報として継続ウォッチする。"
+  ],
+  "keyTopicsEn": [
+    "The Gesture Recognizer Web guide uses timestamped `recognizeForVideo()` in video mode, so frame time and freshness should travel with results before they drive actions.",
+    "The Hand Landmarker Web guide exposes thresholds such as `minHandPresenceConfidence` and `minTrackingConfidence`, so UI gates should include presence / tracking rather than only a gesture label.",
+    "The Holistic Landmarker Web guide is a good entry point for face / pose / hands multi-output work and fits multi-signal fusion well.",
+    "The MediaPipe Tasks Vision Web README and official demo are useful starting points for implementing and validating multiple tasks on one Web page.",
+    "GitHub MediaPipe releases remain primary watch material for Web task bundles, WASM, delegates, and API behavior changes."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Multisignal Confidence Fusion Mixer",
+      "url": "../outputs/2026-10-08_multisignal_confidence_fusion_mixer.html"
+    },
+    {
+      "label": "Today's derivative sample: Confidence Event Quarantine Router",
+      "url": "../outputs/2026-10-08_confidence_event_quarantine_router.html"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: Hand Landmarker guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Holistic Landmarker guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/holistic_landmarker/web_js"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/tree/master/mediapipe/tasks/web/vision"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-08-multisignal-confidence-fusion.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、複数の MediaPipe Task を同じカメラ体験に載せる時、推論レーンを選ぶだけでは足りず、結果を UI 操作に変換する直前で信頼度・鮮度・同意状態を合成する必要がある点です。Gesture / Hand / Holistic の公式 guide は video timestamp、presence、tracking、多出力を扱うため、サンプルでは実モデル読み込みではなく action gate の設計だけを小さく可視化しました。",
+      "bodyEn": "Today's notable point is that when multiple MediaPipe Tasks share one camera experience, lane selection is not enough; confidence, freshness, and consent need to be fused right before results become UI actions. The official Gesture / Hand / Holistic guides involve video timestamps, presence, tracking, and multi-output results, so these samples isolate action-gate design instead of loading real models."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Multisignal Confidence Fusion Mixer` は intent preset、fire threshold、fresh window、sensor noise を動かし、Hand / Face / Pose / Object の信号が fire / review / hold / block に変わる様子を見ます。派生の `Confidence Event Quarantine Router` は review band、TTL、event rate、policy を動かし、低信頼イベントをそのまま操作にせず隔離する流れを確認します。",
+      "bodyEn": "The main sample, `Multisignal Confidence Fusion Mixer`, lets intent preset, fire threshold, fresh window, and sensor noise change whether Hand / Face / Pose / Object signals become fire / review / hold / block. The derivative, `Confidence Event Quarantine Router`, uses review band, TTL, event rate, and policy to quarantine low-confidence events before they become direct actions."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは signal confidence、last timestamp、freshness、preset weight、fused score、decision、route count、review band、TTL、event label です。Gesture Recognizer、Hand Landmarker、Holistic Landmarker、Object Detector、Face Landmarker、Long Task API、PerformanceObserver、IndexedDB、Web Worker、ImageBitmap、Web Audio の警告音、LLM による誤操作説明ログと組み合わせると、端末やユーザーごとに誤操作を減らす操作ゲートを育てられます。",
+      "bodyEn": "The samples can accumulate signal confidence, last timestamps, freshness, preset weights, fused scores, decisions, route counts, review bands, TTLs, and event labels. Combined with Gesture Recognizer, Hand Landmarker, Holistic Landmarker, Object Detector, Face Landmarker, the Long Task API, PerformanceObserver, IndexedDB, Web Workers, ImageBitmap, Web Audio warning cues, and LLM-generated mis-action explanations, the action gate can be tuned per device and user."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では Task の生結果を直接イベントに変えず、`source`, `confidence`, `timestamp`, `maxAge`, `consent`, `route` を持つ中間イベントへ変換します。Hand の presence / tracking、Face の blendshape score、Pose の visibility、Object の category score は同じ尺度ではないため、preset ごとに重みを分け、古い結果には freshness decay をかけるのが扱いやすいです。",
+      "bodyEn": "In production, do not convert raw task results directly into events; first map them into intermediate events with `source`, `confidence`, `timestamp`, `maxAge`, `consent`, and `route`. Hand presence / tracking, Face blendshape scores, Pose visibility, and Object category scores are not the same scale, so preset-specific weights and freshness decay make the system easier to reason about."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Holistic Landmarker の Web guide と実装、Hand Landmarker の tracking confidence、Face Landmarker の blendshape / transformation matrix、Object Detector の score threshold、MediaPipe releases の Web task 差分、WebNN / WebGPU delegate 周辺、公式 Tasks demo の GPU fallback 表示を追います。",
+      "bodyEn": "Next, watch the Holistic Landmarker Web guide and implementation, Hand Landmarker tracking confidence, Face Landmarker blendshapes / transformation matrices, Object Detector score thresholds, Web task changes in MediaPipe releases, WebNN / WebGPU delegate updates, and GPU fallback behavior in the official Tasks demo."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Multisignal Confidence Fusion Mixer` で preset を gesture command、threshold を 70% 前後、fresh window を短めにすると、Hand が強くても Face / Pose / Object が古い時に hold / block へ落ちます。派生では policy を strict、review band を広げると、send より review が増え、危ういイベントを止める感覚が見えます。",
+      "bodyEn": "In `Multisignal Confidence Fusion Mixer`, set the preset to gesture command, threshold around 70%, and a short fresh window to see strong Hand signals fall back to hold / block when Face / Pose / Object become stale. In the derivative, use strict policy and a wide review band to increase review routing over send and make risky-event interception visible."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Gesture Recognizer Web guide、Hand Landmarker Web guide、Holistic Landmarker Web guide、Tasks Vision Web README、公式 Tasks Web demo、MediaPipe releases を確認。設計: 昨日の lane scheduling / stale overlay の次段として、操作直前の confidence fusion と event quarantine を切り出す。実装: 本命 HTML に signal freshness、preset weight、fused score、decision timeline を追加。派生 HTML に TTL、review band、route counter、recent event queue を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Gesture Recognizer Web guide, Hand Landmarker Web guide, Holistic Landmarker Web guide, Tasks Vision Web README, official Tasks Web demo, and MediaPipe releases. Design: after yesterday's lane scheduling / stale overlay work, isolate confidence fusion and event quarantine right before actions. Implementation: added signal freshness, preset weights, fused score, and decision timeline to the main HTML. Added TTL, review band, route counters, and recent event queue to the derivative HTML. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "昨日は複数 Vision Task の推論レーンと stale overlay を扱いました。今日はその出力を UI action に変換する直前の gate に進めました。日次サンプル群としては、入力 preflight、asset / delegate、running mode、post-render、multi-task scheduling、confidence fusion までつながり、Web ML アプリの実装上の詰まりどころを一列に辿れるようになっています。",
+      "bodyEn": "Yesterday focused on inference lanes and stale overlays for multiple Vision Tasks. Today moves one step later, into the gate right before outputs become UI actions. Across the daily samples, the collection now spans input preflight, assets / delegates, running modes, post-rendering, multitask scheduling, and confidence fusion, forming a practical path through Web ML implementation bottlenecks."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Multisignal Confidence Fusion Mixer` です。実際に動く部分は synthetic な Hand / Face / Pose / Object 信号を confidence と timestamp 付きで更新し、preset weight、freshness decay、threshold で fire / review / hold / block を判定するところです。次に足すなら実 `recognizeForVideo()` / `detectForVideo()` / Holistic result、Task ごとの confidence 正規化、ユーザー別 preset 保存を追加します。派生試作は `Confidence Event Quarantine Router` で、実際に動く部分は event confidence、TTL、review band から send / review / hold / drop を振り分けるところです。次に足すなら誤操作ログ、Long Task API、古い overlay のクリック抑制、Web Audio の注意音を追加します。",
+      "bodyEn": "The selected main prototype is `Multisignal Confidence Fusion Mixer`. The working pieces update synthetic Hand / Face / Pose / Object signals with confidence and timestamps, then use preset weights, freshness decay, and thresholds to decide fire / review / hold / block. Next additions should include real `recognizeForVideo()` / `detectForVideo()` / Holistic results, per-task confidence normalization, and per-user preset storage. The derivative prototype is `Confidence Event Quarantine Router`; the working pieces route event confidence, TTL, and review band into send / review / hold / drop. Next additions should include mis-action logs, the Long Task API, stale overlay click suppression, and Web Audio warning tones.",
+      "links": [
+        {
+          "label": "Open Multisignal Confidence Fusion Mixer",
+          "url": "../outputs/2026-10-08_multisignal_confidence_fusion_mixer.html"
+        },
+        {
+          "label": "Open Confidence Event Quarantine Router",
+          "url": "../outputs/2026-10-08_confidence_event_quarantine_router.html"
+        }
+      ]
+    }
+  ]
+}
