@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Task Upgrade Preflight Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #08110f;
+      color: #f4fbf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(88, 220, 164, .15), transparent 34%),
+        linear-gradient(315deg, rgba(255, 199, 96, .12), transparent 44%),
+        #08110f;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(232, 247, 238, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bdd0c7; line-height: 1.65; }
+    .chip, .metric span { color: #8cf0bf; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(140, 240, 191, .34); padding: 5px 8px; background: rgba(140, 240, 191, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(232, 247, 238, .16);
+      background: rgba(9, 18, 16, .84);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f4fbf7; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #8cf0bf;
+      color: #f4fbf7;
+      background: #0d1816;
+      border: 1px solid rgba(232, 247, 238, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 350px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.28rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 88px 1fr 58px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid rgba(232, 247, 238, .12); }
+    .bar { height: 10px; background: rgba(232, 247, 238, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8cf0bf, #ffc760); }
+    .timeline { display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 28px; background: rgba(232, 247, 238, .09); border: 1px solid rgba(232, 247, 238, .1); }
+    .tick.ship { background: rgba(140, 240, 191, .48); }
+    .tick.pilot { background: rgba(255, 199, 96, .44); }
+    .tick.hold { background: rgba(126, 169, 255, .42); }
+    .tick.block { background: rgba(255, 119, 119, .34); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 460px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / release preflight</p>
+      <h1>Task Upgrade Preflight Console</h1>
+      <p>MediaPipe v1.1.0 のような更新後に、Web Task の bundle、WASM、model、delegate、閾値設定を公開前に点検する自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Preflight inputs</h2>
+      <div class="controls">
+        <label>Task family
+          <select id="task">
+            <option value="vision">Vision multitask</option>
+            <option value="text">Text routing</option>
+            <option value="audio">Audio stream</option>
+          </select>
+        </label>
+        <label>Release delta <span id="deltaLabel"></span>
+          <input id="delta" type="range" min="0" max="100" value="42">
+        </label>
+        <label>Delegate confidence <span id="delegateLabel"></span>
+          <input id="delegate" type="range" min="0" max="100" value="70">
+        </label>
+        <label>Model metadata quality <span id="metadataLabel"></span>
+          <input id="metadata" type="range" min="0" max="100" value="76">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="900" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>readiness</span><b id="score">0%</b></div>
+        <div class="metric"><span>route</span><b id="route">pilot</b></div>
+        <div class="metric"><span>weakest check</span><b id="weak">wasm</b></div>
+        <div class="metric"><span>next action</span><b id="action">inspect</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Checks</h2>
+        <div id="checks"></div>
+      </section>
+      <section class="panel">
+        <h2>Route history</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: ship, amber: pilot, blue: hold, red: block</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実プロダクトでは、公式 release、npm / CDN バージョン、WASM fileset、modelAssetPath、delegate fallback、Task options を同じチェックリストに入れてから更新します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["task","delta","delegate","metadata","deltaLabel","delegateLabel","metadataLabel","score","route","weak","action","checks","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const checks = [
+  { id: "bundle", label: "Bundle import", color: "#8cf0bf", base: 82 },
+  { id: "wasm", label: "WASM fileset", color: "#7ea9ff", base: 78 },
+  { id: "model", label: "Model asset", color: "#ffc760", base: 74 },
+  { id: "delegate", label: "Delegate fallback", color: "#ff8a7a", base: 68 },
+  { id: "options", label: "Task options", color: "#caa1ff", base: 80 }
+];
+let t = 0;
+let history = [];
+
+function config() {
+  return {
+    task: els.task.value,
+    delta: Number(els.delta.value),
+    delegate: Number(els.delegate.value),
+    metadata: Number(els.metadata.value)
+  };
+}
+
+function evaluate(c) {
+  const taskBias = c.task === "vision" ? 4 : c.task === "text" ? -2 : 1;
+  const values = checks.map((check, index) => {
+    const releasePenalty = c.delta * (index === 0 || index === 1 ? .32 : .18);
+    const delegateBonus = index === 3 ? c.delegate * .38 : c.delegate * .08;
+    const metadataBonus = index === 2 || index === 4 ? c.metadata * .32 : c.metadata * .1;
+    const wave = Math.sin(t * .035 + index * 1.4) * 5;
+    const value = Math.max(0, Math.min(100, check.base + taskBias + delegateBonus + metadataBonus - releasePenalty + wave));
+    return { ...check, value };
+  });
+  const weakest = values.reduce((a, b) => a.value < b.value ? a : b);
+  const score = Math.round(values.reduce((sum, item) => sum + item.value, 0) / values.length);
+  let route = "pilot";
+  let action = "smoke test";
+  if (weakest.value < 42) { route = "block"; action = `fix ${weakest.id}`; }
+  else if (score < 66 || c.delta > 72) { route = "hold"; action = "pin version"; }
+  else if (score > 82 && c.delta < 46) { route = "ship"; action = "publish"; }
+  history.push(route);
+  history = history.slice(-28);
+  return { values, weakest, score, route, action };
+}
+
+function draw(result) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#0d1b18");
+  grad.addColorStop(1, "#151322");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(244,251,247,.12)";
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(64, 74 + i * 42);
+    ctx.lineTo(w - 64, 40 + i * 48);
+    ctx.stroke();
+  }
+  result.values.forEach((item, index) => {
+    const x = 170 + index * 145;
+    const y = 318 - item.value * 2.1;
+    ctx.fillStyle = item.color;
+    ctx.globalAlpha = .3;
+    ctx.fillRect(x - 40, y, 80, 390 - y);
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 22 + item.value * .28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f4fbf7";
+    ctx.font = "18px Inter, system-ui, sans-serif";
+    ctx.fillText(`${Math.round(item.value)}%`, x - 26, y - 36);
+    ctx.font = "13px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "#bdd0c7";
+    ctx.fillText(item.label, x - 45, 430);
+  });
+  ctx.strokeStyle = result.route === "ship" ? "#8cf0bf" : result.route === "pilot" ? "#ffc760" : result.route === "block" ? "#ff7777" : "#7ea9ff";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(42, 42, w - 84, h - 84);
+  ctx.lineWidth = 1;
+}
+
+function render(result, c) {
+  els.deltaLabel.textContent = `${c.delta}%`;
+  els.delegateLabel.textContent = `${c.delegate}%`;
+  els.metadataLabel.textContent = `${c.metadata}%`;
+  els.score.textContent = `${result.score}%`;
+  els.route.textContent = result.route;
+  els.weak.textContent = result.weakest.label;
+  els.action.textContent = result.action;
+  els.checks.innerHTML = result.values.map(item => `<div class="row"><span class="chip">${item.id}</span><div><b>${item.label}</b><div class="bar"><i style="width:${item.value}%;background:${item.color}"></i></div></div><span>${Math.round(item.value)}%</span></div>`).join("");
+  els.timeline.innerHTML = history.map(route => `<div class="tick ${route}"></div>`).join("");
+}
+
+function loop() {
+  t += 1;
+  const c = config();
+  const result = evaluate(c);
+  draw(result);
+  render(result, c);
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

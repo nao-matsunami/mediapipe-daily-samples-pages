@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Release Delta Risk Router</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b1014;
+      color: #f7fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(110, 191, 255, .16), transparent 38%),
+        linear-gradient(320deg, rgba(134, 235, 178, .13), transparent 46%),
+        #0b1014;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 330px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(225, 241, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.8rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p { color: #bacbd7; line-height: 1.65; }
+    .chip, .metric span { color: #8bc9ff; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(139, 201, 255, .35); padding: 5px 8px; background: rgba(139, 201, 255, .08); }
+    .panel, .metric, .stage { border: 1px solid rgba(225, 241, 255, .16); background: rgba(12, 19, 24, .86); box-shadow: 0 22px 58px rgba(0, 0, 0, .28); }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f7fbff; font-size: .86rem; }
+    input, select { width: 100%; accent-color: #8bc9ff; color: #f7fbff; background: #101a20; border: 1px solid rgba(225, 241, 255, .24); padding: 9px 10px; }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 540px; position: relative; overflow: hidden; padding: 18px; }
+    .queue { display: grid; gap: 10px; }
+    .event { display: grid; grid-template-columns: 96px 1fr 78px; gap: 12px; align-items: center; padding: 12px; border: 1px solid rgba(225, 241, 255, .14); background: rgba(255,255,255,.035); }
+    .event b { display: block; }
+    .event small { color: #9fb1bd; }
+    .route { text-align: center; padding: 6px; border: 1px solid rgba(225, 241, 255, .14); }
+    .ship { color: #86ebb2; }
+    .pilot { color: #ffd16f; }
+    .hold { color: #8bc9ff; }
+    .block { color: #ff8585; }
+    .hud { position: absolute; left: 18px; right: 18px; bottom: 18px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.24rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .bar { height: 11px; background: rgba(225, 241, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #86ebb2, #8bc9ff, #ffd16f); }
+    .counter { display: grid; gap: 10px; }
+    .counter div { display: grid; grid-template-columns: 72px 1fr 42px; gap: 10px; align-items: center; }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 620px; }
+      .hud { position: static; margin-top: 16px; grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / risk routing</p>
+      <h1>Release Delta Risk Router</h1>
+      <p>公式 release、Tasks package、モデル差し替え、デモ挙動の差分を、小さな運用判断イベントとして ship / pilot / hold / block に振り分ける派生試作です。</p>
+    </div>
+    <section class="panel">
+      <h2>Routing controls</h2>
+      <div class="controls">
+        <label>Policy
+          <select id="policy">
+            <option value="balanced">balanced</option>
+            <option value="strict">strict</option>
+            <option value="fast">fast lane</option>
+          </select>
+        </label>
+        <label>Risk tolerance <span id="toleranceLabel"></span>
+          <input id="tolerance" type="range" min="20" max="90" value="58">
+        </label>
+        <label>Demo parity <span id="parityLabel"></span>
+          <input id="parity" type="range" min="0" max="100" value="72">
+        </label>
+        <label>Rollback readiness <span id="rollbackLabel"></span>
+          <input id="rollback" type="range" min="0" max="100" value="80">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <div id="queue" class="queue"></div>
+      <div class="hud">
+        <div class="metric"><span>ship</span><b id="shipCount">0</b></div>
+        <div class="metric"><span>pilot</span><b id="pilotCount">0</b></div>
+        <div class="metric"><span>hold</span><b id="holdCount">0</b></div>
+        <div class="metric"><span>block</span><b id="blockCount">0</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Risk mix</h2>
+        <div id="counters" class="counter"></div>
+      </section>
+      <section class="panel">
+        <h2>Decision note</h2>
+        <p id="note">release 差分を直接公開判断にせず、公式デモとの parity と rollback readiness を合わせて小さく pilot します。</p>
+      </section>
+      <section class="panel">
+        <h2>Next additions</h2>
+        <p>次に足すなら GitHub release API、npm dist-tag、公式 demo の smoke result、Public Pages の代表 URL 200 チェックを同じキューへ接続します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const ids = ["policy","tolerance","parity","rollback","toleranceLabel","parityLabel","rollbackLabel","queue","shipCount","pilotCount","holdCount","blockCount","counters","note"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const templates = [
+  { type: "release", label: "MediaPipe release", base: 56, volatility: 28 },
+  { type: "package", label: "Tasks Web bundle", base: 48, volatility: 22 },
+  { type: "model", label: "Model metadata", base: 38, volatility: 34 },
+  { type: "demo", label: "Official demo parity", base: 34, volatility: 26 },
+  { type: "delegate", label: "GPU fallback", base: 44, volatility: 32 }
+];
+let tick = 0;
+let events = [];
+let totals = { ship: 0, pilot: 0, hold: 0, block: 0 };
+
+function config() {
+  return {
+    policy: els.policy.value,
+    tolerance: Number(els.tolerance.value),
+    parity: Number(els.parity.value),
+    rollback: Number(els.rollback.value)
+  };
+}
+
+function routeFor(risk, c) {
+  const strictness = c.policy === "strict" ? 14 : c.policy === "fast" ? -10 : 0;
+  const effective = c.tolerance - strictness + c.rollback * .15 + c.parity * .12;
+  if (risk > effective + 22) return "block";
+  if (risk > effective + 8) return "hold";
+  if (risk > effective - 12) return "pilot";
+  return "ship";
+}
+
+function makeEvent(c) {
+  const seed = templates[tick % templates.length];
+  const risk = Math.max(0, Math.min(100, seed.base + Math.sin(tick * .71) * seed.volatility + (100 - c.parity) * .18 - c.rollback * .1));
+  const route = routeFor(risk, c);
+  totals[route] += 1;
+  return {
+    label: seed.label,
+    type: seed.type,
+    risk: Math.round(risk),
+    route,
+    memo: route === "ship" ? "差分は小さい" : route === "pilot" ? "限定公開で観測" : route === "hold" ? "version pin 推奨" : "公開前に修正"
+  };
+}
+
+function render(c) {
+  els.toleranceLabel.textContent = `${c.tolerance}%`;
+  els.parityLabel.textContent = `${c.parity}%`;
+  els.rollbackLabel.textContent = `${c.rollback}%`;
+  els.queue.innerHTML = events.map(event => `<div class="event"><span class="chip">${event.type}</span><div><b>${event.label}</b><small>risk ${event.risk}% · ${event.memo}</small><div class="bar"><i style="width:${event.risk}%"></i></div></div><div class="route ${event.route}">${event.route}</div></div>`).join("");
+  for (const route of ["ship", "pilot", "hold", "block"]) {
+    els[`${route}Count`].textContent = totals[route];
+  }
+  const sum = Object.values(totals).reduce((a, b) => a + b, 0) || 1;
+  els.counters.innerHTML = ["ship", "pilot", "hold", "block"].map(route => {
+    const pct = Math.round(totals[route] / sum * 100);
+    return `<div><span class="${route}">${route}</span><div class="bar"><i style="width:${pct}%"></i></div><span>${pct}%</span></div>`;
+  }).join("");
+  els.note.textContent = c.policy === "strict"
+    ? "strict policy では demo parity が高くても release / delegate の差分を hold しやすくします。"
+    : c.policy === "fast"
+      ? "fast lane では rollback が整っている差分を pilot / ship に流し、検証ログを厚くします。"
+      : "balanced policy では公式 demo parity と rollback readiness を合わせて pilot の範囲を広げます。";
+}
+
+function loop() {
+  tick += 1;
+  const c = config();
+  if (tick % 32 === 1) {
+    events.unshift(makeEvent(c));
+    events = events.slice(0, 9);
+  }
+  render(c);
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-09",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "MediaPipe Tasks Web の更新は bundle・WASM・model・delegate を公開前に小さく点検する",
+  "headlineEn": "Preflight bundle, WASM, model, and delegate checks before upgrading MediaPipe Tasks Web",
+  "summary": "Google AI Edge の Web setup guide、Object Detector Web guide、ImageSegmenter JavaScript API、MediaPipe v1.1.0 release、mediapipe-samples-web、公式 MediaPipe Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Task Upgrade Preflight Console、派生は Release Delta Risk Router です。",
+  "summaryEn": "After checking the Google AI Edge Web setup guide, Object Detector Web guide, ImageSegmenter JavaScript API, the MediaPipe v1.1.0 release, mediapipe-samples-web, and the official MediaPipe Tasks Web demo, this adds two original samples: Task Upgrade Preflight Console and Release Delta Risk Router.",
+  "keyTopics": [
+    "GitHub の MediaPipe releases で v1.1.0 が最新として確認できたため、今日は Web Task 更新時の公開前プリフライトを主題にした。",
+    "Google AI Edge の Web setup guide は、Vision / Text / Audio / GenAI の prebuilt library と CDN / npm 導入経路を分けて説明しており、bundle import の点検項目になる。",
+    "Object Detector Web guide は score threshold、max results、delegate、modelAssetPath など、更新時に回帰しやすい option surface を持つ。",
+    "ImageSegmenter API は createFromOptions / createFromModelPath / createFromModelBuffer と label access を示しており、model metadata と WASM 初期化の smoke check に向く。",
+    "公式 Tasks Web demo と mediapipe-samples-web は、CPU/GPU fallback や各 Task の UI option parity を比較する一次情報として使える。"
+  ],
+  "keyTopicsEn": [
+    "The GitHub MediaPipe releases page shows v1.1.0 as the latest release, so today's focus is a preflight workflow for Web Task upgrades.",
+    "The Google AI Edge Web setup guide separates Vision / Text / Audio / GenAI prebuilt libraries and CDN / npm setup paths, which makes bundle import a concrete check.",
+    "The Object Detector Web guide exposes option surfaces such as score threshold, max results, delegate, and modelAssetPath that can regress during upgrades.",
+    "The ImageSegmenter API documents createFromOptions / createFromModelPath / createFromModelBuffer and label access, making it useful for model metadata and WASM smoke checks.",
+    "The official Tasks Web demo and mediapipe-samples-web are primary parity targets for CPU/GPU fallback and per-task UI options."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Task Upgrade Preflight Console",
+      "url": "../outputs/2026-10-09_task_upgrade_preflight_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Release Delta Risk Router",
+      "url": "../outputs/2026-10-09_release_delta_risk_router.html"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge: Object detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/object_detector/web_js"
+    },
+    {
+      "label": "Google AI Edge API: ImageSegmenter class",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imagesegmenter"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-09-task-upgrade-preflight.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe v1.1.0 のような公式 release を見た時に、すぐ実機体験へ流し込むのではなく、Web Task の bundle import、WASM fileset、model asset、delegate fallback、Task options を小さく点検する工程を作ることです。公式 demo は完成品の一覧としてではなく、手元の自作サンプルが同じ option surface と fallback 感覚を保てているかを見る基準にしました。",
+      "bodyEn": "Today's notable point is to treat an official release such as MediaPipe v1.1.0 as a trigger for small Web Task checks rather than immediately shipping it into a live experience. The checks are bundle import, WASM fileset, model asset, delegate fallback, and task options. The official demo is used as a parity reference, not as the center of the archive."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Task Upgrade Preflight Console` は release delta、delegate confidence、model metadata quality を動かし、5つの点検項目が ship / pilot / hold / block に変わる様子を可視化します。派生の `Release Delta Risk Router` は release / package / model / demo / delegate 差分をイベント化し、policy、risk tolerance、demo parity、rollback readiness で運用ルートを振り分けます。",
+      "bodyEn": "The main sample, `Task Upgrade Preflight Console`, lets release delta, delegate confidence, and model metadata quality change five checks into ship / pilot / hold / block outcomes. The derivative, `Release Delta Risk Router`, turns release / package / model / demo / delegate deltas into events and routes them by policy, risk tolerance, demo parity, and rollback readiness."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは release delta、bundle health、WASM health、model metadata score、delegate fallback confidence、option parity、risk route、rollback readiness、official demo parity です。GitHub release API、npm dist-tag、CDN import smoke test、model metadata parser、WebGL/WebGPU capability check、PerformanceObserver、既存の GitHub Pages HTTP 200 検証と組み合わせると、日次公開前に更新リスクを小さく見積もれます。",
+      "bodyEn": "The samples can accumulate release delta, bundle health, WASM health, model metadata score, delegate fallback confidence, option parity, risk route, rollback readiness, and official demo parity. Combined with the GitHub release API, npm dist-tags, CDN import smoke tests, a model metadata parser, WebGL/WebGPU capability checks, PerformanceObserver, and existing GitHub Pages HTTP 200 verification, upgrade risk can be estimated before daily publishing."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `createFromOptions()` などの Task 初期化を直接画面体験へつながず、bundle import、`FilesetResolver`、model asset、delegate、Task options、公式 demo parity の順で smoke result を集めます。差分が大きい日は新機能を広げず、version pin と rollback path を先に確認してから公開します。",
+      "bodyEn": "In production, do not connect task initialization such as `createFromOptions()` directly to the experience. First collect smoke results for bundle import, `FilesetResolver`, model assets, delegates, task options, and official demo parity. When release deltas are large, pin versions and confirm rollback paths before expanding features."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は MediaPipe v1.1.0 の詳細、Tasks Vision / Text / Audio package の dist-tag、公式 demo の GPU fallback 表示、Web setup guide の変更、Object Detector と Image Segmenter の option surface、LiteRT / WebGPU / WebNN 周辺の更新を追います。",
+      "bodyEn": "Next, watch MediaPipe v1.1.0 details, Tasks Vision / Text / Audio package dist-tags, GPU fallback behavior in the official demo, changes to the Web setup guide, Object Detector and Image Segmenter option surfaces, and LiteRT / WebGPU / WebNN updates."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Task Upgrade Preflight Console` で release delta を高め、delegate confidence と metadata quality を下げると、bundle / WASM / model の弱点が hold / block へ落ちます。派生では policy を strict にし、demo parity を下げると、公式デモと手元実装の差分が公開判断を止める様子が見えます。",
+      "bodyEn": "In `Task Upgrade Preflight Console`, raise release delta and lower delegate confidence / metadata quality to see bundle / WASM / model weaknesses fall into hold / block. In the derivative, set policy to strict and lower demo parity to see how differences between the official demo and local implementation can stop a publish route."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI Edge Web setup、Object Detector Web guide、ImageSegmenter API、MediaPipe releases、mediapipe-samples-web、公式 Tasks Web demo を確認。設計: 昨日の confidence fusion の次段として、Task 更新の運用リスクを公開前に判断する点検 UI にした。実装: 本命 HTML に bundle / WASM / model / delegate / options の readiness と route history を追加。派生 HTML に release / package / model / demo / delegate event queue と route counter を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked Google AI Edge Web setup, Object Detector Web guide, ImageSegmenter API, MediaPipe releases, mediapipe-samples-web, and the official Tasks Web demo. Design: after yesterday's confidence fusion work, focus on upgrade risk before publishing. Implementation: the main HTML adds readiness checks and route history for bundle / WASM / model / delegate / options. The derivative HTML adds a release / package / model / demo / delegate event queue and route counters. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "この日次アーカイブは、カメラ入力、Task 初期化、delegate、running mode、post-render、multi-task scheduling、confidence fusion まで進んできました。今日はそこへ release / package / model 変更を扱う運用前段を足しました。Web ML はモデル精度だけでなく、更新時に何を止めるかを見える化すると保守しやすくなります。",
+      "bodyEn": "This daily archive has moved through camera input, task initialization, delegates, running modes, post-rendering, multitask scheduling, and confidence fusion. Today adds an operational layer for release / package / model changes. Web ML becomes easier to maintain when upgrade stop conditions are visible, not only model accuracy."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Task Upgrade Preflight Console` です。実際に動く部分は release delta、delegate confidence、metadata quality を変えながら、bundle import、WASM fileset、model asset、delegate fallback、Task options の readiness を計算し、ship / pilot / hold / block を出すところです。次に足すなら実 GitHub release API、npm dist-tag、CDN import smoke test、model metadata parser、WebGL/WebGPU capability check を接続します。派生試作は `Release Delta Risk Router` で、実際に動く部分は release / package / model / demo / delegate 差分イベントを risk tolerance、demo parity、rollback readiness で振り分けるところです。次に足すなら公式 demo parity の自動取得、publish 前の代表 URL 200 チェック、rollback commit の記録を追加します。",
+      "bodyEn": "The selected main prototype is `Task Upgrade Preflight Console`. The working pieces change release delta, delegate confidence, and metadata quality, then compute readiness for bundle import, WASM fileset, model asset, delegate fallback, and task options before routing to ship / pilot / hold / block. Next additions should connect a real GitHub release API, npm dist-tags, CDN import smoke tests, a model metadata parser, and WebGL/WebGPU capability checks. The derivative prototype is `Release Delta Risk Router`; the working pieces route release / package / model / demo / delegate delta events using risk tolerance, demo parity, and rollback readiness. Next additions should include automatic official demo parity checks, representative URL 200 checks before publish, and rollback commit recording.",
+      "links": [
+        {
+          "label": "Open Task Upgrade Preflight Console",
+          "url": "../outputs/2026-10-09_task_upgrade_preflight_console.html"
+        },
+        {
+          "label": "Open Release Delta Risk Router",
+          "url": "../outputs/2026-10-09_release_delta_risk_router.html"
+        }
+      ]
+    }
+  ]
+}
