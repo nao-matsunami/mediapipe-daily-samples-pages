@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-10",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "MediaPipe のランドマーク出力は UI 操作へ渡す前に揺れと意図を小さく整える",
+  "headlineEn": "Stabilize landmark jitter and gesture intent before turning MediaPipe output into UI actions",
+  "summary": "Google AI Edge の Hand Landmarker Web guide、Gesture Recognizer Web guide、Web setup guide、DrawingUtils API、MediaPipe releases、公式 MediaPipe Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Landmark Jitter Smoothing Lab、派生は Gesture Intent Hysteresis Probe です。",
+  "summaryEn": "After checking the Google AI Edge Hand Landmarker Web guide, Gesture Recognizer Web guide, Web setup guide, DrawingUtils API, MediaPipe releases, and the official MediaPipe Tasks Web demo, this adds two original samples: Landmark Jitter Smoothing Lab and Gesture Intent Hysteresis Probe.",
+  "keyTopics": [
+    "Hand Landmarker Web guide は 21点の normalized landmarks / world landmarks と、presence / tracking confidence による再検出挙動を示しており、今日は出力後の安定化を主題にした。",
+    "Gesture Recognizer Web guide は canned gestures、score threshold、allowlist / denylist、runningMode、tracking confidence を扱うため、UI 操作へ変換する前の意図確定レイヤーを作りやすい。",
+    "Web setup guide は `@mediapipe/tasks-vision` の npm / CDN 導入経路を確認する入口で、今日の合成サンプルを後から実 Task へ差し替える時の接続点になる。",
+    "DrawingUtils API は landmarks / connectors / masks の描画補助を提供しており、今日の raw / smoothed overlay を実推論結果へ接続する時の基準になる。",
+    "GitHub の MediaPipe releases では v1.1.0 が最新として見えており、更新追跡と日次サンプルの動作安定化を分けて考える必要がある。"
+  ],
+  "keyTopicsEn": [
+    "The Hand Landmarker Web guide documents 21 normalized landmarks / world landmarks and presence / tracking confidence behavior, so today's topic focuses on post-output stabilization.",
+    "The Gesture Recognizer Web guide covers canned gestures, score threshold, allowlist / denylist, runningMode, and tracking confidence, making it a good base for an intent confirmation layer before UI actions.",
+    "The Web setup guide confirms npm / CDN routes for `@mediapipe/tasks-vision`, which is the future connection point from today's synthetic samples to real tasks.",
+    "The DrawingUtils API provides helpers for landmarks, connectors, and masks, giving a reference point for connecting today's raw / smoothed overlay to real inference output.",
+    "GitHub MediaPipe releases currently show v1.1.0 as the latest, so update tracking and daily sample stability should be treated as separate concerns."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Landmark Jitter Smoothing Lab",
+      "url": "../outputs/2026-10-10_landmark_jitter_smoothing_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Gesture Intent Hysteresis Probe",
+      "url": "../outputs/2026-10-10_gesture_intent_hysteresis_probe.html"
+    },
+    {
+      "label": "Google AI Edge: Hand landmarks detection guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/web_js"
+    },
+    {
+      "label": "Google AI Edge: Gesture recognition guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js"
+    },
+    {
+      "label": "Google AI Edge: Setup guide for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/setup_web"
+    },
+    {
+      "label": "Google AI Edge API: DrawingUtils class",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.drawingutils"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-10-landmark-jitter-smoothing.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Hand Landmarker や Gesture Recognizer の推論結果をそのまま UI 操作へ流すのではなく、ランドマークの揺れ、presence 低下、tracking confidence、gesture score の曖昧さを一段整えてから使うことです。公式 guide は Task の作り方と結果形状を示しますが、日次アーカイブ側ではその後段にある「操作として信じてよいか」を自作サンプルで可視化しました。",
+      "bodyEn": "Today's notable point is not to pass Hand Landmarker or Gesture Recognizer outputs directly into UI actions. Instead, smooth landmark jitter and gate presence loss, tracking confidence, and ambiguous gesture scores first. The official guides show task setup and result shapes; this archive visualizes the downstream question of whether the output is reliable enough to become an action."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Landmark Jitter Smoothing Lab` は、21点の手ランドマークを raw amber / smoothed green で重ね、jitter、motion speed、smoothing、tracking threshold によって smooth / reuse / detect / reacquire が切り替わります。派生の `Gesture Intent Hysteresis Probe` は、Open_Palm、Pointing_Up、Victory、Closed_Fist の score を合成し、enter / exit threshold、dwell frames、cooldown で fire / hold / cooldown / drop を振り分けます。",
+      "bodyEn": "The main sample, `Landmark Jitter Smoothing Lab`, overlays 21 synthetic hand landmarks as raw amber and smoothed green, then switches between smooth / reuse / detect / reacquire based on jitter, motion speed, smoothing, and tracking threshold. The derivative, `Gesture Intent Hysteresis Probe`, synthesizes scores for Open_Palm, Pointing_Up, Victory, and Closed_Fist, then routes them through enter / exit thresholds, dwell frames, and cooldown."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは raw normalized landmarks、smoothed landmarks、jitter RMS、presence、tracking、reacquire 回数、gesture score、score gap、dwell count、fire / hold / drop 履歴です。実 Task の Hand Landmarker / Gesture Recognizer、DrawingUtils、PerformanceObserver、Worker、IndexedDB、Web Audio、XR pointer、LLM command router と組み合わせると、視覚入力から操作までの誤発火を後から分析できます。",
+      "bodyEn": "The samples can accumulate raw normalized landmarks, smoothed landmarks, jitter RMS, presence, tracking, reacquire counts, gesture scores, score gaps, dwell counts, and fire / hold / drop history. Combined with real Hand Landmarker / Gesture Recognizer tasks, DrawingUtils, PerformanceObserver, workers, IndexedDB, Web Audio, XR pointers, or an LLM command router, false triggers from vision input to action can be analyzed later."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では `detectForVideo()` の timestamp 重複を避け、同期実行で UI スレッドを塞ぐ時間を測り、confidence が落ちた時は前回結果の reuse と palm detector / recognizer 再実行を分けます。ランドマーク描画は DrawingUtils の connectors / landmarks に寄せつつ、アプリ側の smoothing と hysteresis は別レイヤーに置くと調整しやすいです。",
+      "bodyEn": "In production, avoid duplicate timestamps for `detectForVideo()`, measure synchronous UI-thread blocking, and separate previous-result reuse from palm detector / recognizer reacquisition when confidence drops. Landmark rendering can follow DrawingUtils connectors / landmarks, while application-level smoothing and hysteresis stay in a separate adjustable layer."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Hand Landmarker / Gesture Recognizer の Web guide 更新、MediaPipe v1.1.0 周辺の Tasks Web 影響、DrawingUtils の描画 API、mediapipe-samples-web の worker / canvas 実装、WebGPU / WebNN のブラウザ側更新、低遅延 camera frame pipeline を追います。",
+      "bodyEn": "Next, watch updates to the Hand Landmarker / Gesture Recognizer Web guides, the impact of MediaPipe v1.1.0 on Tasks Web, DrawingUtils rendering APIs, worker / canvas implementation in mediapipe-samples-web, WebGPU / WebNN browser updates, and low-latency camera frame pipelines."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Landmark Jitter Smoothing Lab` で sensor jitter を上げ、tracking threshold を高めると、平滑化だけでは足りず reuse / detect / reacquire に落ちる様子が見えます。派生では enter threshold を高め、dwell frames を長くすると、gesture score が瞬間的に高くても UI 操作がすぐ発火しないことを確認できます。",
+      "bodyEn": "In `Landmark Jitter Smoothing Lab`, raise sensor jitter and tracking threshold to see how smoothing alone becomes insufficient and the route falls into reuse / detect / reacquire. In the derivative, raise enter threshold and dwell frames to confirm that a momentary high gesture score does not immediately fire a UI action."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI Edge Hand Landmarker Web guide、Gesture Recognizer Web guide、Web setup guide、DrawingUtils API、MediaPipe releases、公式 Tasks Web demo を確認。設計: 昨日の更新プリフライトの次段として、推論結果を UI 操作に渡す直前の安定化に焦点を移した。実装: 本命 HTML に 21点ランドマーク、raw / smoothed overlay、jitter RMS、presence / tracking lane、frame route history を追加。派生 HTML に gesture score stream、hysteresis、dwell、cooldown、decision timeline を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Google AI Edge Hand Landmarker Web guide, Gesture Recognizer Web guide, Web setup guide, DrawingUtils API, MediaPipe releases, and the official Tasks Web demo. Design: after yesterday's upgrade preflight, shift focus to stabilizing inference results just before UI actions. Implementation: the main HTML adds 21 landmarks, raw / smoothed overlay, jitter RMS, presence / tracking lanes, and frame route history. The derivative HTML adds gesture score streams, hysteresis, dwell, cooldown, and a decision timeline. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "この日次アーカイブは、camera permission、running mode、worker queue、mask lifecycle、multitask scheduling、confidence fusion、release preflight まで進みました。今日はアプリ側の最後の一手として、認識結果を「信号」から「操作」へ変える前の安定化を追加しました。Web ML の体験品質は、推論精度だけでなく、信号をいつ信じるかの設計で大きく変わります。",
+      "bodyEn": "This daily archive has covered camera permission, running modes, worker queues, mask lifecycle, multitask scheduling, confidence fusion, and release preflight. Today adds the application-side step just before turning recognition results from signals into actions. Web ML experience quality depends not only on inference accuracy but also on when the signal is trusted."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Landmark Jitter Smoothing Lab` です。実際に動く部分は、合成した 21点手ランドマークの raw / smoothed 表示、jitter RMS、presence / tracking lane、smooth / reuse / detect / reacquire の切り替えです。次に足すなら real Hand Landmarker の `detectForVideo()` 出力、one-euro filter、Worker 実行、IndexedDB への揺れログ保存を追加します。派生試作は `Gesture Intent Hysteresis Probe` で、実際に動く部分は gesture score stream を enter / exit threshold、dwell、cooldown で fire / hold / cooldown / drop に振り分けるところです。次に足すなら実 Gesture Recognizer の category score、hand presence、tracking confidence、UI command router、誤発火レビュー画面を追加します。",
+      "bodyEn": "The selected main prototype is `Landmark Jitter Smoothing Lab`. The working pieces are synthetic 21-point hand landmarks, raw / smoothed rendering, jitter RMS, presence / tracking lanes, and smooth / reuse / detect / reacquire routing. Next additions should include real Hand Landmarker `detectForVideo()` output, a one-euro filter, worker execution, and jitter logs in IndexedDB. The derivative prototype is `Gesture Intent Hysteresis Probe`; it routes a gesture score stream through enter / exit thresholds, dwell, and cooldown into fire / hold / cooldown / drop. Next additions should include real Gesture Recognizer category scores, hand presence, tracking confidence, a UI command router, and a false-trigger review view.",
+      "links": [
+        {
+          "label": "Open Landmark Jitter Smoothing Lab",
+          "url": "../outputs/2026-10-10_landmark_jitter_smoothing_lab.html"
+        },
+        {
+          "label": "Open Gesture Intent Hysteresis Probe",
+          "url": "../outputs/2026-10-10_gesture_intent_hysteresis_probe.html"
+        }
+      ]
+    }
+  ]
+}

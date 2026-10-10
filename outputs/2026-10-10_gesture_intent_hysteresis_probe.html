@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gesture Intent Hysteresis Probe</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0a1018;
+      color: #f7fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(255, 198, 99, .14), transparent 36%),
+        linear-gradient(315deg, rgba(116, 233, 199, .13), transparent 44%),
+        #0a1018;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(230, 242, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.8rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bcc9d6; line-height: 1.65; }
+    .chip, .metric span { color: #74e9c7; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(116, 233, 199, .34); padding: 5px 8px; background: rgba(116, 233, 199, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(230, 242, 255, .16);
+      background: rgba(10, 18, 26, .82);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f7fbff; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #74e9c7;
+      color: #f7fbff;
+      background: #101925;
+      border: 1px solid rgba(230, 242, 255, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 350px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 550px; position: relative; overflow: hidden; padding: 18px; }
+    .gesture-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; height: 100%; }
+    .gesture {
+      position: relative;
+      min-height: 210px;
+      border: 1px solid rgba(230, 242, 255, .13);
+      background: rgba(255, 255, 255, .035);
+      overflow: hidden;
+      padding: 14px;
+    }
+    .gesture strong { display: block; font-size: 1.35rem; }
+    .gesture b { position: absolute; right: 14px; bottom: 10px; font-size: clamp(3rem, 9vw, 6rem); color: rgba(247, 251, 255, .14); }
+    .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(0deg, rgba(116, 233, 199, .5), rgba(255, 198, 99, .28)); transition: height .12s linear; }
+    .gesture.active { border-color: rgba(116, 233, 199, .78); }
+    .gesture.active .fill { background: linear-gradient(0deg, rgba(116, 233, 199, .68), rgba(255, 198, 99, .38)); }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.2rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 108px 1fr 54px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(230, 242, 255, .12); }
+    .bar { height: 10px; background: rgba(230, 242, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #74e9c7, #ffc663); }
+    .timeline { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 30px; border: 1px solid rgba(230, 242, 255, .11); background: rgba(230, 242, 255, .1); }
+    .tick.fire { background: rgba(116, 233, 199, .5); }
+    .tick.hold { background: rgba(255, 198, 99, .46); }
+    .tick.cooldown { background: rgba(117, 166, 255, .42); }
+    .tick.drop { background: rgba(255, 121, 121, .34); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 560px; }
+      .gesture-grid, .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / gesture intent</p>
+      <h1>Gesture Intent Hysteresis Probe</h1>
+      <p>Gesture Recognizer の canned gesture score を想定し、閾値、dwell、cooldown で UI 操作に変換する前の意図確定を試す派生ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Intent controls</h2>
+      <div class="controls">
+        <label>Enter threshold <span id="enterLabel"></span>
+          <input id="enter" type="range" min="35" max="92" value="72">
+        </label>
+        <label>Exit threshold <span id="exitLabel"></span>
+          <input id="exit" type="range" min="20" max="80" value="48">
+        </label>
+        <label>Dwell frames <span id="dwellLabel"></span>
+          <input id="dwell" type="range" min="2" max="24" value="8">
+        </label>
+        <label>Scene ambiguity <span id="ambiguityLabel"></span>
+          <input id="ambiguity" type="range" min="0" max="100" value="32">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <div id="gestureGrid" class="gesture-grid"></div>
+      <div class="hud">
+        <div class="metric"><span>candidate</span><b id="candidate">None</b></div>
+        <div class="metric"><span>confirmed</span><b id="confirmed">None</b></div>
+        <div class="metric"><span>route</span><b id="route">hold</b></div>
+        <div class="metric"><span>fires</span><b id="fires">0</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Scores</h2>
+        <div id="scores"></div>
+      </section>
+      <section class="panel">
+        <h2>Decision timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: fire, amber: hold, blue: cooldown, red: drop</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実カメラでは gesture score だけで即発火せず、hand presence、tracking confidence、timestamp、直前イベントとの間隔を合わせて、UI コマンドへ渡す前に一段絞ります。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const gestures = [
+  { name: "Open_Palm", icon: "OPEN", color: "#74e9c7" },
+  { name: "Pointing_Up", icon: "POINT", color: "#ffc663" },
+  { name: "Victory", icon: "VICT", color: "#91a7ff" },
+  { name: "Closed_Fist", icon: "FIST", color: "#ff8a7a" }
+];
+const ids = ["enter","exit","dwell","ambiguity","enterLabel","exitLabel","dwellLabel","ambiguityLabel","gestureGrid","scores","timeline","candidate","confirmed","route","fires"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+let t = 0;
+let dwellCount = 0;
+let active = "None";
+let cooldown = 0;
+let fires = 0;
+let history = [];
+
+els.gestureGrid.innerHTML = gestures.map(g => `<div class="gesture" data-gesture="${g.name}"><div class="fill"></div><strong>${g.name}</strong><p>score stream</p><b>${g.icon}</b></div>`).join("");
+const cards = [...document.querySelectorAll(".gesture")];
+
+function cfg() {
+  return {
+    enter: Number(els.enter.value),
+    exit: Number(els.exit.value),
+    dwell: Number(els.dwell.value),
+    ambiguity: Number(els.ambiguity.value)
+  };
+}
+
+function scoreStream(c) {
+  return gestures.map((g, i) => {
+    const primary = 48 + Math.sin(t * .035 + i * 1.45) * 30;
+    const burst = Math.max(0, Math.sin(t * .012 + i * 2.2)) * 20;
+    const noise = Math.sin(t * .71 + i * 6.7) * c.ambiguity * .18;
+    return { ...g, score: Math.max(0, Math.min(100, primary + burst + noise - i * 2)) };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function decide(scores, c) {
+  const top = scores[0];
+  const gap = top.score - scores[1].score;
+  let route = "hold";
+  if (cooldown > 0) {
+    cooldown -= 1;
+    route = "cooldown";
+  } else if (top.score < c.exit) {
+    active = "None";
+    dwellCount = 0;
+    route = "drop";
+  } else if (top.score >= c.enter && gap > c.ambiguity * .12) {
+    dwellCount = active === top.name ? dwellCount + 1 : 1;
+    active = top.name;
+    route = dwellCount >= c.dwell ? "fire" : "hold";
+    if (route === "fire") {
+      fires += 1;
+      cooldown = 10;
+      dwellCount = 0;
+    }
+  } else {
+    dwellCount = Math.max(0, dwellCount - 1);
+    route = "hold";
+  }
+  history.push(route);
+  history = history.slice(-24);
+  return { top, gap, route };
+}
+
+function render(scores, decision, c) {
+  els.enterLabel.textContent = `${c.enter}%`;
+  els.exitLabel.textContent = `${c.exit}%`;
+  els.dwellLabel.textContent = `${c.dwell}`;
+  els.ambiguityLabel.textContent = `${c.ambiguity}%`;
+  els.candidate.textContent = decision.top.name;
+  els.confirmed.textContent = active;
+  els.route.textContent = decision.route;
+  els.fires.textContent = String(fires);
+  cards.forEach(card => {
+    const item = scores.find(s => s.name === card.dataset.gesture);
+    card.classList.toggle("active", active === item.name);
+    card.querySelector(".fill").style.height = `${item.score}%`;
+    card.style.borderColor = active === item.name ? item.color : "rgba(230, 242, 255, .13)";
+  });
+  els.scores.innerHTML = scores.map(s => `<div class="row"><span class="chip">${s.name}</span><div class="bar"><i style="width:${s.score}%;background:${s.color}"></i></div><span>${Math.round(s.score)}%</span></div>`).join("");
+  els.timeline.innerHTML = history.map(route => `<span class="tick ${route}" title="${route}"></span>`).join("");
+}
+
+function loop() {
+  t += 1;
+  const c = cfg();
+  const scores = scoreStream(c);
+  const decision = decide(scores, c);
+  render(scores, decision, c);
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Landmark Jitter Smoothing Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #071114;
+      color: #f6fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(88, 218, 172, .15), transparent 36%),
+        linear-gradient(315deg, rgba(117, 166, 255, .13), transparent 43%),
+        #071114;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 350px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(219, 246, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #b9cbd0; line-height: 1.65; }
+    .chip, .metric span { color: #8df2c8; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(141, 242, 200, .34); padding: 5px 8px; background: rgba(141, 242, 200, .08); }
+    .panel, .stage, .metric {
+      border: 1px solid rgba(219, 246, 255, .16);
+      background: rgba(8, 18, 22, .82);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f6fbff; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #8df2c8;
+      color: #f6fbff;
+      background: #0c171b;
+      border: 1px solid rgba(219, 246, 255, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 350px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.25rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 110px 1fr 56px; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid rgba(219, 246, 255, .12); }
+    .bar { height: 10px; background: rgba(219, 246, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8df2c8, #75a6ff); }
+    .timeline { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 28px; background: rgba(219, 246, 255, .1); border: 1px solid rgba(219, 246, 255, .11); }
+    .tick.smooth { background: rgba(141, 242, 200, .48); }
+    .tick.reuse { background: rgba(117, 166, 255, .43); }
+    .tick.detect { background: rgba(255, 203, 112, .46); }
+    .tick.reacquire { background: rgba(255, 121, 121, .38); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 470px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / landmark stability</p>
+      <h1>Landmark Jitter Smoothing Lab</h1>
+      <p>Hand Landmarker の 21点ランドマークを想定し、normalized 座標の揺れ、presence 低下、tracking 閾値を合成入力で試す自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Stability controls</h2>
+      <div class="controls">
+        <label>Motion speed <span id="speedLabel"></span>
+          <input id="speed" type="range" min="1" max="100" value="42">
+        </label>
+        <label>Sensor jitter <span id="jitterLabel"></span>
+          <input id="jitter" type="range" min="0" max="100" value="34">
+        </label>
+        <label>Smoothing strength <span id="smoothLabel"></span>
+          <input id="smooth" type="range" min="0" max="100" value="68">
+        </label>
+        <label>Tracking threshold <span id="thresholdLabel"></span>
+          <input id="threshold" type="range" min="20" max="90" value="54">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="900" height="560"></canvas>
+      <div class="hud">
+        <div class="metric"><span>jitter rms</span><b id="rms">0 px</b></div>
+        <div class="metric"><span>stability</span><b id="stability">0%</b></div>
+        <div class="metric"><span>route</span><b id="route">smooth</b></div>
+        <div class="metric"><span>next action</span><b id="action">draw</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Signal lanes</h2>
+        <div id="lanes"></div>
+      </section>
+      <section class="panel">
+        <h2>Frame route history</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: smooth, blue: reuse, amber: detect, red: reacquire</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実装時は `detectForVideo()` の同期コスト、presence / tracking confidence、timestamp 重複、描画前の平滑化を分けてログ化すると、UI 操作の誤発火を追いやすくなります。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["speed","jitter","smooth","threshold","speedLabel","jitterLabel","smoothLabel","thresholdLabel","rms","stability","route","action","lanes","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+const base = [
+  [.50,.74],[.43,.66],[.39,.56],[.37,.47],[.35,.39],
+  [.50,.58],[.49,.45],[.49,.36],[.49,.28],
+  [.57,.58],[.59,.43],[.60,.32],[.61,.22],
+  [.63,.60],[.67,.48],[.70,.39],[.73,.31],
+  [.68,.64],[.74,.56],[.79,.50],[.84,.44]
+];
+let t = 0;
+let smoothed = base.map(([x, y]) => ({ x, y }));
+let history = [];
+
+function cfg() {
+  return {
+    speed: Number(els.speed.value),
+    jitter: Number(els.jitter.value),
+    smooth: Number(els.smooth.value),
+    threshold: Number(els.threshold.value)
+  };
+}
+
+function noisyLandmarks(c) {
+  const amp = c.speed / 900;
+  const jitterAmp = c.jitter / 1300;
+  return base.map(([bx, by], i) => {
+    const wave = Math.sin(t * (.018 + c.speed / 9000) + i * .72) * amp;
+    const drift = Math.cos(t * .014 + i * .39) * amp * .75;
+    const noiseX = Math.sin(t * 1.37 + i * 5.1) * jitterAmp;
+    const noiseY = Math.cos(t * 1.11 + i * 4.7) * jitterAmp;
+    return { x: bx + wave + noiseX, y: by + drift + noiseY };
+  });
+}
+
+function evaluate(raw, c) {
+  const alpha = 1 - c.smooth / 120;
+  let sum = 0;
+  raw.forEach((p, i) => {
+    smoothed[i].x += (p.x - smoothed[i].x) * alpha;
+    smoothed[i].y += (p.y - smoothed[i].y) * alpha;
+    const dx = (p.x - smoothed[i].x) * canvas.width;
+    const dy = (p.y - smoothed[i].y) * canvas.height;
+    sum += dx * dx + dy * dy;
+  });
+  const rms = Math.sqrt(sum / raw.length);
+  const presence = Math.max(0, Math.min(100, 98 - c.jitter * .42 - c.speed * .12 + Math.sin(t * .04) * 8));
+  const tracking = Math.max(0, Math.min(100, 96 - rms * 1.8 - c.speed * .16 + c.smooth * .18));
+  const latency = Math.max(4, 5 + c.smooth * .05 + c.jitter * .025 + c.speed * .035);
+  let route = "smooth";
+  let action = "draw stable";
+  if (presence < c.threshold - 10) { route = "reacquire"; action = "run palm detector"; }
+  else if (tracking < c.threshold) { route = "detect"; action = "refresh ROI"; }
+  else if (rms > 18) { route = "reuse"; action = "reuse prior result"; }
+  history.push(route);
+  history = history.slice(-30);
+  const stability = Math.round((presence + tracking + Math.max(0, 100 - rms * 3)) / 3);
+  return { rms, presence, tracking, latency, route, action, stability };
+}
+
+function toPx(p) {
+  return { x: p.x * canvas.width, y: p.y * canvas.height };
+}
+
+function drawHand(points, color, radius, lineWidth) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  connections.forEach(([a, b]) => {
+    const pa = toPx(points[a]);
+    const pb = toPx(points[b]);
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+  });
+  ctx.fillStyle = color;
+  points.forEach((p) => {
+    const q = toPx(p);
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function draw(raw, result) {
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#0b1a1d");
+  grad.addColorStop(1, "#121827");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(246,251,255,.1)";
+  for (let i = 0; i < 12; i++) {
+    ctx.beginPath();
+    ctx.moveTo(60, 60 + i * 40);
+    ctx.lineTo(w - 60, 45 + i * 43);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = .42;
+  drawHand(raw, "#ffcb70", 4, 2);
+  ctx.globalAlpha = 1;
+  drawHand(smoothed, "#8df2c8", 6, 5);
+  const badge = result.route.toUpperCase();
+  ctx.fillStyle = result.route === "reacquire" ? "#ff7979" : result.route === "detect" ? "#ffcb70" : result.route === "reuse" ? "#75a6ff" : "#8df2c8";
+  ctx.font = "700 42px Inter, system-ui, sans-serif";
+  ctx.fillText(badge, 54, 92);
+  ctx.font = "16px Inter, system-ui, sans-serif";
+  ctx.fillText("raw landmarks: amber / smoothed landmarks: green", 58, 124);
+}
+
+function render(result, c) {
+  els.speedLabel.textContent = `${c.speed}%`;
+  els.jitterLabel.textContent = `${c.jitter}%`;
+  els.smoothLabel.textContent = `${c.smooth}%`;
+  els.thresholdLabel.textContent = `${c.threshold}%`;
+  els.rms.textContent = `${result.rms.toFixed(1)} px`;
+  els.stability.textContent = `${result.stability}%`;
+  els.route.textContent = result.route;
+  els.action.textContent = result.action;
+  const lanes = [
+    ["presence", result.presence],
+    ["tracking", result.tracking],
+    ["latency budget", Math.max(0, 100 - result.latency * 3)],
+    ["smooth gain", c.smooth]
+  ];
+  els.lanes.innerHTML = lanes.map(([label, value]) => `<div class="row"><span class="chip">${label}</span><div class="bar"><i style="width:${value}%"></i></div><span>${Math.round(value)}%</span></div>`).join("");
+  els.timeline.innerHTML = history.map(route => `<span class="tick ${route}" title="${route}"></span>`).join("");
+}
+
+function loop() {
+  t += 1;
+  const c = cfg();
+  const raw = noisyLandmarks(c);
+  const result = evaluate(raw, c);
+  draw(raw, result);
+  render(result, c);
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
