@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-11",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "MediaPipe の分類・埋め込み結果は外部アクションへ渡す前に意味で束ねる",
+  "headlineEn": "Group MediaPipe classification and embedding results semantically before sending actions",
+  "summary": "Google AI Edge の Image Embedder guide、ImageEmbedder JavaScript API、Image Classifier guide、MediaPipe releases、mediapipe-samples-web、公式 MediaPipe Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Semantic Result Digest Board、派生は Action Payload Minimizer です。",
+  "summaryEn": "After checking the Google AI Edge Image Embedder guide, ImageEmbedder JavaScript API, Image Classifier guide, MediaPipe releases, mediapipe-samples-web, and the official MediaPipe Tasks Web demo, this adds two original samples: Semantic Result Digest Board and Action Payload Minimizer.",
+  "keyTopics": [
+    "Image Embedder guide は画像を高次元の embedding vector に変換し、cosine similarity で類似度比較する用途を説明しているため、今日は連続フレームの結果を意味で束ねる流れにした。",
+    "ImageEmbedder JavaScript API には `cosineSimilarity()` の静的 utility があり、実 Task に接続する時の merge 判定を公式 API に寄せられる。",
+    "Image Classifier は `maxResults`、score threshold、allowlist / denylist のような結果制御と相性がよく、embedding の近さだけでなく category score の信頼度も digest の入口にできる。",
+    "GitHub の MediaPipe releases では v1.1.0 が最新として見えており、Web Tasks の WASM asset / task name 周辺の更新を追いながら、日次サンプル側は後段のアプリ設計を蓄積する。",
+    "公式 MediaPipe Tasks Web demo と mediapipe-samples-web は実 Task の接続確認に使い、公開カードの中心は今日もこのワークスペース内で作った最小サンプルにした。"
+  ],
+  "keyTopicsEn": [
+    "The Image Embedder guide explains converting images into high-dimensional embedding vectors and comparing them with cosine similarity, so today focuses on grouping continuous frame results semantically.",
+    "The ImageEmbedder JavaScript API exposes a static `cosineSimilarity()` utility, giving a direct official API target for merge decisions once connected to real tasks.",
+    "Image Classifier works well with result controls such as `maxResults`, score threshold, and allowlist / denylist, so digest admission can use category confidence as well as embedding similarity.",
+    "GitHub MediaPipe releases currently show v1.1.0 as the latest, so the archive should keep watching Web Tasks WASM asset and task-name updates while accumulating downstream app design samples.",
+    "The official MediaPipe Tasks Web demo and mediapipe-samples-web are used as connection references, while the public archive card remains centered on today's original local samples."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Semantic Result Digest Board",
+      "url": "../outputs/2026-10-11_semantic_result_digest_board.html"
+    },
+    {
+      "label": "Today's derivative sample: Action Payload Minimizer",
+      "url": "../outputs/2026-10-11_action_payload_minimizer.html"
+    },
+    {
+      "label": "Google AI Edge: Image embedding task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_embedder"
+    },
+    {
+      "label": "Google AI Edge API: ImageEmbedder JavaScript class",
+      "url": "https://developers.google.com/edge/api/mediapipe/js/tasks-vision.imageembedder"
+    },
+    {
+      "label": "Google AI Edge: Image classification task guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_classifier"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-11-semantic-result-digest.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Image Embedder の cosine similarity と Image Classifier の category score を、単発の推論結果ではなく「アプリが次に使う digest」へ変換することです。公式 guide は embedding や classification の作り方を示しますが、日次アーカイブ側では、連続フレームでほぼ同じ意味の結果を何度も送らず、merge / new / review / drop にまとめる最小 UI を作りました。",
+      "bodyEn": "Today's notable point is turning Image Embedder cosine similarity and Image Classifier category scores into an application-ready digest instead of treating each inference result as a standalone event. The official guides show how to produce embeddings and classifications; this archive adds a minimal UI for merging near-duplicate semantic results into merge / new / review / drop routes."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Semantic Result Digest Board` は、合成 embedding vector と category score を流し、cosine merge threshold、score gate、scene drift、digest window を操作すると、類似フレームが digest bucket にまとまります。派生の `Action Payload Minimizer` は、分類・埋め込み・ランドマーク・ROI などの payload 候補を privacy strictness、bandwidth budget、confidence gate で send / summarize / review / block に振り分けます。",
+      "bodyEn": "The main sample, `Semantic Result Digest Board`, streams synthetic embedding vectors and category scores; changing cosine merge threshold, score gate, scene drift, and digest window groups similar frames into digest buckets. The derivative, `Action Payload Minimizer`, routes candidate payloads such as categories, embeddings, landmarks, and ROI metadata through privacy strictness, bandwidth budget, and confidence gates into send / summarize / review / block."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは top label、category score、embedding vector の類似度、digest bucket、bucket age、merge / new / review / drop 履歴、payload field、推定 byte 数、privacy risk、send / summarize / review / block 履歴です。Image Embedder、Image Classifier、Object Detector、Gesture Recognizer、Worker、IndexedDB、WebSocket、LLM command router、監査ログ、ユーザー承認 UI と組み合わせると、オンデバイス推論から外部アクションまでの情報量を段階的に絞れます。",
+      "bodyEn": "The samples can accumulate top labels, category scores, embedding similarity, digest buckets, bucket age, merge / new / review / drop history, payload fields, estimated bytes, privacy risk, and send / summarize / review / block history. Combined with Image Embedder, Image Classifier, Object Detector, Gesture Recognizer, workers, IndexedDB, WebSocket, an LLM command router, audit logs, and user approval UI, the amount of information passed from on-device inference to external actions can be reduced step by step."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実 Task に接続する時は、Image Embedder の float / quantized embedding 差、cosine threshold、Image Classifier の `maxResults` と score threshold、Worker での同期推論、フレーム送信頻度、古い digest の TTL を分けて測ります。外部送信では raw image や full embedding を初期値にせず、label、score、短い semantic digest、必要なら ROI metadata までに抑える設計が扱いやすいです。",
+      "bodyEn": "When connecting real tasks, measure float versus quantized embeddings, cosine thresholds, Image Classifier `maxResults` and score thresholds, synchronous worker inference, frame send cadence, and digest TTL separately. For external transmission, avoid starting with raw images or full embeddings; prefer labels, scores, short semantic digests, and ROI metadata only when needed."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Image Embedder / Image Classifier の Web guide 更新、MediaPipe v1.1.0 以降の Web Tasks asset 更新、mediapipe-samples-web の worker 実装、公式 Tasks Web demo の task 切り替え、WebNN / WebGPU のブラウザ実装、オンデバイス推論結果の privacy notice と telemetry まわりを追います。",
+      "bodyEn": "Next, watch updates to the Image Embedder and Image Classifier Web guides, Web Tasks asset changes after MediaPipe v1.1.0, worker implementation in mediapipe-samples-web, task switching in the official Tasks Web demo, browser WebNN / WebGPU implementations, and privacy notice / telemetry design for on-device inference results."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Semantic Result Digest Board` で scene drift を上げ、cosine merge threshold も高めると、同じラベルでも embedding が離れて new digest や review に移ります。派生では privacy strictness を上げると embedding vector や landmark sketch が削られ、同じ confidence でも summarize / review に寄りやすくなることを確認できます。",
+      "bodyEn": "In `Semantic Result Digest Board`, raise scene drift and cosine merge threshold to see same-label frames split into new digest or review routes when embeddings drift apart. In the derivative, raise privacy strictness to remove embedding vectors and landmark sketches, making the same confidence level more likely to become summarize or review."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI Edge Image Embedder guide、ImageEmbedder JavaScript API、Image Classifier guide、MediaPipe releases、mediapipe-samples-web、公式 Tasks Web demo を確認。設計: 前日のランドマーク / gesture 安定化の次段として、推論結果を外部アクションへ流す前の semantic digest と payload minimization に焦点を移した。実装: 本命 HTML に embedding stream、classifier score、digest bucket、route timeline を追加。派生 HTML に payload field、byte budget、privacy risk、send / summarize / review / block を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Google AI Edge Image Embedder guide, ImageEmbedder JavaScript API, Image Classifier guide, MediaPipe releases, mediapipe-samples-web, and the official Tasks Web demo. Design: after yesterday's landmark / gesture stabilization, shift focus to semantic digests and payload minimization before external actions. Implementation: the main HTML adds an embedding stream, classifier scores, digest buckets, and route timeline. The derivative HTML adds payload fields, byte budgets, privacy risk, and send / summarize / review / block routing. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "この日次アーカイブは、camera permission、running mode、worker queue、mask lifecycle、multitask scheduling、confidence fusion、release preflight、landmark / gesture stabilization まで進みました。今日は、その安定化された信号をアプリ外へ出す直前の「意味で束ねる」「必要な分だけ送る」段階を足しました。Web ML のアプリ設計では、推論結果を増やすだけでなく、使う量を減らす UI も重要になります。",
+      "bodyEn": "This daily archive has covered camera permission, running modes, worker queues, mask lifecycle, multitask scheduling, confidence fusion, release preflight, and landmark / gesture stabilization. Today adds the stage just before sending stabilized signals outside the app: grouping by meaning and sending only what is needed. In Web ML app design, reducing how much of the inference result is used can matter as much as producing more results."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Semantic Result Digest Board` です。実際に動く部分は、合成 embedding vector と category score を cosine merge threshold、score gate、scene drift、digest window で merge / new / review / drop に振り分けるところです。次に足すなら real Image Embedder の `embedForVideo()`、`ImageEmbedder.cosineSimilarity()`、Image Classifier の score threshold、IndexedDB への digest 保存を追加します。派生試作は `Action Payload Minimizer` で、実際に動く部分は payload field を privacy strictness、bandwidth budget、confidence gate で send / summarize / review / block に絞るところです。次に足すなら実 Task の ROI、category score、gesture command、ユーザー承認 UI、WebSocket 送信前の監査ログを追加します。",
+      "bodyEn": "The selected main prototype is `Semantic Result Digest Board`. The working pieces route synthetic embedding vectors and category scores through cosine merge threshold, score gate, scene drift, and digest window into merge / new / review / drop. Next additions should include real Image Embedder `embedForVideo()`, `ImageEmbedder.cosineSimilarity()`, Image Classifier score thresholds, and IndexedDB digest storage. The derivative prototype is `Action Payload Minimizer`; it reduces payload fields through privacy strictness, bandwidth budget, and confidence gates into send / summarize / review / block. Next additions should include real task ROI, category scores, gesture commands, user approval UI, and audit logs before WebSocket transmission.",
+      "links": [
+        {
+          "label": "Open Semantic Result Digest Board",
+          "url": "../outputs/2026-10-11_semantic_result_digest_board.html"
+        },
+        {
+          "label": "Open Action Payload Minimizer",
+          "url": "../outputs/2026-10-11_action_payload_minimizer.html"
+        }
+      ]
+    }
+  ]
+}

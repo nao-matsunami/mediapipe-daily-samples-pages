@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Action Payload Minimizer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #091017;
+      color: #f7fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(118, 166, 255, .14), transparent 35%),
+        linear-gradient(315deg, rgba(122, 235, 200, .12), transparent 43%),
+        #091017;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(230, 242, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.8rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bcc9d6; line-height: 1.65; }
+    .chip, .metric span { color: #7aebc8; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(122, 235, 200, .34); padding: 5px 8px; background: rgba(122, 235, 200, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(230, 242, 255, .16);
+      background: rgba(9, 16, 23, .84);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f7fbff; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #7aebc8;
+      color: #f7fbff;
+      background: #101923;
+      border: 1px solid rgba(230, 242, 255, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 350px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; padding: 18px; }
+    .packets { display: grid; gap: 12px; }
+    .packet {
+      display: grid;
+      grid-template-columns: 120px 1fr 92px;
+      gap: 12px;
+      align-items: center;
+      min-height: 86px;
+      border: 1px solid rgba(230, 242, 255, .13);
+      background: rgba(255, 255, 255, .035);
+      padding: 12px;
+    }
+    .packet strong { font-size: 1.05rem; }
+    .pill { display: inline-block; padding: 5px 8px; border: 1px solid rgba(230, 242, 255, .18); color: #f7fbff; }
+    .send { color: #7aebc8; }
+    .summarize { color: #76a6ff; }
+    .review { color: #ffc663; }
+    .block { color: #ff7979; }
+    .bar { height: 12px; background: rgba(230, 242, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7aebc8, #76a6ff); }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.18rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 112px 1fr 54px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(230, 242, 255, .12); }
+    .timeline { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 30px; border: 1px solid rgba(230, 242, 255, .11); background: rgba(230, 242, 255, .1); }
+    .tick.send { background: rgba(122, 235, 200, .5); }
+    .tick.summarize { background: rgba(118, 166, 255, .43); }
+    .tick.review { background: rgba(255, 198, 99, .46); }
+    .tick.block { background: rgba(255, 121, 121, .34); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 640px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 620px) {
+      main { padding: 16px; }
+      .packet { grid-template-columns: 1fr; }
+      .hud { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">Web ML / action payload</p>
+      <h1>Action Payload Minimizer</h1>
+      <p>MediaPipe の分類・埋め込み・ランドマーク結果を外部アクションに渡す前に、送る情報量とプライバシーリスクを小さくする派生ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Payload controls</h2>
+      <div class="controls">
+        <label>Privacy strictness <span id="privacyLabel"></span>
+          <input id="privacy" type="range" min="0" max="100" value="68">
+        </label>
+        <label>Bandwidth budget <span id="budgetLabel"></span>
+          <input id="budget" type="range" min="10" max="100" value="54">
+        </label>
+        <label>Confidence gate <span id="confidenceLabel"></span>
+          <input id="confidence" type="range" min="25" max="92" value="64">
+        </label>
+        <label>Detail mode
+          <select id="detail">
+            <option value="minimal">minimal digest</option>
+            <option value="scores">scores only</option>
+            <option value="roi">roi metadata</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <div id="packets" class="packets"></div>
+      <div class="hud">
+        <div class="metric"><span>route</span><b id="route">send</b></div>
+        <div class="metric"><span>bytes</span><b id="bytes">0</b></div>
+        <div class="metric"><span>risk</span><b id="risk">0</b></div>
+        <div class="metric"><span>kept fields</span><b id="fields">0</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Field budget</h2>
+        <div id="fieldBars"></div>
+      </section>
+      <section class="panel">
+        <h2>Route timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: send, blue: summarize, amber: review, red: block</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実運用では raw image、full landmarks、embedding vector、ROI、category scores を同じ重さで扱わず、ユーザー操作に必要な最小 digest だけを送る設計にしておくと、Web ML の体験と安全性を両立しやすくなります。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const ids = ["privacy","budget","confidence","detail","privacyLabel","budgetLabel","confidenceLabel","packets","route","bytes","risk","fields","fieldBars","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const fieldDefs = [
+  { key: "label", label: "top label", bytes: 22, risk: 3 },
+  { key: "score", label: "scores", bytes: 74, risk: 7 },
+  { key: "digest", label: "semantic digest", bytes: 128, risk: 9 },
+  { key: "roi", label: "roi metadata", bytes: 164, risk: 18 },
+  { key: "landmark", label: "landmark sketch", bytes: 420, risk: 32 },
+  { key: "embedding", label: "embedding vector", bytes: 760, risk: 38 },
+  { key: "image", label: "raw image", bytes: 3200, risk: 80 }
+];
+let t = 0;
+let history = [];
+
+function cfg() {
+  return {
+    privacy: Number(els.privacy.value),
+    budget: Number(els.budget.value),
+    confidence: Number(els.confidence.value),
+    detail: els.detail.value
+  };
+}
+
+function desiredFields(c, index) {
+  const confidence = Math.max(20, Math.min(98, 78 + Math.sin(t * .035 + index) * 18 - c.privacy * .08));
+  const fields = ["label", "score", "digest"];
+  if (c.detail === "roi" && c.privacy < 82) fields.push("roi");
+  if (c.detail !== "minimal" && c.privacy < 62) fields.push("embedding");
+  if (c.privacy < 28 && c.budget > 78) fields.push("landmark");
+  if (c.privacy < 12 && c.budget > 90) fields.push("image");
+  return { confidence, fields };
+}
+
+function evaluatePacket(c, index) {
+  const base = desiredFields(c, index);
+  let fields = base.fields.map(key => fieldDefs.find(item => item.key === key));
+  let bytes = fields.reduce((sum, item) => sum + item.bytes, 0);
+  let risk = fields.reduce((sum, item) => sum + item.risk, 0);
+  const byteLimit = 260 + c.budget * 24;
+  while (bytes > byteLimit && fields.length > 2) {
+    fields.pop();
+    bytes = fields.reduce((sum, item) => sum + item.bytes, 0);
+    risk = fields.reduce((sum, item) => sum + item.risk, 0);
+  }
+  let route = "send";
+  if (base.confidence < c.confidence * .78) route = "block";
+  else if (base.confidence < c.confidence) route = "review";
+  else if (risk > 92 - c.privacy * .55 || bytes > byteLimit * .8) route = "summarize";
+  return { route, confidence: base.confidence, fields, bytes, risk, byteLimit };
+}
+
+function renderPackets(c) {
+  const names = ["gesture command", "object note", "scene digest", "assistant hint"];
+  const packets = names.map((name, index) => evaluatePacket(c, index));
+  const lead = packets[Math.floor((t / 90) % packets.length)];
+  history.push(lead.route);
+  history = history.slice(-24);
+  els.packets.innerHTML = packets.map((packet, index) => `
+    <article class="packet">
+      <strong>${names[index]}</strong>
+      <div>
+        <span class="pill ${packet.route}">${packet.route}</span>
+        <p>${packet.fields.map(item => item.label).join(" / ")}</p>
+        <div class="bar"><i style="width:${Math.min(100, Math.round(packet.bytes / packet.byteLimit * 100))}%"></i></div>
+      </div>
+      <b>${Math.round(packet.confidence)}%</b>
+    </article>
+  `).join("");
+  els.route.textContent = lead.route;
+  els.bytes.textContent = `${Math.round(lead.bytes)} B`;
+  els.risk.textContent = Math.round(lead.risk);
+  els.fields.textContent = lead.fields.length;
+  renderBars(lead);
+  renderTimeline();
+}
+
+function renderBars(packet) {
+  els.fieldBars.innerHTML = fieldDefs.map(field => {
+    const kept = packet.fields.some(item => item.key === field.key);
+    return `
+      <div class="row">
+        <span>${field.label}</span>
+        <div class="bar"><i style="width:${kept ? Math.min(100, field.bytes / 32) : 0}%"></i></div>
+        <b>${kept ? "on" : "off"}</b>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderTimeline() {
+  els.timeline.innerHTML = history.map(route => `<i class="tick ${route}" title="${route}"></i>`).join("");
+}
+
+function updateLabels(c) {
+  els.privacyLabel.textContent = `${c.privacy}%`;
+  els.budgetLabel.textContent = `${c.budget}%`;
+  els.confidenceLabel.textContent = `${c.confidence}%`;
+}
+
+function loop() {
+  t += 1;
+  const c = cfg();
+  updateLabels(c);
+  renderPackets(c);
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

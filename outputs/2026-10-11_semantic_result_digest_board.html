@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Result Digest Board</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #071013;
+      color: #f5fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(121, 227, 189, .14), transparent 34%),
+        linear-gradient(315deg, rgba(255, 199, 95, .12), transparent 42%),
+        #071013;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 350px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(223, 244, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.9rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #b9c9cd; line-height: 1.65; }
+    .chip, .metric span { color: #79e3bd; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(121, 227, 189, .34); padding: 5px 8px; background: rgba(121, 227, 189, .08); }
+    .panel, .metric, .stage {
+      border: 1px solid rgba(223, 244, 255, .16);
+      background: rgba(7, 16, 19, .84);
+      box-shadow: 0 22px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; color: #f5fbff; font-size: .86rem; }
+    input, select {
+      width: 100%;
+      accent-color: #79e3bd;
+      color: #f5fbff;
+      background: #0d181b;
+      border: 1px solid rgba(223, 244, 255, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 350px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 560px; position: relative; overflow: hidden; padding: 18px; }
+    canvas { width: 100%; height: 330px; display: block; border: 1px solid rgba(223, 244, 255, .12); background: rgba(255, 255, 255, .03); }
+    .digest { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .bucket {
+      min-height: 150px;
+      border: 1px solid rgba(223, 244, 255, .13);
+      background: rgba(255, 255, 255, .035);
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .bucket strong { display: block; font-size: 1.05rem; }
+    .bucket b { position: absolute; right: 10px; bottom: -10px; font-size: 4.4rem; color: rgba(245, 251, 255, .08); }
+    .bucket.active { border-color: rgba(121, 227, 189, .74); }
+    .hud { position: absolute; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.18rem; overflow-wrap: anywhere; }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 110px 1fr 54px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(223, 244, 255, .12); }
+    .bar { height: 10px; background: rgba(223, 244, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #79e3bd, #ffc75f); }
+    .timeline { display: grid; grid-template-columns: repeat(26, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 28px; border: 1px solid rgba(223, 244, 255, .11); background: rgba(223, 244, 255, .1); }
+    .tick.merge { background: rgba(121, 227, 189, .5); }
+    .tick.new { background: rgba(255, 199, 95, .46); }
+    .tick.review { background: rgba(117, 166, 255, .42); }
+    .tick.drop { background: rgba(255, 121, 121, .34); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 650px; }
+      .digest, .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      main { padding: 16px; }
+      .digest, .hud { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / semantic digest</p>
+      <h1>Semantic Result Digest Board</h1>
+      <p>Image Embedder の cosine similarity と Image Classifier の category score を想定し、連続フレームの結果を merge / new / review / drop に束ねる自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Digest controls</h2>
+      <div class="controls">
+        <label>Cosine merge threshold <span id="mergeLabel"></span>
+          <input id="merge" type="range" min="55" max="96" value="82">
+        </label>
+        <label>Classifier score gate <span id="scoreLabel"></span>
+          <input id="score" type="range" min="25" max="90" value="58">
+        </label>
+        <label>Scene drift <span id="driftLabel"></span>
+          <input id="drift" type="range" min="0" max="100" value="34">
+        </label>
+        <label>Digest window <span id="windowLabel"></span>
+          <input id="window" type="range" min="3" max="20" value="9">
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="840" height="330"></canvas>
+      <div id="digest" class="digest"></div>
+      <div class="hud">
+        <div class="metric"><span>top label</span><b id="topLabel">-</b></div>
+        <div class="metric"><span>cosine</span><b id="cosine">0.00</b></div>
+        <div class="metric"><span>route</span><b id="route">merge</b></div>
+        <div class="metric"><span>digests</span><b id="count">0</b></div>
+      </div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Current classifier scores</h2>
+        <div id="scores"></div>
+      </section>
+      <section class="panel">
+        <h2>Route timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: merge, amber: new digest, blue: review, red: drop</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実 Task へ接続する時は `ImageEmbedder.cosineSimilarity()`、`maxResults`、`scoreThreshold`、quantized / float embedding の差、worker へのフレーム送信頻度を別々に記録すると、似た結果のまとめ過ぎを調整しやすくなります。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["merge","score","drift","window","mergeLabel","scoreLabel","driftLabel","windowLabel","topLabel","cosine","route","count","digest","scores","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const labels = ["hand pose", "desk object", "face cue", "screen scene", "unknown"];
+const colors = ["#79e3bd", "#ffc75f", "#75a6ff", "#ff7979", "#d5e1e8"];
+let t = 0;
+let history = [];
+let digests = [
+  { label: "hand pose", vector: makeVector(0, 0), hits: 4, age: 2, score: .72 },
+  { label: "desk object", vector: makeVector(1, 2), hits: 2, age: 5, score: .66 },
+  { label: "screen scene", vector: makeVector(3, 4), hits: 1, age: 9, score: .61 }
+];
+
+function makeVector(seed, wobble) {
+  const vector = [];
+  for (let i = 0; i < 18; i += 1) {
+    vector.push(Math.sin(seed * 1.7 + i * .61 + wobble * .09) + Math.cos(seed * .43 + i * .37 - wobble * .05));
+  }
+  return normalize(vector);
+}
+
+function normalize(vector) {
+  const len = Math.hypot(...vector) || 1;
+  return vector.map(v => v / len);
+}
+
+function cosine(a, b) {
+  return a.reduce((sum, value, i) => sum + value * b[i], 0);
+}
+
+function cfg() {
+  return {
+    merge: Number(els.merge.value) / 100,
+    score: Number(els.score.value) / 100,
+    drift: Number(els.drift.value),
+    window: Number(els.window.value)
+  };
+}
+
+function synthFrame(c) {
+  const mode = Math.floor((t / Math.max(22, 72 - c.drift * .42)) % 4);
+  const vector = makeVector(mode, t * c.drift / 120);
+  const ambiguity = c.drift / 180;
+  const scores = labels.map((label, i) => {
+    const base = i === mode ? .76 : .18 + Math.abs(Math.sin(t * .028 + i)) * .22;
+    return { label, score: Math.max(.03, Math.min(.98, base + Math.sin(t * .05 + i * 2.1) * ambiguity)) };
+  }).sort((a, b) => b.score - a.score);
+  return { vector, scores, mode };
+}
+
+function routeFrame(frame, c) {
+  const top = frame.scores[0];
+  const best = digests.reduce((acc, digest, index) => {
+    const sim = cosine(frame.vector, digest.vector);
+    return sim > acc.sim ? { sim, index, digest } : acc;
+  }, { sim: -1, index: -1, digest: null });
+  let route = "merge";
+  if (top.score < c.score * .8) route = "drop";
+  else if (top.score < c.score) route = "review";
+  else if (best.sim < c.merge) route = "new";
+
+  digests.forEach(digest => digest.age += 1);
+  if (route === "merge" && best.digest) {
+    best.digest.vector = normalize(best.digest.vector.map((value, i) => value * .82 + frame.vector[i] * .18));
+    best.digest.label = top.label;
+    best.digest.hits += 1;
+    best.digest.age = 0;
+    best.digest.score = top.score;
+  } else if (route === "new") {
+    digests.unshift({ label: top.label, vector: frame.vector, hits: 1, age: 0, score: top.score });
+  }
+  digests = digests.filter(digest => digest.age <= c.window + 7).slice(0, 5);
+  history.push(route);
+  history = history.slice(-26);
+  return { route, top, best };
+}
+
+function drawEmbedding(frame, result) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const centerY = canvas.height / 2;
+  for (let i = 0; i < frame.vector.length; i += 1) {
+    const x = 40 + i * ((canvas.width - 80) / (frame.vector.length - 1));
+    const y = centerY + frame.vector[i] * 110;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.globalAlpha = .26;
+    ctx.fillRect(x - 10, centerY, 20, y - centerY);
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 6 + Math.max(0, frame.vector[i]) * 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(245,251,255,.22)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(20, centerY);
+  ctx.lineTo(canvas.width - 20, centerY);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(245,251,255,.7)";
+  ctx.font = "16px system-ui";
+  ctx.fillText(`embedding stream / ${result.route}`, 24, 32);
+}
+
+function renderScores(frame) {
+  els.scores.innerHTML = frame.scores.map(item => `
+    <div class="row">
+      <span>${item.label}</span>
+      <div class="bar"><i style="width:${Math.round(item.score * 100)}%"></i></div>
+      <b>${Math.round(item.score * 100)}</b>
+    </div>
+  `).join("");
+}
+
+function renderDigests(activeLabel) {
+  els.digest.innerHTML = digests.slice(0, 3).map((digest, i) => `
+    <article class="bucket ${digest.label === activeLabel ? "active" : ""}">
+      <strong>${digest.label}</strong>
+      <p>${digest.hits} similar frame(s), age ${digest.age}, score ${Math.round(digest.score * 100)}%</p>
+      <p>next: keep digest until drift or confidence creates a new cluster</p>
+      <b>${i + 1}</b>
+    </article>
+  `).join("");
+}
+
+function renderTimeline() {
+  els.timeline.innerHTML = history.map(route => `<i class="tick ${route}" title="${route}"></i>`).join("");
+}
+
+function updateLabels(c) {
+  els.mergeLabel.textContent = c.merge.toFixed(2);
+  els.scoreLabel.textContent = c.score.toFixed(2);
+  els.driftLabel.textContent = `${c.drift}%`;
+  els.windowLabel.textContent = `${c.window} frames`;
+}
+
+function loop() {
+  t += 1;
+  const c = cfg();
+  updateLabels(c);
+  const frame = synthFrame(c);
+  const result = routeFrame(frame, c);
+  drawEmbedding(frame, result);
+  renderScores(frame);
+  renderDigests(result.top.label);
+  renderTimeline();
+  els.topLabel.textContent = result.top.label;
+  els.cosine.textContent = Math.max(0, result.best.sim).toFixed(2);
+  els.route.textContent = result.route;
+  els.count.textContent = digests.length;
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

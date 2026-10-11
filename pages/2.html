@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Holistic Landmarker / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-09-29</span><span class="badge">MediaPipe / Google AI Edge / Holistic Landmarker / Web ML</span></p>
+      <h2>Holistic Landmarker は同時検出の後にフレーム合流ポリシーが要る</h2>
+      <p class="en">Holistic Landmarker needs a frame merge policy after combined detection</p>
+      <p>Google AI Edge の Holistic Landmarker Web guide、JavaScript API、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認し、自作サンプルを2本追加しました。本命は face / pose / left hand / right hand の synthetic packet を timestamp と arrival skew で合流する Holistic Frame Sync Console、派生は holistic 信号を dwell / cooldown つきコマンドへ変換する Holistic Signal Command Router です。</p>
+      <div class="actions">
+        <a href="../days/2026-09-29.html">日付ページ</a>
+        <a href="../outputs/2026-09-29_holistic_frame_sync_console.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-09-29_holistic_signal_command_router.html"><span>MediaPipe</span>Holistic Signal Command Router</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-09-28</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span></p>
       <h2>Object Detector の結果はイベント化の前に安定化レイヤーを挟む</h2>
       <p class="en">Stabilize Object Detector results before turning them into events</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-09-18_audio_classifier_stream_buffer_lab.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-18_audio_embedding_similarity_pulse_map.html"><span>MediaPipe</span>Audio Embedding Similarity Pulse Map</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-17</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span></p>
-      <h2>Image Embedder の ROI drift と cache 再利用を可視化する</h2>
-      <p class="en">Visualizing Image Embedder ROI drift and cache reuse</p>
-      <p>Google AI Edge の Image Embedder Web guide、Image Embedder task guide、Tasks Vision Web README、MediaPipe releases、npm の @mediapipe/tasks-vision 情報を確認し、Image Embedder を動画ループ内の ROI drift、cosine similarity、同期実行コスト、cache 再利用として扱う自作サンプルを2本追加しました。本命は ROI の動きと embedding refresh gate を見る dashboard、派生は cache eviction policy を hit rate と stale entry で比較する playground です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-17.html">日付ページ</a>
-        <a href="../outputs/2026-09-17_embedder_roi_drift_dashboard.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-17_embedding_cache_eviction_playground.html"><span>MediaPipe</span>Embedding Cache Eviction Playground</a></div>
     </article></div>
   </main>
 </body>
