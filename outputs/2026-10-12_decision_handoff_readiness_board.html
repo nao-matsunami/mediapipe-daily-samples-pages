@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decision Handoff Readiness Board</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #09110f;
+      color: #f7fbf4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(99, 214, 164, .18), transparent 36%),
+        linear-gradient(315deg, rgba(255, 203, 107, .14), transparent 44%),
+        #09110f;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(236, 247, 232, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #c4d2c8; line-height: 1.65; }
+    .chip, .metric span { color: #63d6a4; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(99, 214, 164, .4); padding: 5px 8px; background: rgba(99, 214, 164, .08); }
+    .panel, .stage, .metric, .event {
+      border: 1px solid rgba(236, 247, 232, .16);
+      background: rgba(9, 17, 15, .86);
+      box-shadow: 0 20px 54px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; font-size: .86rem; color: #f7fbf4; }
+    input, select {
+      width: 100%;
+      accent-color: #63d6a4;
+      color: #f7fbf4;
+      background: #111d1a;
+      border: 1px solid rgba(236, 247, 232, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 590px; padding: 18px; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 330px; display: block; border: 1px solid rgba(236, 247, 232, .13); background: rgba(255, 255, 255, .03); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.2rem; overflow-wrap: anywhere; }
+    .events { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .event { min-height: 132px; padding: 12px; position: relative; overflow: hidden; }
+    .event strong { display: block; font-size: 1.05rem; }
+    .event i { display: block; margin-top: 8px; color: #c4d2c8; font-style: normal; }
+    .event b { position: absolute; right: 10px; bottom: -12px; font-size: 4.5rem; color: rgba(247, 251, 244, .08); }
+    .event.ready { border-color: rgba(99, 214, 164, .72); }
+    .event.review { border-color: rgba(255, 203, 107, .72); }
+    .event.block { border-color: rgba(255, 118, 118, .65); }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 116px 1fr 54px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(236, 247, 232, .12); }
+    .bar { height: 10px; background: rgba(236, 247, 232, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #63d6a4, #ffcb6b); }
+    .timeline { display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 28px; border: 1px solid rgba(236, 247, 232, .1); background: rgba(236, 247, 232, .08); }
+    .tick.fire { background: rgba(99, 214, 164, .52); }
+    .tick.review { background: rgba(255, 203, 107, .5); }
+    .tick.hold { background: rgba(126, 170, 255, .42); }
+    .tick.block { background: rgba(255, 118, 118, .36); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .events, .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      main { padding: 16px; }
+      .events, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / decision handoff</p>
+      <h1>Decision Handoff Readiness Board</h1>
+      <p>Gesture、Object、Image Embedder 風の合成結果を、Decision Maker やアプリ内 rule engine へ渡す前に fire / review / hold / block へ振り分ける自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Gate controls</h2>
+      <div class="controls">
+        <label>Decision threshold <span id="decisionLabel"></span>
+          <input id="decision" type="range" min="45" max="92" value="72">
+        </label>
+        <label>Evidence freshness <span id="freshnessLabel"></span>
+          <input id="freshness" type="range" min="20" max="100" value="70">
+        </label>
+        <label>Ambiguity tolerance <span id="ambiguityLabel"></span>
+          <input id="ambiguity" type="range" min="5" max="65" value="28">
+        </label>
+        <label>Action risk
+          <select id="risk">
+            <option value="low">low: local UI only</option>
+            <option value="medium" selected>medium: save or navigate</option>
+            <option value="high">high: send outside app</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="840" height="330"></canvas>
+      <div class="metrics">
+        <div class="metric"><span>readiness</span><b id="readiness">0%</b></div>
+        <div class="metric"><span>decision</span><b id="decisionText">hold</b></div>
+        <div class="metric"><span>top evidence</span><b id="topEvidence">-</b></div>
+        <div class="metric"><span>explain tokens</span><b id="tokens">0</b></div>
+      </div>
+      <div id="events" class="events"></div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Evidence lanes</h2>
+        <div id="lanes"></div>
+      </section>
+      <section class="panel">
+        <h2>Decision timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: fire, amber: review, blue: hold, red: block</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実装時は `recognizeForVideo()` などの同期推論結果をそのまま外部アクションへ流さず、confidence、freshness、risk、説明に必要な最小 token を明示してから handoff します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const ids = ["decision","freshness","ambiguity","risk","decisionLabel","freshnessLabel","ambiguityLabel","readiness","decisionText","topEvidence","tokens","events","lanes","timeline"];
+const els = Object.fromEntries(ids.map(id => [id, document.querySelector("#" + id)]));
+const laneNames = ["gesture: open palm", "object: cup near zone", "embedder: repeated scene", "classifier: desk activity"];
+const colors = ["#63d6a4", "#ffcb6b", "#7eaaff", "#ff7676"];
+let t = 0;
+let timeline = [];
+
+function config() {
+  return {
+    decision: Number(els.decision.value) / 100,
+    freshness: Number(els.freshness.value) / 100,
+    ambiguity: Number(els.ambiguity.value) / 100,
+    risk: els.risk.value
+  };
+}
+
+function riskPenalty(risk) {
+  return risk === "high" ? .18 : risk === "medium" ? .09 : .02;
+}
+
+function signals(c) {
+  return laneNames.map((name, i) => {
+    const pulse = Math.sin(t * (.031 + i * .007) + i * 1.8) * .5 + .5;
+    const confidence = Math.max(0, Math.min(1, .34 + pulse * .48 + (i === 2 ? .08 : 0)));
+    const age = Math.round(20 + (Math.sin(t * .025 + i) * .5 + .5) * (160 - c.freshness * 90));
+    const fresh = Math.max(0, 1 - age / 180);
+    const conflict = Math.abs(confidence - .58) * .55 + (i === 1 ? c.ambiguity * .25 : 0);
+    const score = confidence * .58 + fresh * .28 - conflict * .2 - riskPenalty(c.risk);
+    return { name, confidence, age, fresh, conflict, score };
+  });
+}
+
+function decide(lanes, c) {
+  const top = lanes.reduce((a, b) => a.score > b.score ? a : b);
+  const second = lanes.filter(l => l !== top).sort((a, b) => b.score - a.score)[0];
+  const margin = top.score - second.score;
+  const readiness = Math.max(0, Math.min(1, top.score + margin * .35));
+  let route = "hold";
+  if (top.age > 150 || top.confidence < .4) route = "block";
+  else if (readiness >= c.decision && margin > c.ambiguity * .18) route = "fire";
+  else if (readiness >= c.decision - .14 || margin < c.ambiguity * .24) route = "review";
+  return { top, readiness, route, margin };
+}
+
+function draw(lanes, result) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(247,251,244,.04)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "rgba(247,251,244,.08)";
+  for (let x = 0; x < canvas.width; x += 42) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  lanes.forEach((lane, i) => {
+    const y = 58 + i * 62;
+    const w = 560 * lane.score + 120;
+    ctx.fillStyle = colors[i];
+    ctx.globalAlpha = .28;
+    ctx.fillRect(190, y - 16, Math.max(24, w), 32);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#f7fbf4";
+    ctx.font = "15px system-ui";
+    ctx.fillText(lane.name, 24, y + 5);
+    ctx.fillStyle = colors[i];
+    ctx.beginPath();
+    ctx.arc(190 + Math.max(24, w), y, 10 + lane.confidence * 10, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.fillStyle = result.route === "fire" ? "#63d6a4" : result.route === "review" ? "#ffcb6b" : result.route === "block" ? "#ff7676" : "#7eaaff";
+  ctx.font = "bold 40px system-ui";
+  ctx.fillText(result.route.toUpperCase(), 530, 292);
+}
+
+function renderLanes(lanes) {
+  els.lanes.innerHTML = lanes.map((lane) => `
+    <div class="row">
+      <span>${lane.name.split(":")[0]}</span>
+      <div class="bar"><i style="width:${Math.round(lane.score * 100)}%"></i></div>
+      <b>${Math.round(lane.score * 100)}</b>
+    </div>
+  `).join("");
+}
+
+function renderEvents(lanes, result) {
+  const explanations = lanes.sort((a, b) => b.score - a.score).slice(0, 3);
+  els.events.innerHTML = explanations.map((lane, index) => `
+    <article class="event ${index === 0 ? result.route === "fire" ? "ready" : result.route : ""}">
+      <strong>${lane.name}</strong>
+      <i>confidence ${lane.confidence.toFixed(2)} / age ${lane.age}ms / conflict ${lane.conflict.toFixed(2)}</i>
+      <b>${index + 1}</b>
+    </article>
+  `).join("");
+}
+
+function renderTimeline() {
+  els.timeline.innerHTML = timeline.slice(-28).map(route => `<div class="tick ${route}"></div>`).join("");
+}
+
+function frame() {
+  t += 1;
+  const c = config();
+  els.decisionLabel.textContent = Math.round(c.decision * 100) + "%";
+  els.freshnessLabel.textContent = Math.round(c.freshness * 100) + "%";
+  els.ambiguityLabel.textContent = Math.round(c.ambiguity * 100) + "%";
+  const lanes = signals(c);
+  const result = decide(lanes, c);
+  if (t % 16 === 0) timeline.push(result.route);
+  els.readiness.textContent = Math.round(result.readiness * 100) + "%";
+  els.decisionText.textContent = result.route;
+  els.topEvidence.textContent = result.top.name.replace(/^.*: /, "");
+  els.tokens.textContent = Math.round(18 + result.readiness * 34 + (c.risk === "high" ? 16 : 0));
+  draw(lanes, result);
+  renderLanes(lanes);
+  renderEvents([...lanes], result);
+  renderTimeline();
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
