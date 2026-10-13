@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-13",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Universal Embedder と Semantic Retriever の前で memory collision と chunk 予算を見張る",
+  "headlineEn": "Watch memory collisions and chunk budgets before Universal Embedder and Semantic Retriever handoff",
+  "summary": "Google AI Edge の Universal Embedder guide、MediaPipe v1.1.0 release、mediapipe-samples-web、公式 Tasks Web demo、MediaPipe Studio を確認し、自作サンプルを2本追加しました。本命は Universal Embedder Memory Collision Lab、派生は Semantic Retriever Chunk Budget Probe です。",
+  "summaryEn": "After checking the Google AI Edge Universal Embedder guide, MediaPipe v1.1.0 release, mediapipe-samples-web, the official Tasks Web demo, and MediaPipe Studio, this adds two original samples: Universal Embedder Memory Collision Lab and Semantic Retriever Chunk Budget Probe.",
+  "keyTopics": [
+    "MediaPipe v1.1.0 release では Universal Embedder、Semantic Retriever、MediaPipe Decision、LiteRT-LM 連携が目立つため、今日は認識結果を保存・検索・判断へ渡す前の gate を扱った。",
+    "Universal Embedder guide は音声・テキスト・画像を単一サービスで embedding 化し、cosine similarity で近さを比較できる流れを示しているため、重複 memory と privacy risk を可視化する価値がある。",
+    "mediapipe-samples-web と公式 Tasks Web demo には Decision Maker、Semantic Retriever、Universal Embedder が並び、MediaPipe の Web ML は検出 UI だけでなく retrieval / decision の後段設計へ広がっている。",
+    "MediaPipe Studio / Instant Demos は confidence threshold や result count などをブラウザで試せるため、日次アーカイブ側では外部デモの列挙ではなく、threshold 後の自作最小 UI を蓄積する。",
+    "今日の2本目は、本命で出した memory collision の発展案から chunk budget probe に落とし、Retriever に入れる情報量を token、鮮度、priority、privacy risk で短時間に検証できるようにした。"
+  ],
+  "keyTopicsEn": [
+    "The MediaPipe v1.1.0 release highlights Universal Embedder, Semantic Retriever, MediaPipe Decision, and LiteRT-LM integration, so today's focus is a gate before recognition results are stored, retrieved, or handed to decisions.",
+    "The Universal Embedder guide describes embedding audio, text, and images through a unified service and comparing embedding proximity with cosine similarity, making duplicate-memory and privacy-risk visualization useful.",
+    "mediapipe-samples-web and the official Tasks Web demo list Decision Maker, Semantic Retriever, and Universal Embedder, showing that MediaPipe Web ML is extending from detection UI into retrieval and decision design.",
+    "MediaPipe Studio / Instant Demos let users tune confidence thresholds and result counts in the browser, so this archive should store original minimal post-threshold UIs rather than external demo cards.",
+    "The second sample turns a development idea from the main memory-collision sample into a chunk budget probe that quickly tests Retriever handoff by token load, freshness, priority, and privacy risk."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Universal Embedder Memory Collision Lab",
+      "url": "../outputs/2026-10-13_universal_embedder_memory_collision_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Semantic Retriever Chunk Budget Probe",
+      "url": "../outputs/2026-10-13_semantic_retriever_chunk_budget_probe.html"
+    },
+    {
+      "label": "Google AI Edge: Universal Embedder guide for Web",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/retrieval/universal_embedder/web_js"
+    },
+    {
+      "label": "Google AI Edge: Universal Embedder overview",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/retrieval/universal_embedder/index"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: mediapipe-samples-web",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Google AI Edge: MediaPipe Studio / Instant Demos",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/studio"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-13-universal-embedder-memory-collision.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、MediaPipe v1.1.0 と公式 Web demo / samples-web の流れで、Universal Embedder、Semantic Retriever、Decision Maker が同じアーカイブの中で見えるようになっている点です。MediaPipe の結果は画面上の検出結果で終わらず、記憶へ保存し、検索し、判断へ渡す材料になります。そこで今日は、保存前に似すぎた embedding と privacy risk を弾く自作サンプルを本命にしました。",
+      "bodyEn": "Today's notable point is that MediaPipe v1.1.0 plus the official Web demo and samples-web make Universal Embedder, Semantic Retriever, and Decision Maker visible in one flow. MediaPipe results no longer end as on-screen detections; they become material for memory storage, retrieval, and decisions. Today's main original sample therefore rejects overly similar embeddings and risky private details before storage."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Universal Embedder Memory Collision Lab` は、Gesture / Face / Object / Text / Audio / Image 風の合成 embedding を nearest memory と比較し、new / merge / review / drop に振り分けます。派生の `Semantic Retriever Chunk Budget Probe` は、Retriever に渡す chunk を token 予算、鮮度、priority、privacy risk で send / trim / hold / drop に分けます。どちらも実 Task の手前ではなく、実 Task の後段を触るための最小 UI です。",
+      "bodyEn": "The main `Universal Embedder Memory Collision Lab` compares synthetic Gesture / Face / Object / Text / Audio / Image-style embeddings with nearest memory entries, routing them into new / merge / review / drop. The derivative `Semantic Retriever Chunk Budget Probe` routes Retriever chunks through token budget, freshness, priority, and privacy risk into send / trim / hold / drop. Both are minimal downstream UIs rather than live task demos."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは modality、合成 embedding、nearest memory score、novelty、privacy cost、stored bytes、route timeline、chunk title、age、token 数、priority、send / trim / hold / drop 履歴です。Universal Embedder、Image Embedder、Text Embedder、Audio Embedder、Semantic Retriever、Decision Maker、Gesture Recognizer、Object Detector、Image Segmenter、IndexedDB、Worker、WebGPU / WebNN capability check、監査ログ、ユーザー承認 UI と組み合わせると、オンデバイス推論から意味記憶、検索、外部アクションまでの橋渡しを作れます。",
+      "bodyEn": "The samples can accumulate modality, synthetic embeddings, nearest-memory scores, novelty, privacy cost, stored bytes, route timelines, chunk titles, age, token counts, priority, and send / trim / hold / drop history. Combined with Universal Embedder, Image Embedder, Text Embedder, Audio Embedder, Semantic Retriever, Decision Maker, Gesture Recognizer, Object Detector, Image Segmenter, IndexedDB, workers, WebGPU / WebNN capability checks, audit logs, and user approval UI, they form a bridge from on-device inference to semantic memory, retrieval, and external actions."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装時は embedding の cosine similarity、modality、model version、delegate、timestamp、source task、privacy tier、保存 byte 数を分けてログ化します。Semantic Retriever に入れる前に、同じ意味の chunk は merge、privacy が高いものは review / drop、古いものは hold、token 予算を超えるものは trim に回すと、検索結果の重複と説明文の肥大化を抑えられます。",
+      "bodyEn": "In production, log embedding cosine similarity, modality, model version, delegate, timestamp, source task, privacy tier, and stored bytes separately. Before inserting into Semantic Retriever, merge semantically duplicate chunks, review or drop high-privacy chunks, hold stale chunks, and trim over-budget chunks to reduce duplicate retrieval results and explanation bloat."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Universal Embedder Web guide の実装例、Semantic Retriever の samples-web 側コード、MediaPipe v1.1.x 以降の release note、Decision Maker の rule / JSON input、LiteRT-LM / EmbeddingGemma 連携、WebGPU / WebNN delegate 状況、Google AI Edge Gallery と Studio の on-device 検索 UX を追います。",
+      "bodyEn": "Next, watch the Universal Embedder Web guide implementation, Semantic Retriever code in samples-web, MediaPipe v1.1.x release notes, Decision Maker rule / JSON input, LiteRT-LM / EmbeddingGemma integration, WebGPU / WebNN delegate status, and on-device search UX in Google AI Edge Gallery and Studio."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Universal Embedder Memory Collision Lab` で Merge threshold を下げ、Privacy mode を strict にすると、同じ候補が new から merge / review / drop に移ります。`Semantic Retriever Chunk Budget Probe` では Context token budget を下げ、Query target を scene / privacy で切り替えると、どの chunk が send / trim されるかが変わります。",
+      "bodyEn": "In `Universal Embedder Memory Collision Lab`, lower the merge threshold and switch privacy mode to strict to see candidates move from new into merge / review / drop. In `Semantic Retriever Chunk Budget Probe`, lower the context token budget and switch the query target between scene and privacy to change which chunks are sent or trimmed."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Universal Embedder Web guide、Universal Embedder overview、MediaPipe v1.1.0 release、mediapipe-samples-web、公式 Tasks Web demo、MediaPipe Studio を確認。設計: 昨日の Decision / Retrieval handoff から、今日は memory collision と Retriever chunk budget に焦点を移した。実装: 本命 HTML に合成 multimodal embedding、nearest memory、new / merge / review / drop、保存 byte 数、route timeline を追加。派生 HTML に chunk score、token budget、freshness half-life、priority boost、send / trim / hold / drop を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Universal Embedder Web guide, Universal Embedder overview, MediaPipe v1.1.0 release, mediapipe-samples-web, official Tasks Web demo, and MediaPipe Studio. Design: after yesterday's Decision / Retrieval handoff, today shifts focus to memory collisions and Retriever chunk budgets. Implementation: the main HTML adds synthetic multimodal embeddings, nearest memory, new / merge / review / drop, stored bytes, and a route timeline. The derivative HTML adds chunk scores, token budgets, freshness half-life, priority boosts, and send / trim / hold / drop. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "この日次アーカイブは、camera / worker / running mode / mask lifecycle / multitask scheduling / confidence fusion / upgrade preflight / stabilization / digest / handoff まで進みました。今日はさらに、検索メモリへ入れる直前の重複と予算を扱いました。Web ML のアプリでは、推論結果を増やすだけではなく、意味記憶として残すべきか、圧縮すべきか、捨てるべきかを UI で触れることが重要です。",
+      "bodyEn": "This daily archive has covered camera, workers, running modes, mask lifecycle, multitask scheduling, confidence fusion, upgrade preflight, stabilization, digests, and handoff. Today adds duplicate and budget handling just before insertion into retrieval memory. In Web ML apps, it is important not only to produce more inference results but also to expose whether they should be retained as semantic memory, compressed, or discarded."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Universal Embedder Memory Collision Lab` です。実際に動く部分は、Gesture / Face / Object / Text / Audio / Image 風の合成 embedding を nearest memory と比較し、merge threshold、novelty demand、vector noise、privacy mode で new / merge / review / drop に振り分けるところです。次に足すなら実 Universal Embedder の embedding、Semantic Retriever への投入、IndexedDB 保存、重複 merge UI を追加します。派生試作は `Semantic Retriever Chunk Budget Probe` で、実際に動く部分は chunk 候補を token budget、freshness half-life、priority boost、query target で send / trim / hold / drop に分けるところです。次に足すなら実 query、cross-modal score、検索結果説明、監査ログを追加します。",
+      "bodyEn": "The selected main prototype is `Universal Embedder Memory Collision Lab`. The working part compares synthetic Gesture / Face / Object / Text / Audio / Image-style embeddings with nearest memory and routes them through merge threshold, novelty demand, vector noise, and privacy mode into new / merge / review / drop. Next additions should include real Universal Embedder embeddings, Semantic Retriever insertion, IndexedDB storage, and duplicate merge UI. The derivative prototype is `Semantic Retriever Chunk Budget Probe`; it routes chunk candidates through token budget, freshness half-life, priority boost, and query target into send / trim / hold / drop. Next additions should include real queries, cross-modal scores, retrieval-result explanations, and audit logs.",
+      "links": [
+        {
+          "label": "Open Universal Embedder Memory Collision Lab",
+          "url": "../outputs/2026-10-13_universal_embedder_memory_collision_lab.html"
+        },
+        {
+          "label": "Open Semantic Retriever Chunk Budget Probe",
+          "url": "../outputs/2026-10-13_semantic_retriever_chunk_budget_probe.html"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Universal Embedder Memory Collision Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #071013;
+      color: #f7fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(102, 214, 185, .18), transparent 36%),
+        linear-gradient(315deg, rgba(252, 176, 102, .14), transparent 40%),
+        #071013;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(215, 237, 241, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.9rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bfd0d5; line-height: 1.65; }
+    .chip, .metric span { color: #66d6b9; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(102, 214, 185, .42); padding: 5px 8px; background: rgba(102, 214, 185, .08); }
+    .panel, .stage, .metric, .card {
+      border: 1px solid rgba(215, 237, 241, .16);
+      background: rgba(7, 16, 19, .88);
+      box-shadow: 0 20px 54px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; font-size: .86rem; color: #f7fbff; }
+    input, select {
+      width: 100%;
+      accent-color: #66d6b9;
+      color: #f7fbff;
+      background: #101b20;
+      border: 1px solid rgba(215, 237, 241, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; margin-top: 18px; }
+    .stage { min-height: 590px; padding: 18px; overflow: hidden; }
+    canvas { width: 100%; height: 340px; display: block; border: 1px solid rgba(215, 237, 241, .13); background: rgba(255, 255, 255, .03); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.25rem; overflow-wrap: anywhere; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .card { padding: 12px; min-height: 156px; position: relative; overflow: hidden; }
+    .card strong { display: block; font-size: 1rem; }
+    .card i { display: block; margin-top: 8px; color: #bfd0d5; font-style: normal; }
+    .card b { position: absolute; right: 10px; bottom: -12px; font-size: 4.2rem; color: rgba(247, 251, 255, .08); }
+    .route-new { border-color: rgba(102, 214, 185, .72); }
+    .route-merge { border-color: rgba(252, 176, 102, .78); }
+    .route-review { border-color: rgba(126, 170, 255, .72); }
+    .route-drop { border-color: rgba(255, 118, 118, .64); }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 118px 1fr 56px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(215, 237, 241, .12); }
+    .bar { height: 10px; background: rgba(215, 237, 241, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #66d6b9, #fcb066); }
+    .timeline { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 26px; border: 1px solid rgba(215, 237, 241, .1); background: rgba(215, 237, 241, .08); }
+    .tick.new { background: rgba(102, 214, 185, .52); }
+    .tick.merge { background: rgba(252, 176, 102, .52); }
+    .tick.review { background: rgba(126, 170, 255, .42); }
+    .tick.drop { background: rgba(255, 118, 118, .35); }
+    @media (max-width: 920px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .cards, .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      main { padding: 16px; }
+      .cards, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe Tasks / universal embedding memory</p>
+      <h1>Universal Embedder Memory Collision Lab</h1>
+      <p>Universal Embedder や Image / Text Embedder 風の合成ベクトルを、Semantic Retriever へ保存する前に new / merge / review / drop へ振り分ける自作ミニサンプルです。</p>
+    </div>
+    <section class="panel">
+      <h2>Memory gate controls</h2>
+      <div class="controls">
+        <label>Merge threshold <span id="mergeLabel"></span>
+          <input id="merge" type="range" min="58" max="94" value="78">
+        </label>
+        <label>Novelty demand <span id="noveltyLabel"></span>
+          <input id="novelty" type="range" min="10" max="70" value="34">
+        </label>
+        <label>Vector noise <span id="noiseLabel"></span>
+          <input id="noise" type="range" min="0" max="55" value="18">
+        </label>
+        <label>Privacy mode
+          <select id="privacy">
+            <option value="loose">loose: local notebook</option>
+            <option value="balanced" selected>balanced: local retrieval</option>
+            <option value="strict">strict: external handoff</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="stage">
+      <canvas id="canvas" width="840" height="340"></canvas>
+      <div class="metrics">
+        <div class="metric"><span>new memory</span><b id="newCount">0</b></div>
+        <div class="metric"><span>collisions</span><b id="collisionCount">0</b></div>
+        <div class="metric"><span>review load</span><b id="reviewLoad">0%</b></div>
+        <div class="metric"><span>stored bytes</span><b id="bytes">0</b></div>
+      </div>
+      <div id="cards" class="cards"></div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Candidate signals</h2>
+        <div id="signals"></div>
+      </section>
+      <section class="panel">
+        <h2>Route timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: new, amber: merge, blue: review, red: drop</p>
+      </section>
+      <section class="panel">
+        <h2>Production note</h2>
+        <p>実 Task では UniversalEmbedder.cosineSimilarity() 相当の近さ、modality、privacy risk、保存 byte 数を分けて記録し、Retriever に入れる前に重複と危険な詳細を落とします。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const controls = {
+  merge: document.querySelector("#merge"),
+  novelty: document.querySelector("#novelty"),
+  noise: document.querySelector("#noise"),
+  privacy: document.querySelector("#privacy")
+};
+const baseSignals = [
+  { name: "hand pinch command", mod: "gesture", vec: [0.88, 0.18, 0.26], risk: 0.22, bytes: 420 },
+  { name: "face attention cue", mod: "face", vec: [0.63, 0.5, 0.44], risk: 0.72, bytes: 680 },
+  { name: "object desk cluster", mod: "object", vec: [0.31, 0.82, 0.24], risk: 0.34, bytes: 570 },
+  { name: "screen text intent", mod: "text", vec: [0.22, 0.68, 0.68], risk: 0.42, bytes: 520 },
+  { name: "audio tap rhythm", mod: "audio", vec: [0.72, 0.24, 0.62], risk: 0.38, bytes: 480 },
+  { name: "image scene summary", mod: "image", vec: [0.36, 0.46, 0.81], risk: 0.5, bytes: 760 }
+];
+const memory = [
+  { name: "saved pinch action", vec: [0.84, 0.2, 0.31] },
+  { name: "saved desk scene", vec: [0.29, 0.8, 0.28] },
+  { name: "saved meeting face", vec: [0.58, 0.54, 0.49] },
+  { name: "saved text query", vec: [0.2, 0.62, 0.72] }
+];
+const timeline = [];
+let phase = 0;
+
+function normalize(v) {
+  const len = Math.hypot(...v) || 1;
+  return v.map((n) => n / len);
+}
+function cosine(a, b) {
+  const na = normalize(a);
+  const nb = normalize(b);
+  return na.reduce((sum, n, i) => sum + n * nb[i], 0);
+}
+function jitter(vec, index, noise) {
+  const n = noise / 100;
+  return vec.map((value, axis) => Math.max(0.02, value + Math.sin(phase * 0.03 + index * 1.7 + axis) * n));
+}
+function privacyPenalty(mode) {
+  return mode === "strict" ? 0.28 : mode === "balanced" ? 0.13 : 0.04;
+}
+function routeSignal(signal, index) {
+  const vec = jitter(signal.vec, index, Number(controls.noise.value));
+  const best = memory.map((item) => ({ item, score: cosine(vec, item.vec) })).sort((a, b) => b.score - a.score)[0];
+  const mergeThreshold = Number(controls.merge.value) / 100;
+  const noveltyDemand = Number(controls.novelty.value) / 100;
+  const privacyCost = signal.risk + privacyPenalty(controls.privacy.value);
+  const novelty = Math.max(0, 1 - best.score);
+  let route = "new";
+  if (privacyCost > 0.86) route = "drop";
+  else if (best.score >= mergeThreshold) route = "merge";
+  else if (novelty < noveltyDemand || privacyCost > 0.7) route = "review";
+  const storedBytes = route === "drop" ? 0 : route === "merge" ? Math.round(signal.bytes * .35) : route === "review" ? Math.round(signal.bytes * .55) : signal.bytes;
+  return { ...signal, vec, best, novelty, privacyCost, route, storedBytes };
+}
+function draw(results) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let x = 60; x < canvas.width; x += 120) {
+    ctx.fillRect(x, 28, 1, canvas.height - 58);
+  }
+  for (let y = 54; y < canvas.height; y += 82) {
+    ctx.fillRect(40, y, canvas.width - 80, 1);
+  }
+  ctx.fillStyle = "#8aa1aa";
+  ctx.font = "13px system-ui";
+  ctx.fillText("semantic memory map: x = modality affinity, y = novelty, radius = privacy risk", 26, 24);
+  memory.forEach((item, i) => {
+    const x = 96 + normalize(item.vec)[0] * 650;
+    const y = 288 - normalize(item.vec)[1] * 220;
+    ctx.strokeStyle = "rgba(215,237,241,.32)";
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(215,237,241,.72)";
+    ctx.fillText(`M${i + 1}`, x - 7, y + 5);
+  });
+  results.forEach((r, i) => {
+    const n = normalize(r.vec);
+    const x = 96 + n[0] * 650;
+    const y = 288 - n[1] * 220;
+    const radius = 9 + r.privacyCost * 22;
+    const colors = { new: "#66d6b9", merge: "#fcb066", review: "#7eaaff", drop: "#ff7676" };
+    ctx.strokeStyle = colors[r.route];
+    ctx.fillStyle = `${colors[r.route]}55`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f7fbff";
+    ctx.fillText(String(i + 1), x - 4, y + 4);
+  });
+}
+function render() {
+  phase += 1;
+  document.querySelector("#mergeLabel").textContent = `${controls.merge.value}%`;
+  document.querySelector("#noveltyLabel").textContent = `${controls.novelty.value}%`;
+  document.querySelector("#noiseLabel").textContent = `${controls.noise.value}%`;
+  const results = baseSignals.map(routeSignal);
+  const counts = results.reduce((acc, r) => {
+    acc[r.route] = (acc[r.route] || 0) + 1;
+    return acc;
+  }, {});
+  const collisions = results.filter((r) => r.route === "merge" || r.route === "review").length;
+  document.querySelector("#newCount").textContent = counts.new || 0;
+  document.querySelector("#collisionCount").textContent = collisions;
+  document.querySelector("#reviewLoad").textContent = `${Math.round(((counts.review || 0) / results.length) * 100)}%`;
+  document.querySelector("#bytes").textContent = results.reduce((sum, r) => sum + r.storedBytes, 0).toLocaleString();
+  draw(results);
+  document.querySelector("#cards").innerHTML = results.slice(0, 3).map((r) => `
+    <article class="card route-${r.route}">
+      <strong>${r.name}</strong>
+      <i>${r.mod} -> ${r.route}; nearest ${r.best.item.name} (${Math.round(r.best.score * 100)}%)</i>
+      <i>novelty ${Math.round(r.novelty * 100)}%, privacy ${Math.round(r.privacyCost * 100)}%, stored ${r.storedBytes} bytes</i>
+      <b>${r.route}</b>
+    </article>
+  `).join("");
+  document.querySelector("#signals").innerHTML = results.map((r) => `
+    <div class="row">
+      <span>${r.mod}</span>
+      <span class="bar"><i style="width:${Math.round(r.best.score * 100)}%"></i></span>
+      <b>${r.route}</b>
+    </div>
+  `).join("");
+  if (phase % 24 === 1) {
+    const dominant = results.sort((a, b) => b.privacyCost - a.privacyCost)[0].route;
+    timeline.push(dominant);
+    while (timeline.length > 30) timeline.shift();
+  }
+  document.querySelector("#timeline").innerHTML = timeline.map((item) => `<span class="tick ${item}"></span>`).join("");
+  requestAnimationFrame(render);
+}
+Object.values(controls).forEach((control) => control.addEventListener("input", render, { passive: true }));
+render();
+</script>
+</body>
+</html>

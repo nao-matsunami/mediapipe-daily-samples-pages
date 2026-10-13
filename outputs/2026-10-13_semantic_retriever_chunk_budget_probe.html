@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Retriever Chunk Budget Probe</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b0f18;
+      color: #f8fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(137, 183, 255, .18), transparent 35%),
+        linear-gradient(315deg, rgba(241, 213, 115, .16), transparent 42%),
+        #0b0f18;
+    }
+    main { width: min(1160px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 350px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(225, 235, 252, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.8rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #c4cfdd; line-height: 1.65; }
+    .chip, .metric span { color: #89b7ff; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(137, 183, 255, .42); padding: 5px 8px; background: rgba(137, 183, 255, .08); }
+    .panel, .board, .metric, .chunk {
+      border: 1px solid rgba(225, 235, 252, .16);
+      background: rgba(11, 15, 24, .88);
+      box-shadow: 0 20px 54px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; font-size: .86rem; color: #f8fbff; }
+    input, select {
+      width: 100%;
+      accent-color: #89b7ff;
+      color: #f8fbff;
+      background: #121a29;
+      border: 1px solid rgba(225, 235, 252, .24);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 350px; gap: 16px; margin-top: 18px; }
+    .board { padding: 18px; min-height: 590px; }
+    canvas { width: 100%; height: 310px; display: block; border: 1px solid rgba(225, 235, 252, .13); background: rgba(255, 255, 255, .03); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.25rem; overflow-wrap: anywhere; }
+    .chunks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 14px; }
+    .chunk { min-height: 132px; padding: 12px; position: relative; overflow: hidden; }
+    .chunk strong { display: block; font-size: 1rem; }
+    .chunk i { display: block; margin-top: 8px; color: #c4cfdd; font-style: normal; }
+    .chunk b { position: absolute; right: 8px; bottom: -12px; font-size: 4rem; color: rgba(248, 251, 255, .08); }
+    .send { border-color: rgba(137, 183, 255, .76); }
+    .trim { border-color: rgba(241, 213, 115, .78); }
+    .hold { border-color: rgba(104, 219, 181, .72); }
+    .drop { border-color: rgba(255, 118, 118, .64); }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 98px 1fr 56px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(225, 235, 252, .12); }
+    .bar { height: 10px; background: rgba(225, 235, 252, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #89b7ff, #f1d573); }
+    .timeline { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 26px; border: 1px solid rgba(225, 235, 252, .1); background: rgba(225, 235, 252, .08); }
+    .tick.send { background: rgba(137, 183, 255, .5); }
+    .tick.trim { background: rgba(241, 213, 115, .5); }
+    .tick.hold { background: rgba(104, 219, 181, .42); }
+    .tick.drop { background: rgba(255, 118, 118, .36); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 620px) {
+      main { padding: 16px; }
+      .chunks, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe / Semantic Retriever / context budget</p>
+      <h1>Semantic Retriever Chunk Budget Probe</h1>
+      <p>MediaPipe 由来の埋め込み候補を Retriever の chunk として投入する前に、token 予算、鮮度、優先度、privacy risk で send / trim / hold / drop に分ける派生試作です。</p>
+    </div>
+    <section class="panel">
+      <h2>Chunk controls</h2>
+      <div class="controls">
+        <label>Context token budget <span id="budgetLabel"></span>
+          <input id="budget" type="range" min="120" max="900" value="480">
+        </label>
+        <label>Freshness half-life <span id="halfLifeLabel"></span>
+          <input id="halfLife" type="range" min="12" max="120" value="46">
+        </label>
+        <label>Priority boost <span id="boostLabel"></span>
+          <input id="boost" type="range" min="0" max="40" value="16">
+        </label>
+        <label>Query target
+          <select id="target">
+            <option value="gesture">gesture intent</option>
+            <option value="scene" selected>scene retrieval</option>
+            <option value="privacy">privacy audit</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="board">
+      <canvas id="canvas" width="820" height="310"></canvas>
+      <div class="metrics">
+        <div class="metric"><span>sent chunks</span><b id="sent">0</b></div>
+        <div class="metric"><span>trimmed tokens</span><b id="trimmed">0</b></div>
+        <div class="metric"><span>held chunks</span><b id="held">0</b></div>
+        <div class="metric"><span>risk clipped</span><b id="clipped">0</b></div>
+      </div>
+      <div id="chunks" class="chunks"></div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Retriever lanes</h2>
+        <div id="lanes"></div>
+      </section>
+      <section class="panel">
+        <h2>Budget timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>blue: send, yellow: trim, green: hold, red: drop</p>
+      </section>
+      <section class="panel">
+        <h2>Next hook</h2>
+        <p>次に足すなら SemanticRetriever の実 query、Universal Embedder の cross-modal score、IndexedDB の chunk store、検索結果の説明 token 予算を追加します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const controls = {
+  budget: document.querySelector("#budget"),
+  halfLife: document.querySelector("#halfLife"),
+  boost: document.querySelector("#boost"),
+  target: document.querySelector("#target")
+};
+const chunks = [
+  { title: "pinch command digest", kind: "gesture", age: 9, tokens: 88, risk: .18, priority: .58 },
+  { title: "desk objects summary", kind: "scene", age: 22, tokens: 146, risk: .3, priority: .68 },
+  { title: "face attention note", kind: "privacy", age: 16, tokens: 132, risk: .78, priority: .52 },
+  { title: "mask region delta", kind: "scene", age: 44, tokens: 204, risk: .44, priority: .6 },
+  { title: "audio tap rhythm", kind: "gesture", age: 36, tokens: 118, risk: .34, priority: .48 },
+  { title: "screen text hint", kind: "privacy", age: 28, tokens: 172, risk: .62, priority: .7 }
+];
+const timeline = [];
+let phase = 0;
+
+function score(chunk) {
+  const target = controls.target.value;
+  const halfLife = Number(controls.halfLife.value);
+  const boost = Number(controls.boost.value) / 100;
+  const freshness = Math.pow(.5, chunk.age / halfLife);
+  const match = chunk.kind === target ? boost + .25 : 0;
+  const pulse = Math.sin(phase * .035 + chunk.age) * .05;
+  return Math.max(0, Math.min(1, chunk.priority + freshness * .3 + match - chunk.risk * .24 + pulse));
+}
+function allocate() {
+  const budget = Number(controls.budget.value);
+  let spent = 0;
+  const ranked = chunks.map((chunk) => ({ ...chunk, score: score(chunk) })).sort((a, b) => b.score - a.score);
+  return ranked.map((chunk) => {
+    let route = "send";
+    let outTokens = chunk.tokens;
+    if (chunk.risk > .72 && controls.target.value !== "privacy") {
+      route = "drop";
+      outTokens = 0;
+    } else if (spent + chunk.tokens > budget) {
+      if (chunk.score > .58 && spent < budget) {
+        route = "trim";
+        outTokens = Math.max(24, budget - spent);
+      } else {
+        route = "hold";
+        outTokens = 0;
+      }
+    }
+    spent += outTokens;
+    return { ...chunk, route, outTokens, spent };
+  });
+}
+function draw(results) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let x = 55; x < canvas.width; x += 110) ctx.fillRect(x, 30, 1, canvas.height - 56);
+  for (let y = 58; y < canvas.height; y += 70) ctx.fillRect(36, y, canvas.width - 72, 1);
+  ctx.fillStyle = "#95a7bd";
+  ctx.font = "13px system-ui";
+  ctx.fillText("chunk allocation: x = score, y = age, width = token load", 24, 24);
+  const colors = { send: "#89b7ff", trim: "#f1d573", hold: "#68dbb5", drop: "#ff7676" };
+  results.forEach((chunk, index) => {
+    const x = 60 + chunk.score * 690;
+    const y = 270 - Math.min(1, chunk.age / 120) * 210;
+    const width = 28 + chunk.tokens * .35;
+    ctx.fillStyle = `${colors[chunk.route]}55`;
+    ctx.strokeStyle = colors[chunk.route];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y - 14, width, 28, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f8fbff";
+    ctx.fillText(String(index + 1), x - 4, y + 5);
+  });
+}
+function render() {
+  phase += 1;
+  document.querySelector("#budgetLabel").textContent = `${controls.budget.value} tokens`;
+  document.querySelector("#halfLifeLabel").textContent = `${controls.halfLife.value}s`;
+  document.querySelector("#boostLabel").textContent = `${controls.boost.value}%`;
+  const results = allocate();
+  const counts = results.reduce((acc, item) => {
+    acc[item.route] = (acc[item.route] || 0) + 1;
+    return acc;
+  }, {});
+  document.querySelector("#sent").textContent = counts.send || 0;
+  document.querySelector("#held").textContent = counts.hold || 0;
+  document.querySelector("#trimmed").textContent = results.filter((r) => r.route === "trim").reduce((sum, r) => sum + (r.tokens - r.outTokens), 0);
+  document.querySelector("#clipped").textContent = results.filter((r) => r.route === "drop").length;
+  draw(results);
+  document.querySelector("#chunks").innerHTML = results.slice(0, 4).map((chunk) => `
+    <article class="chunk ${chunk.route}">
+      <strong>${chunk.title}</strong>
+      <i>${chunk.kind}; score ${Math.round(chunk.score * 100)}%; age ${chunk.age}s</i>
+      <i>${chunk.route}: ${chunk.outTokens}/${chunk.tokens} tokens, risk ${Math.round(chunk.risk * 100)}%</i>
+      <b>${chunk.route}</b>
+    </article>
+  `).join("");
+  document.querySelector("#lanes").innerHTML = results.map((chunk) => `
+    <div class="row">
+      <span>${chunk.kind}</span>
+      <span class="bar"><i style="width:${Math.round(chunk.score * 100)}%"></i></span>
+      <b>${chunk.route}</b>
+    </div>
+  `).join("");
+  if (phase % 26 === 1) {
+    const dominant = results[0].route;
+    timeline.push(dominant);
+    while (timeline.length > 30) timeline.shift();
+  }
+  document.querySelector("#timeline").innerHTML = timeline.map((item) => `<span class="tick ${item}"></span>`).join("");
+  requestAnimationFrame(render);
+}
+Object.values(controls).forEach((control) => control.addEventListener("input", render, { passive: true }));
+render();
+</script>
+</body>
+</html>
