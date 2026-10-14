@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-14",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Semantic Retriever の返却前に多様性、privacy、chunk overlap を整える",
+  "headlineEn": "Tune diversity, privacy, and chunk overlap before Semantic Retriever results are returned",
+  "summary": "Google AI Edge の Semantic Retriever guide、EmbeddingGemma 2 blog、MediaPipe v1.1.0 release、Tasks Web README、公式 Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Semantic Retriever Result Diversity Console、派生は Text Chunker Overlap Drift Inspector です。",
+  "summaryEn": "After checking the Google AI Edge Semantic Retriever guide, the EmbeddingGemma 2 blog, the MediaPipe v1.1.0 release, the Tasks Web README, and the official Tasks Web demo, this adds two original samples: Semantic Retriever Result Diversity Console and Text Chunker Overlap Drift Inspector.",
+  "keyTopics": [
+    "Semantic Retriever guide は vector embedding generation、on-device vector storage、query retrieval をまとめて扱い、text / image / audio の保存と検索をオンデバイスで設計できることを示している。",
+    "EmbeddingGemma 2 の公式 blog は MediaPipe Tasks の Embedder / Semantic Retriever 連携を強調しており、低レベル前処理を隠しつつ cross-platform に使える検索体験が焦点になっている。",
+    "公式 Tasks Web demo には Semantic Retriever、Universal Embedder、Decision Maker が並び、Web ML の日次試作も検出結果の表示から検索・判断・説明予算へ広げる段階に来ている。",
+    "今日の本命サンプルは、Retriever の topK をそのまま出すのではなく、近すぎる候補、privacy risk、説明 token 予算を見て send / rerank / review / suppress に振り分ける。",
+    "今日の派生サンプルは、発展案の parent / child chunk ID と TextChunker 監視から作り、chunk size、overlap、metadata density が index / merge / trim / drop にどう効くかを短時間で触れるようにした。"
+  ],
+  "keyTopicsEn": [
+    "The Semantic Retriever guide combines vector embedding generation, on-device vector storage, and query retrieval, showing that text / image / audio storage and search can be designed on-device.",
+    "The official EmbeddingGemma 2 blog emphasizes MediaPipe Tasks support across Embedder and Semantic Retriever, focusing on cross-platform search while hiding low-level preprocessing.",
+    "The official Tasks Web demo lists Semantic Retriever, Universal Embedder, and Decision Maker, so this daily archive can move from displaying detection results toward retrieval, decisions, and explanation budgets.",
+    "Today's main sample does not simply show raw Retriever topK results; it routes near-duplicate candidates, privacy risk, and explanation-token load into send / rerank / review / suppress.",
+    "Today's derivative sample turns the parent / child chunk ID and TextChunker monitoring idea into a quick UI for seeing how chunk size, overlap, and metadata density affect index / merge / trim / drop."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Semantic Retriever Result Diversity Console",
+      "url": "../outputs/2026-10-14_semantic_retriever_result_diversity_console.html"
+    },
+    {
+      "label": "Today's derivative sample: Text Chunker Overlap Drift Inspector",
+      "url": "../outputs/2026-10-14_text_chunker_overlap_drift_inspector.html"
+    },
+    {
+      "label": "Google AI Edge: Semantic Retriever guide",
+      "url": "https://developers.google.cn/edge/mediapipe/solutions/retrieval/semantic_retriever/index"
+    },
+    {
+      "label": "Google Developers Blog: EmbeddingGemma 2 with MediaPipe Tasks",
+      "url": "https://developers.googleblog.com/google-ai-edge-with-embeddinggemma-2/"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "GitHub: MediaPipe Tasks Vision Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-14-semantic-retriever-result-diversity.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "今日の注目は、Semantic Retriever が単なる embedding 検索ではなく、embedding provider、vector store、TextChunker、metadata、score、on-device storage をまとめる設計点です。公式 blog でも EmbeddingGemma 2 が Embedder / Semantic Retriever に加わる流れが示され、検索結果をどう返すか、どう説明するか、どこまで保存するかが Web ML の UI 問題になっています。",
+      "bodyEn": "Today's notable point is that Semantic Retriever is not just embedding search; it brings together embedding providers, vector stores, TextChunker, metadata, scores, and on-device storage. The official blog also describes EmbeddingGemma 2 support for Embedder and Semantic Retriever, making result return, explanation, and retention a Web ML UI problem."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命の `Semantic Retriever Result Diversity Console` は、合成 retrieval 候補を vector map に置き、topK、diversity penalty、query mode、説明 token 予算で send / rerank / review / suppress に分けます。派生の `Text Chunker Overlap Drift Inspector` は、長文を chunk size と overlap で分割した想定にし、parent record ごとの index / merge / trim / drop を可視化します。",
+      "bodyEn": "The main `Semantic Retriever Result Diversity Console` places synthetic retrieval candidates on a vector map and routes them through topK, diversity penalty, query mode, and explanation token budget into send / rerank / review / suppress. The derivative `Text Chunker Overlap Drift Inspector` simulates long-document chunking with size and overlap, visualizing index / merge / trim / drop per parent record."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積できるデータは query mode、candidate title、modality / kind、synthetic vector position、similarity、family redundancy、privacy risk、説明 token 数、route timeline、chunk start / end、parent record、overlap drift、metadata density、stored bytes です。Semantic Retriever、Universal Embedder、Text Embedder、Image Embedder、Audio Embedder、Decision Maker、Image Segmenter、Gesture Recognizer、IndexedDB、Worker、WebGPU / WebNN capability check、引用 UI、監査ログと組み合わせると、オンデバイス検索から説明生成、承認 UI までを一続きで設計できます。",
+      "bodyEn": "The samples can accumulate query mode, candidate titles, modality / kind, synthetic vector positions, similarity, family redundancy, privacy risk, explanation token counts, route timelines, chunk start / end, parent records, overlap drift, metadata density, and stored bytes. Combined with Semantic Retriever, Universal Embedder, Text Embedder, Image Embedder, Audio Embedder, Decision Maker, Image Segmenter, Gesture Recognizer, IndexedDB, workers, WebGPU / WebNN capability checks, citation UI, and audit logs, they can connect on-device retrieval to explanations and approval UI."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Retriever の結果を UI に出す前に、score 順だけでなく family / parent record の重複、privacy tier、説明 token 予算、引用範囲、chunk の overlap を別々に見ると、似た候補が上位を埋める問題を避けやすくなります。TextChunker の size / overlap は recall を上げますが、overlap が大きいほど同じ文脈が複数 hit しやすいので、duplicate cluster と parent-child 表示を同時に設計するのが良さそうです。",
+      "bodyEn": "Before showing Retriever results in the UI, inspect not only score order but also family / parent-record duplication, privacy tier, explanation-token budget, citation ranges, and chunk overlap. This helps avoid near-identical candidates filling the top slots. Larger TextChunker size / overlap can improve recall, but higher overlap increases repeated context, so duplicate clusters and parent-child display should be designed together."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "明日以降は Semantic Retriever の Web guide / code example、EmbeddingGemma 2 の MediaPipe Tasks 対応、Universal Embedder の Web 実装、Decision Maker の input / rule 構造、MediaPipe v1.1.x release note、Google AI Edge Gallery / Foresight の検索 UX、WebGPU / WebNN delegate とオンデバイス storage の制約を追います。",
+      "bodyEn": "Next, watch the Semantic Retriever Web guide / code example, EmbeddingGemma 2 support in MediaPipe Tasks, the Universal Embedder Web implementation, Decision Maker input / rule structure, MediaPipe v1.1.x release notes, search UX in Google AI Edge Gallery / Foresight, and constraints around WebGPU / WebNN delegates plus on-device storage."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "`Semantic Retriever Result Diversity Console` で Diversity penalty を上げると、同じ family の候補が rerank に回りやすくなります。Query mode を privacy audit にすると high-risk 候補が suppress ではなく review で残りやすくなります。`Text Chunker Overlap Drift Inspector` では Overlap を上げ、Store policy を compact parent にすると、重複 chunk が merge に移ります。",
+      "bodyEn": "In `Semantic Retriever Result Diversity Console`, increase the diversity penalty to push same-family candidates into rerank. Switch query mode to privacy audit to keep high-risk candidates in review instead of suppress. In `Text Chunker Overlap Drift Inspector`, raise overlap and choose compact parent to move duplicate chunks into merge."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Semantic Retriever guide、EmbeddingGemma 2 blog、MediaPipe v1.1.0 release、Tasks Vision Web README、公式 Tasks Web demo を確認。設計: 昨日の memory collision / chunk budget から、今日は返却前の result diversity と TextChunker overlap drift に焦点を移した。実装: 本命 HTML に topK、diversity penalty、query mode、説明 token 予算、vector map、send / rerank / review / suppress を追加。派生 HTML に chunk size、overlap、metadata density、store policy、parent record、index / merge / trim / drop を追加。検証: JSON parse、gallery build、publish command、GitHub Pages の top / day / representative sample HTTP 200 を確認する。",
+      "bodyEn": "Research: checked the Semantic Retriever guide, EmbeddingGemma 2 blog, MediaPipe v1.1.0 release, Tasks Vision Web README, and official Tasks Web demo. Design: after yesterday's memory collision / chunk budget work, today shifts to result diversity before return and TextChunker overlap drift. Implementation: the main HTML adds topK, diversity penalty, query mode, explanation token budget, vector map, and send / rerank / review / suppress. The derivative HTML adds chunk size, overlap, metadata density, store policy, parent records, and index / merge / trim / drop. Validation: check JSON parsing, gallery build, publish command, and GitHub Pages HTTP 200 for the top page, day page, and representative sample."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "この日次アーカイブは、camera / worker / running mode / mask lifecycle / multitask scheduling / confidence fusion / upgrade preflight / stabilization / digest / handoff / memory collision まで進みました。今日は retrieval の返却面に寄せ、上位候補をそのまま出す危うさと、chunk overlap が検索体験に与える影響を触れる形にしました。Web ML は推論そのものよりも、保存、検索、説明、承認の UI がアプリ品質を左右し始めています。",
+      "bodyEn": "This daily archive has covered camera, workers, running modes, mask lifecycle, multitask scheduling, confidence fusion, upgrade preflight, stabilization, digests, handoff, and memory collision. Today moves to retrieval return behavior, making it possible to touch the risk of showing raw top results and the effect of chunk overlap on retrieval experience. In Web ML, storage, retrieval, explanation, and approval UI are increasingly as important as inference itself."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Semantic Retriever Result Diversity Console` です。実際に動く部分は、合成 retrieval 候補を score、family redundancy、privacy risk、topK、query mode、diversity penalty、説明 token 予算で send / rerank / review / suppress に振り分けるところです。次に足すなら実 SemanticRetriever query、TextChunker の親子 chunk ID、引用表示、duplicate cluster UI を追加します。派生試作は `Text Chunker Overlap Drift Inspector` で、実際に動く部分は合成ドキュメントを chunk size / overlap で分割し、metadata density、privacy risk、store policy で index / merge / trim / drop に分けるところです。次に足すなら実 TextChunker、vector store 保存、topK 返却、引用範囲ハイライトを追加します。",
+      "bodyEn": "The selected main prototype is `Semantic Retriever Result Diversity Console`. The working part routes synthetic retrieval candidates by score, family redundancy, privacy risk, topK, query mode, diversity penalty, and explanation-token budget into send / rerank / review / suppress. Next additions should include real SemanticRetriever queries, TextChunker parent-child chunk IDs, citations, and duplicate cluster UI. The derivative prototype is `Text Chunker Overlap Drift Inspector`; it chunks synthetic documents by size / overlap and routes them by metadata density, privacy risk, and store policy into index / merge / trim / drop. Next additions should include the real TextChunker, vector-store persistence, topK return, and citation-range highlighting.",
+      "links": [
+        {
+          "label": "Open Semantic Retriever Result Diversity Console",
+          "url": "../outputs/2026-10-14_semantic_retriever_result_diversity_console.html"
+        },
+        {
+          "label": "Open Text Chunker Overlap Drift Inspector",
+          "url": "../outputs/2026-10-14_text_chunker_overlap_drift_inspector.html"
+        }
+      ]
+    }
+  ]
+}

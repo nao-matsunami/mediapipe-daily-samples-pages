@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Retriever Result Diversity Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #06120f;
+      color: #f5fff9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(83, 211, 158, .18), transparent 36%),
+        linear-gradient(315deg, rgba(118, 170, 255, .16), transparent 42%),
+        #06120f;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(205, 255, 232, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.7rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #bdd5ca; line-height: 1.65; }
+    .chip, .metric span { color: #8df2c8; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(141, 242, 200, .38); padding: 5px 8px; background: rgba(141, 242, 200, .08); }
+    .panel, .board, .metric, .result {
+      border: 1px solid rgba(205, 255, 232, .16);
+      background: rgba(6, 18, 15, .88);
+      box-shadow: 0 20px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; font-size: .86rem; color: #f5fff9; }
+    input, select {
+      width: 100%;
+      accent-color: #8df2c8;
+      color: #f5fff9;
+      background: #0f1f1a;
+      border: 1px solid rgba(205, 255, 232, .22);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 18px; }
+    .board { padding: 18px; min-height: 600px; }
+    canvas { width: 100%; height: 330px; display: block; border: 1px solid rgba(205, 255, 232, .13); background: rgba(255, 255, 255, .03); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.3rem; overflow-wrap: anywhere; }
+    .results { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 14px; }
+    .result { min-height: 138px; padding: 12px; position: relative; overflow: hidden; }
+    .result strong { display: block; font-size: 1rem; }
+    .result i { display: block; margin-top: 7px; color: #bdd5ca; font-style: normal; }
+    .result b { position: absolute; right: 8px; bottom: -10px; font-size: 3.6rem; color: rgba(245, 255, 249, .08); }
+    .send { border-color: rgba(141, 242, 200, .76); }
+    .rerank { border-color: rgba(118, 170, 255, .78); }
+    .review { border-color: rgba(244, 211, 104, .78); }
+    .suppress { border-color: rgba(255, 116, 116, .66); }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 92px 1fr 52px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(205, 255, 232, .12); }
+    .bar { height: 10px; background: rgba(205, 255, 232, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8df2c8, #76aaff); }
+    .timeline { display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 26px; border: 1px solid rgba(205, 255, 232, .1); background: rgba(205, 255, 232, .08); }
+    .tick.send { background: rgba(141, 242, 200, .5); }
+    .tick.rerank { background: rgba(118, 170, 255, .48); }
+    .tick.review { background: rgba(244, 211, 104, .48); }
+    .tick.suppress { background: rgba(255, 116, 116, .36); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 620px) {
+      main { padding: 16px; }
+      .results, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe / Semantic Retriever / topK rerank</p>
+      <h1>Semantic Retriever Result Diversity Console</h1>
+      <p>Semantic Retriever が返す topK 候補を、類似度だけでなく多様性、metadata filter、privacy risk、説明 token 予算で send / rerank / review / suppress に分ける自作ミニ試作です。</p>
+    </div>
+    <section class="panel">
+      <h2>Retrieval controls</h2>
+      <div class="controls">
+        <label>TopK <span id="topKLabel"></span>
+          <input id="topK" type="range" min="3" max="9" value="6">
+        </label>
+        <label>Diversity penalty <span id="diversityLabel"></span>
+          <input id="diversity" type="range" min="0" max="60" value="28">
+        </label>
+        <label>Explain token budget <span id="tokensLabel"></span>
+          <input id="tokens" type="range" min="120" max="720" value="360">
+        </label>
+        <label>Query mode
+          <select id="mode">
+            <option value="scene" selected>scene search</option>
+            <option value="gesture">gesture intent</option>
+            <option value="privacy">privacy audit</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="board">
+      <canvas id="canvas" width="840" height="330"></canvas>
+      <div class="metrics">
+        <div class="metric"><span>send</span><b id="sendCount">0</b></div>
+        <div class="metric"><span>rerank</span><b id="rerankCount">0</b></div>
+        <div class="metric"><span>review</span><b id="reviewCount">0</b></div>
+        <div class="metric"><span>tokens used</span><b id="usedTokens">0</b></div>
+      </div>
+      <div id="results" class="results"></div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Candidate lanes</h2>
+        <div id="lanes"></div>
+      </section>
+      <section class="panel">
+        <h2>Route timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>green: send, blue: rerank, yellow: review, red: suppress</p>
+      </section>
+      <section class="panel">
+        <h2>Next hook</h2>
+        <p>次に足すなら実 SemanticRetriever query、TextChunker の親子 chunk ID、引用表示、近すぎる結果を束ねる duplicate cluster UI を追加します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const controls = {
+  topK: document.querySelector("#topK"),
+  diversity: document.querySelector("#diversity"),
+  tokens: document.querySelector("#tokens"),
+  mode: document.querySelector("#mode")
+};
+const candidates = [
+  { title: "desk object digest", kind: "scene", x: .22, y: .34, sim: .84, risk: .25, tokens: 92, family: "desk" },
+  { title: "monitor text summary", kind: "privacy", x: .27, y: .38, sim: .81, risk: .72, tokens: 118, family: "desk" },
+  { title: "pinch action memory", kind: "gesture", x: .71, y: .26, sim: .77, risk: .18, tokens: 74, family: "hand" },
+  { title: "hand dwell command", kind: "gesture", x: .75, y: .31, sim: .73, risk: .24, tokens: 96, family: "hand" },
+  { title: "room layout note", kind: "scene", x: .38, y: .72, sim: .69, risk: .36, tokens: 104, family: "room" },
+  { title: "face attention cue", kind: "privacy", x: .52, y: .44, sim: .66, risk: .82, tokens: 86, family: "face" },
+  { title: "audio click rhythm", kind: "gesture", x: .66, y: .78, sim: .61, risk: .32, tokens: 70, family: "audio" },
+  { title: "segment mask region", kind: "scene", x: .31, y: .67, sim: .58, risk: .42, tokens: 132, family: "room" },
+  { title: "private note snippet", kind: "privacy", x: .49, y: .62, sim: .56, risk: .9, tokens: 150, family: "text" }
+];
+const timeline = [];
+let phase = 0;
+
+function rankItems() {
+  const mode = controls.mode.value;
+  const topK = Number(controls.topK.value);
+  const diversity = Number(controls.diversity.value) / 100;
+  const budget = Number(controls.tokens.value);
+  const familySeen = new Map();
+  let used = 0;
+  return candidates
+    .map((item) => {
+      const match = item.kind === mode ? .18 : 0;
+      const pulse = Math.sin(phase * .04 + item.x * 9) * .025;
+      return { ...item, score: Math.max(0, Math.min(1, item.sim + match - item.risk * .12 + pulse)) };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK)
+    .map((item) => {
+      const familyCount = familySeen.get(item.family) || 0;
+      familySeen.set(item.family, familyCount + 1);
+      const diverseScore = item.score - familyCount * diversity;
+      let route = "send";
+      let outTokens = item.tokens;
+      if (item.risk > .76 && mode !== "privacy") {
+        route = "suppress";
+        outTokens = 0;
+      } else if (item.risk > .62) {
+        route = "review";
+      } else if (familyCount > 0 || diverseScore < .48) {
+        route = "rerank";
+      }
+      if (used + outTokens > budget && route === "send") route = "rerank";
+      if (route === "send" || route === "review") used += outTokens;
+      return { ...item, diverseScore, route, outTokens, used };
+    });
+}
+function draw(items) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let x = 54; x < canvas.width; x += 112) ctx.fillRect(x, 36, 1, canvas.height - 70);
+  for (let y = 64; y < canvas.height; y += 68) ctx.fillRect(34, y, canvas.width - 68, 1);
+  ctx.fillStyle = "#95aaa1";
+  ctx.font = "13px system-ui";
+  ctx.fillText("synthetic vector map: distance hints at result redundancy", 24, 24);
+  const colors = { send: "#8df2c8", rerank: "#76aaff", review: "#f4d368", suppress: "#ff7474" };
+  candidates.forEach((item) => {
+    const x = 40 + item.x * 760;
+    const y = 52 + item.y * 236;
+    ctx.fillStyle = "rgba(255,255,255,.1)";
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  items.forEach((item, index) => {
+    const x = 40 + item.x * 760;
+    const y = 52 + item.y * 236;
+    ctx.strokeStyle = colors[item.route];
+    ctx.fillStyle = `${colors[item.route]}44`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 15 + item.score * 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f5fff9";
+    ctx.fillText(String(index + 1), x - 4, y + 5);
+  });
+}
+function render() {
+  phase += 1;
+  document.querySelector("#topKLabel").textContent = controls.topK.value;
+  document.querySelector("#diversityLabel").textContent = `${controls.diversity.value}%`;
+  document.querySelector("#tokensLabel").textContent = `${controls.tokens.value}`;
+  const items = rankItems();
+  const counts = items.reduce((acc, item) => {
+    acc[item.route] = (acc[item.route] || 0) + 1;
+    return acc;
+  }, {});
+  document.querySelector("#sendCount").textContent = counts.send || 0;
+  document.querySelector("#rerankCount").textContent = counts.rerank || 0;
+  document.querySelector("#reviewCount").textContent = counts.review || 0;
+  document.querySelector("#usedTokens").textContent = items.reduce((sum, item) => sum + (item.route === "send" || item.route === "review" ? item.outTokens : 0), 0);
+  draw(items);
+  document.querySelector("#results").innerHTML = items.slice(0, 4).map((item) => `
+    <article class="result ${item.route}">
+      <strong>${item.title}</strong>
+      <i>${item.kind}; score ${Math.round(item.score * 100)}%; diverse ${Math.round(item.diverseScore * 100)}%</i>
+      <i>${item.route}: ${item.outTokens}/${item.tokens} explain tokens, risk ${Math.round(item.risk * 100)}%</i>
+      <b>${item.route}</b>
+    </article>
+  `).join("");
+  document.querySelector("#lanes").innerHTML = items.map((item) => `
+    <div class="row">
+      <span>${item.title.split(" ")[0]}</span>
+      <span class="bar"><i style="width:${Math.round(item.score * 100)}%"></i></span>
+      <span>${item.route}</span>
+    </div>
+  `).join("");
+  timeline.push(items[0]?.route || "rerank");
+  while (timeline.length > 28) timeline.shift();
+  document.querySelector("#timeline").innerHTML = timeline.map((route) => `<span class="tick ${route}"></span>`).join("");
+  requestAnimationFrame(render);
+}
+Object.values(controls).forEach((control) => control.addEventListener("input", render, { passive: true }));
+render();
+</script>
+</body>
+</html>

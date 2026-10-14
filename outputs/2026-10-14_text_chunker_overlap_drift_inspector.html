@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Chunker Overlap Drift Inspector</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      background: #0b1017;
+      color: #f8fbff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(118, 170, 255, .18), transparent 35%),
+        linear-gradient(315deg, rgba(247, 214, 100, .15), transparent 42%),
+        #0b1017;
+    }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    header { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid rgba(226, 237, 255, .16); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    p, li { color: #c5cedb; line-height: 1.65; }
+    .chip, .metric span { color: #76aaff; font-size: .76rem; text-transform: uppercase; }
+    .chip { display: inline-block; border: 1px solid rgba(118, 170, 255, .42); padding: 5px 8px; background: rgba(118, 170, 255, .08); }
+    .panel, .board, .metric, .chunk {
+      border: 1px solid rgba(226, 237, 255, .16);
+      background: rgba(11, 16, 23, .88);
+      box-shadow: 0 20px 58px rgba(0, 0, 0, .28);
+    }
+    .panel { padding: 16px; }
+    .controls { display: grid; gap: 12px; }
+    label { display: grid; gap: 7px; font-size: .86rem; color: #f8fbff; }
+    input, select {
+      width: 100%;
+      accent-color: #76aaff;
+      color: #f8fbff;
+      background: #121a29;
+      border: 1px solid rgba(226, 237, 255, .22);
+      padding: 9px 10px;
+    }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 18px; }
+    .board { padding: 18px; min-height: 600px; }
+    canvas { width: 100%; height: 315px; display: block; border: 1px solid rgba(226, 237, 255, .13); background: rgba(255, 255, 255, .03); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+    .metric { padding: 12px; min-width: 0; }
+    .metric b { display: block; font-size: 1.25rem; overflow-wrap: anywhere; }
+    .chunks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 14px; }
+    .chunk { min-height: 132px; padding: 12px; position: relative; overflow: hidden; }
+    .chunk strong { display: block; font-size: 1rem; }
+    .chunk i { display: block; margin-top: 7px; color: #c5cedb; font-style: normal; }
+    .chunk b { position: absolute; right: 8px; bottom: -10px; font-size: 3.5rem; color: rgba(248, 251, 255, .08); }
+    .index { border-color: rgba(118, 170, 255, .78); }
+    .merge { border-color: rgba(141, 242, 200, .72); }
+    .trim { border-color: rgba(247, 214, 100, .78); }
+    .drop { border-color: rgba(255, 116, 116, .66); }
+    .side { display: grid; gap: 12px; }
+    .row { display: grid; grid-template-columns: 92px 1fr 48px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid rgba(226, 237, 255, .12); }
+    .bar { height: 10px; background: rgba(226, 237, 255, .1); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: linear-gradient(90deg, #76aaff, #f7d664); }
+    .timeline { display: grid; grid-template-columns: repeat(30, 1fr); gap: 3px; margin-top: 10px; }
+    .tick { height: 26px; border: 1px solid rgba(226, 237, 255, .1); background: rgba(226, 237, 255, .08); }
+    .tick.index { background: rgba(118, 170, 255, .48); }
+    .tick.merge { background: rgba(141, 242, 200, .44); }
+    .tick.trim { background: rgba(247, 214, 100, .5); }
+    .tick.drop { background: rgba(255, 116, 116, .36); }
+    @media (max-width: 900px) {
+      header, .layout { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 620px) {
+      main { padding: 16px; }
+      .chunks, .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="chip">MediaPipe / TextChunker / retrieval records</p>
+      <h1>Text Chunker Overlap Drift Inspector</h1>
+      <p>Semantic Retriever に長文を入れる前に、chunk size、overlap、親子 record、metadata 密度で index / merge / trim / drop を切り替える派生試作です。</p>
+    </div>
+    <section class="panel">
+      <h2>Chunk controls</h2>
+      <div class="controls">
+        <label>Chunk size <span id="sizeLabel"></span>
+          <input id="size" type="range" min="180" max="760" value="512">
+        </label>
+        <label>Overlap <span id="overlapLabel"></span>
+          <input id="overlap" type="range" min="0" max="220" value="100">
+        </label>
+        <label>Metadata density <span id="metaLabel"></span>
+          <input id="meta" type="range" min="0" max="60" value="22">
+        </label>
+        <label>Store policy
+          <select id="policy">
+            <option value="compact" selected>compact parent</option>
+            <option value="trace">trace every chunk</option>
+            <option value="strict">strict privacy</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </header>
+
+  <section class="layout">
+    <div class="board">
+      <canvas id="canvas" width="840" height="315"></canvas>
+      <div class="metrics">
+        <div class="metric"><span>chunks</span><b id="chunkCount">0</b></div>
+        <div class="metric"><span>overlap drift</span><b id="drift">0%</b></div>
+        <div class="metric"><span>stored bytes</span><b id="bytes">0</b></div>
+        <div class="metric"><span>dropped</span><b id="dropped">0</b></div>
+      </div>
+      <div id="chunks" class="chunks"></div>
+    </div>
+    <aside class="side">
+      <section class="panel">
+        <h2>Chunk lanes</h2>
+        <div id="lanes"></div>
+      </section>
+      <section class="panel">
+        <h2>Index timeline</h2>
+        <div id="timeline" class="timeline"></div>
+        <p>blue: index, green: merge, yellow: trim, red: drop</p>
+      </section>
+      <section class="panel">
+        <h2>Next hook</h2>
+        <p>次に足すなら実 TextChunker、parent / child record ID、SemanticRetriever の topK 返却、引用範囲のハイライトを追加します。</p>
+      </section>
+    </aside>
+  </section>
+</main>
+<script>
+const canvas = document.querySelector("#canvas");
+const ctx = canvas.getContext("2d");
+const controls = {
+  size: document.querySelector("#size"),
+  overlap: document.querySelector("#overlap"),
+  meta: document.querySelector("#meta"),
+  policy: document.querySelector("#policy")
+};
+const docs = [
+  { title: "gesture report", length: 920, novelty: .74, risk: .22, parent: "A" },
+  { title: "object scene note", length: 1380, novelty: .66, risk: .34, parent: "B" },
+  { title: "face cue memo", length: 760, novelty: .54, risk: .78, parent: "C" },
+  { title: "retriever scratch", length: 1660, novelty: .62, risk: .44, parent: "D" }
+];
+const timeline = [];
+let phase = 0;
+
+function makeChunks() {
+  const size = Number(controls.size.value);
+  const overlap = Number(controls.overlap.value);
+  const meta = Number(controls.meta.value) / 100;
+  const policy = controls.policy.value;
+  const step = Math.max(60, size - overlap);
+  const list = [];
+  docs.forEach((doc) => {
+    const count = Math.max(1, Math.ceil(Math.max(1, doc.length - overlap) / step));
+    for (let i = 0; i < count; i += 1) {
+      const start = i * step;
+      const end = Math.min(doc.length, start + size);
+      const duplicate = i > 0 ? overlap / size : 0;
+      const risk = Math.min(1, doc.risk + meta * .28 + Math.sin(phase * .02 + i) * .03);
+      const novelty = Math.max(0, doc.novelty - duplicate * .3 + Math.cos(phase * .018 + start * .01) * .025);
+      let route = "index";
+      if (risk > .74 && policy !== "trace") route = "drop";
+      else if (duplicate > .32 && policy === "compact") route = "merge";
+      else if (end - start > 540 || meta > .44) route = "trim";
+      list.push({ ...doc, start, end, route, risk, novelty, duplicate, bytes: Math.round((end - start) * (1.7 + meta)) });
+    }
+  });
+  return list;
+}
+function draw(list) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let x = 54; x < canvas.width; x += 112) ctx.fillRect(x, 36, 1, canvas.height - 68);
+  for (let y = 64; y < canvas.height; y += 66) ctx.fillRect(34, y, canvas.width - 68, 1);
+  ctx.fillStyle = "#98a7ba";
+  ctx.font = "13px system-ui";
+  ctx.fillText("synthetic document axis: x = source position, y = novelty, width = chunk span", 24, 24);
+  const colors = { index: "#76aaff", merge: "#8df2c8", trim: "#f7d664", drop: "#ff7474" };
+  list.forEach((chunk) => {
+    const docIndex = docs.findIndex((doc) => doc.parent === chunk.parent);
+    const x = 54 + (chunk.start / Math.max(1, chunk.length)) * 720;
+    const y = 270 - chunk.novelty * 205 + docIndex * 4;
+    const width = Math.max(28, ((chunk.end - chunk.start) / chunk.length) * 720);
+    ctx.fillStyle = `${colors[chunk.route]}44`;
+    ctx.strokeStyle = colors[chunk.route];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, y - 10, width, 20, 5);
+    ctx.fill();
+    ctx.stroke();
+  });
+}
+function render() {
+  phase += 1;
+  document.querySelector("#sizeLabel").textContent = `${controls.size.value} chars`;
+  document.querySelector("#overlapLabel").textContent = `${controls.overlap.value} chars`;
+  document.querySelector("#metaLabel").textContent = `${controls.meta.value}%`;
+  const list = makeChunks();
+  const counts = list.reduce((acc, item) => {
+    acc[item.route] = (acc[item.route] || 0) + 1;
+    return acc;
+  }, {});
+  document.querySelector("#chunkCount").textContent = list.length;
+  document.querySelector("#drift").textContent = `${Math.round(list.reduce((sum, item) => sum + item.duplicate, 0) / Math.max(1, list.length) * 100)}%`;
+  document.querySelector("#bytes").textContent = list.filter((item) => item.route !== "drop").reduce((sum, item) => sum + item.bytes, 0);
+  document.querySelector("#dropped").textContent = counts.drop || 0;
+  draw(list);
+  document.querySelector("#chunks").innerHTML = list.slice(0, 4).map((item) => `
+    <article class="chunk ${item.route}">
+      <strong>${item.title} ${item.start}-${item.end}</strong>
+      <i>parent ${item.parent}; novelty ${Math.round(item.novelty * 100)}%; duplicate ${Math.round(item.duplicate * 100)}%</i>
+      <i>${item.route}: ${item.bytes} bytes, risk ${Math.round(item.risk * 100)}%</i>
+      <b>${item.route}</b>
+    </article>
+  `).join("");
+  const byParent = docs.map((doc) => {
+    const own = list.filter((item) => item.parent === doc.parent);
+    const indexable = own.filter((item) => item.route !== "drop").length / Math.max(1, own.length);
+    return { ...doc, indexable, route: own[0]?.route || "index" };
+  });
+  document.querySelector("#lanes").innerHTML = byParent.map((item) => `
+    <div class="row">
+      <span>${item.parent}</span>
+      <span class="bar"><i style="width:${Math.round(item.indexable * 100)}%"></i></span>
+      <span>${Math.round(item.indexable * 100)}%</span>
+    </div>
+  `).join("");
+  timeline.push(list[Math.floor((phase / 12) % Math.max(1, list.length))]?.route || "index");
+  while (timeline.length > 30) timeline.shift();
+  document.querySelector("#timeline").innerHTML = timeline.map((route) => `<span class="tick ${route}"></span>`).join("");
+  requestAnimationFrame(render);
+}
+Object.values(controls).forEach((control) => control.addEventListener("input", render, { passive: true }));
+render();
+</script>
+</body>
+</html>
