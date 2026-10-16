@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-16",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Web Tasks の推論渋滞を最新フレームと品質段階へ翻訳する",
+  "headlineEn": "Translate Web Tasks inference congestion into latest-frame delivery and quality tiers",
+  "summary": "MediaPipe v1.1.0 が示す重複 WASM 呼び出し防止を手掛かりに、最新フレーム優先の本命試作と、遅延に応じた品質段階を示す派生試作を追加しました。",
+  "summaryEn": "Guided by MediaPipe v1.1.0's prevention of overlapping WASM calls, this adds a latest-frame backpressure prototype and a derivative that exposes latency-driven quality tiers.",
+  "keyTopics": [
+    "MediaPipe v1.1.0 は Web Tasks で重複 WASM embedding call の防止と stats logging を扱い、Web SemanticRetriever API と UniversalEmbedder の Web GPU 利用も広げた。",
+    "カメラ入力が推論より速いとき、全フレームを FIFO に積むと表示結果の年齢が増え、操作感が遅延する。latest-only の backpressure は用途によって自然な代替になる。",
+    "MediaPipe の公式 privacy notice は入力をオンデバイス処理と説明する一方、performance / utilization metrics と必要な同意取得の責任を示している。",
+    "本命はフレーム投入・推論時間・キュー方針の関係を、派生は実測遅延をユーザーに説明可能な品質段階へ写像する。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.0 covers prevention of overlapping WASM embedding calls and stats logging in Web Tasks, while expanding the Web SemanticRetriever API and Web GPU use for UniversalEmbedder.",
+    "When camera input outpaces inference, FIFO accumulation ages displayed results; latest-only backpressure can be a natural alternative depending on the task.",
+    "The MediaPipe privacy notice describes on-device input processing while also describing performance/utilization metrics and the app maker's consent responsibility.",
+    "The main sample maps arrivals, inference cost, and queue policy; the derivative maps measured latency to explainable quality tiers."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Latest Frame Backpressure Lab",
+      "url": "../outputs/2026-10-16_latest_frame_backpressure_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Latency Quality Ladder",
+      "url": "../outputs/2026-10-16_latency_quality_ladder.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.0 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.0"
+    },
+    {
+      "label": "GitHub: MediaPipe repository and privacy notice",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-16-web-backpressure.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.0 は Web 側で重複する WASM embedding call を防ぐ変更を挙げています。これは単なる内部最適化ではなく、完了順が逆転する UI や、遅い端末で推論待ちが積み上がる体験を設計対象にするサインです。最新の状態を見せるライブ用途では、全結果を保存するより、新しい入力へ収束する方が正しいことがあります。",
+      "bodyEn": "v1.1.0 explicitly lists prevention of overlapping WASM embedding calls on the Web. This is not merely an internal optimization: it points to reversed completion order and accumulating inference waits as product concerns. For live views, converging on the newest state can be more correct than preserving every result."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命 `Latest Frame Backpressure Lab` は FPS、推論時間、latest-only / FIFO を操作し、置換数・完了数・結果年齢を動かします。派生 `Latency Quality Ladder` は遅延のしきい値を Instant / Smooth / Steady / Careful という表示方針に変換します。待たせる理由を隠すのでなく、どの表現を軽くしたかまで見せる設計です。",
+      "bodyEn": "The main `Latest Frame Backpressure Lab` controls FPS, inference cost, and latest-only / FIFO policy while animating replacements, completions, and result age. The derivative `Latency Quality Ladder` turns latency thresholds into Instant / Smooth / Steady / Careful display policies. Rather than hide waiting, it reveals which expression was made lighter."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存価値のあるデータは input timestamp、推論開始・終了、queue depth、置換数、結果年齢、モデル版、delegate、端末 capability、選ばれた品質段階です。これを MediaPipe の Face / Hand / Pose Landmarker、Image Segmenter、UniversalEmbedder、Performance API、Worker、IndexedDB、WebGPU capability、端末内 CSV export と組み合わせると、実行品質を再現・説明・比較できる小さな計測面になります。",
+      "bodyEn": "Useful records include input timestamps, inference start/end, queue depth, replacements, result age, model version, delegate, device capability, and the selected quality tier. Combined with MediaPipe Face/Hand/Pose Landmarkers, Image Segmenter, UniversalEmbedder, Performance API, workers, IndexedDB, WebGPU capability checks, and local CSV export, they form a compact surface for reproducing, explaining, and comparing runtime quality."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "動画 API の timestamp は単調増加に保ち、Task が single-flight なら呼び出し中は newest-wins の pending slot を一つにします。実測値には移動平均と hysteresis を入れ、70/125/220ms のようなしきい値をまたいで品質が点滅しないようにします。計測イベントは入力内容と分離し、同意、保持期間、送信先を UI で説明します。",
+      "bodyEn": "Keep video API timestamps monotonic. When a Task is single-flight, keep one newest-wins pending slot while a call runs. Add moving averages and hysteresis to measurements so quality does not flicker across thresholds such as 70/125/220 ms. Separate metric events from input content and explain consent, retention, and destination in UI."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.1.x の release notes、Web UniversalEmbedder / SemanticRetriever の実例、Task ごとの live-stream concurrency 契約、WebGPU delegate の利用条件、stats logging の公開仕様、ImageSegmenter の長時間セッション時の GPU リソース報告を追います。",
+      "bodyEn": "Watch v1.1.x release notes, Web UniversalEmbedder / SemanticRetriever examples, live-stream concurrency contracts per Task, WebGPU delegate conditions, public stats logging details, and GPU resource reports for long ImageSegmenter sessions."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で FPS を 60、推論時間を 200ms にして FIFO を選ぶと、結果年齢が伸び、キューが溜まります。latest-only に変えると置換は増えますが、画面が古いフレームを追い続ける問題を避けられます。派生では 220ms を超えて Careful へ移り、表示頻度を落とす意味を確認できます。",
+      "bodyEn": "In the main sample, set 60 FPS and 200 ms inference under FIFO to grow result age and the queue. Switch to latest-only to trade more replacements for avoiding a display that chases old frames. In the derivative, exceed 220 ms to reach Careful and see why display frequency drops."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: MediaPipe v1.1.0 release、公式 repository の privacy notice、公式 Tasks Web demo を確認。設計: 昨日の generation fence を、連続映像での backpressure と品質説明へ発展。実装: 本命に FPS・推論時間・queue policy・置換・結果年齢を実装。派生に遅延 meter と4段階の quality ladder を実装。検証: JSON parse、gallery build、publish、公開 URL の HTTP 200 を行う。",
+      "bodyEn": "Research: checked the MediaPipe v1.1.0 release, repository privacy notice, and official Tasks Web demo. Design: evolved yesterday's generation fence into continuous-video backpressure and quality explanation. Implementation: the main includes FPS, cost, queue policy, replacements, and result age; the derivative includes a latency meter and four-tier quality ladder. Validation: JSON parse, gallery build, publish, and public HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "このアーカイブは landmark / mask / gesture / retrieval の機能面に加え、実行寿命、同意、結果多様性を積み上げています。今日は「モデルが動く」ことと「ライブ画面が今を表す」ことの間にある流量制御を扱いました。Web ML は最小モデルでも、入力・推論・表示・計測の速度差を製品の言葉に翻訳すると強くなります。",
+      "bodyEn": "Beyond landmark, mask, gesture, and retrieval features, this archive has accumulated execution lifetime, consent, and result diversity. Today covers flow control between a model merely running and a live view representing now. Even a minimal Web ML model becomes stronger when speed differences among input, inference, display, and metrics are translated into product language."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Latest Frame Backpressure Lab` です。FPS と simulated inference time を変え、latest-only または FIFO で synthetic frame を処理し、完了・置換/滞留・結果年齢が実際に更新されます。次に足すなら MediaPipe `detectForVideo()` の実測、Worker、warm-up、hysteresis を接続します。派生 `Latency Quality Ladder` は、遅延 slider で4段階の品質表示が切り替わります。次に足すなら端末 capability とユーザーの精度/滑らかさ設定を記憶します。",
+      "bodyEn": "The selected main prototype is `Latest Frame Backpressure Lab`. It changes FPS and simulated inference cost, processes synthetic frames with latest-only or FIFO, and actually updates completions, replacements/backlog, and result age. Next connect measured MediaPipe `detectForVideo()`, workers, warm-up, and hysteresis. The derivative `Latency Quality Ladder` switches four quality displays with a latency slider. Next persist device capability and a user's accuracy/smoothness preference.",
+      "links": [
+        {
+          "label": "Open Latest Frame Backpressure Lab",
+          "url": "../outputs/2026-10-16_latest_frame_backpressure_lab.html"
+        },
+        {
+          "label": "Open Latency Quality Ladder",
+          "url": "../outputs/2026-10-16_latency_quality_ladder.html"
+        }
+      ]
+    }
+  ]
+}
