@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-17",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "presence と retrieval を、採用理由が見えるインタラクションへ変換する",
+  "headlineEn": "Turn presence and retrieval into interactions that reveal why a result was selected",
+  "summary": "MediaPipe v1.1.0 の Web 向け presence score と retrieval 拡張を手掛かりに、landmark の連続的な信頼度表現と検索候補の多様性を手で試せる自作サンプル2本を追加しました。",
+  "summaryEn": "Guided by v1.1.0 Web presence scores and retrieval additions, this adds two original interactive samples for continuous landmark confidence and retrieval diversity.",
+  "keyTopics": [
+    "MediaPipe v1.1.0 は Web Tasks API で per-landmark presence score を公開し、UniversalEmbedder の Web GPU 利用と SemanticRetriever の Web API を追加した。",
+    "presence は閾値で捨てるだけでなく、線の明るさ・太さ・平滑化に連続的に反映すると、推論の不確かさを体験として説明できる。",
+    "retrieval は上位 score 順だけでなく、既選択との類似を少し引くことで、関連性と探索幅のトレードオフを UI 上で調整できる。",
+    "MediaPipe Tasks の公式 privacy notice はオンデバイス入力処理を説明する一方、performance/utilization metrics と同意責任も明示している。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.0 exposes per-landmark presence scores in Web Tasks, enables Web GPU for UniversalEmbedder, and adds Web SemanticRetriever APIs.",
+    "Rather than discarding presence below a threshold, mapping it continuously to brightness, width, and smoothing can explain uncertainty as an experience.",
+    "Retrieval can balance relevance and exploration by slightly penalizing similarity to already selected items instead of sorting only by score.",
+    "The official MediaPipe Tasks privacy notice describes on-device input processing while also naming performance/utilization metrics and consent responsibility."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Presence-Weighted Landmark Brush",
+      "url": "../outputs/2026-10-17_presence_weighted_landmark_brush.html"
+    },
+    {
+      "label": "Today's derivative sample: Retrieval Diversity Dial",
+      "url": "../outputs/2026-10-17_retrieval_diversity_dial.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.0 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.0"
+    },
+    {
+      "label": "GitHub: MediaPipe repository and privacy notice",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-17-presence-retrieval-ui.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.0 の JavaScript 更新は、Web Tasks に landmark ごとの presence score を出し、UniversalEmbedder / SemanticRetriever の Web API を広げました。これは「何を認識したか」だけでなく「どれくらい確からしいか」「候補をどんな幅で見せるか」を UI が扱えるということです。小さな数値を表示するだけで終えず、見た目と選択へ翻訳する余地があります。",
+      "bodyEn": "The v1.1.0 JavaScript updates expose per-landmark presence and broaden Web APIs for UniversalEmbedder and SemanticRetriever. UI can now handle not just what was recognized, but how trustworthy it is and how broadly candidates should be shown. There is room to translate small values into appearance and selection rather than merely display them."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命 `Presence-Weighted Landmark Brush` はキャンバスをドラッグして疑似 landmark を作り、presence threshold、smoothing、不確かさを動かします。明るさ・太さ・線の切断が即座に変わります。派生 `Retrieval Diversity Dial` は、関連度が似た候補群から、diversity dial に応じて異なる cluster を選ぶ実演です。どちらも結果をブラックボックスのまま表示しないための UI 実験です。",
+      "bodyEn": "The main `Presence-Weighted Landmark Brush` creates synthetic landmarks by dragging and changes threshold, smoothing, and uncertainty; brightness, width, and breaks update immediately. The derivative `Retrieval Diversity Dial` selects different clusters from similarly relevant candidates as its dial changes. Both are UI experiments for avoiding black-box result display."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "残すと価値があるのは landmark の x/y/z、presence、visibility、timestamp、平滑化前後の座標、retrieval の score、embedding の距離、cluster、ユーザーが採用・除外した候補です。Hand / Pose / Face Landmarker、UniversalEmbedder、SemanticRetriever、Pointer Events、Web Audio、IndexedDB、端末内 JSON export と組み合わせれば、ジェスチャー線の練習器や、検索の意図を学習しない個人用探索面へ発展します。",
+      "bodyEn": "Useful records include landmark x/y/z, presence, visibility, timestamps, coordinates before/after smoothing, retrieval scores, embedding distance, cluster, and accepted/rejected candidates. Combined with Hand/Pose/Face Landmarker, UniversalEmbedder, SemanticRetriever, Pointer Events, Web Audio, IndexedDB, and local JSON export, they can grow into a gesture-line practice tool or a private exploratory surface."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "presence と visibility は同じ意味として混ぜず、Task が返す値の定義を記録して UI の閾値を端末・モデルごとに調整します。平滑化は low presence 時に強くしすぎると古い形を残すため、timestamp と速度も併用します。retrieval では score の正規化、同一 cluster の重複、候補選択の説明を分け、検索語や embedding を外部送信する場合は同意と保存期間を明確にします。",
+      "bodyEn": "Do not conflate presence and visibility: record definitions returned by the Task and tune UI thresholds per device and model. Excess smoothing at low presence can preserve stale shapes, so combine timestamps and speed. For retrieval, separate score normalization, same-cluster duplication, and selection explanation; make consent and retention clear if queries or embeddings leave the device."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.1.x の Web Tasks release notes、UniversalEmbedder / SemanticRetriever の公式 Web 例、presence score の Task ごとの意味、WebGPU delegate の実測差、stats logging の公開仕様、オンデバイス metrics の同意 UI を追います。",
+      "bodyEn": "Watch v1.1.x Web Tasks release notes, official UniversalEmbedder/SemanticRetriever Web examples, task-specific meaning of presence, measured WebGPU delegate differences, public stats logging details, and consent UI for on-device metrics."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で不確かさを 0.6 以上にし、threshold を 0.45 前後で上下させると、同じ軌跡でも線がどこで切れるかが見えます。派生は多様性を 0 から 0.8 へ動かし、関連度の小さな損失で cluster 数が増える様子を確認してください。",
+      "bodyEn": "In the main sample, raise uncertainty above 0.6 and vary threshold around 0.45 to see where the same path breaks. In the derivative, move diversity from 0 to 0.8 and observe clusters increase with a small relevance trade-off."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.0 release、公式 repository の privacy notice、公式 Tasks Web demo を確認。設計: presence を連続的な描画へ、retrieval score を diversity-aware 選択へ変換。実装: ドラッグ可能な landmark brush と candidate reranker を作成。検証: JSON parse、gallery build、publish、公開 URL の HTTP 200 を行う。",
+      "bodyEn": "Research: checked the v1.1.0 release, repository privacy notice, and official Tasks Web demo. Design: translated presence into continuous drawing and retrieval score into diversity-aware selection. Implementation: created a draggable landmark brush and candidate reranker. Validation: JSON parse, gallery build, publish, and public HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "このアーカイブは landmark、mask、gesture、embedding、runtime、privacy を別々の機能として試してきました。今日はその接点である「結果の確からしさをどう表示し、候補の幅を誰が決めるか」を扱います。Web ML の価値はモデル出力を増やすだけでなく、迷い・遅れ・多様性を操作可能な面にすることにもあります。",
+      "bodyEn": "This archive has explored landmark, mask, gesture, embedding, runtime, and privacy as separate features. Today treats their intersection: how to show confidence and who decides candidate breadth. Web ML value is not only more model output, but also turning uncertainty, delay, and diversity into controllable surfaces."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Presence-Weighted Landmark Brush` です。ドラッグで入力を作り、presence threshold・smoothing・不確かさで線の明るさ、太さ、切断、採用数が実際に変わります。次に足すなら実際の HandLandmarker / PoseLandmarker と timestamp を接続します。派生 `Retrieval Diversity Dial` は diversity と件数で候補の選ばれ方と cluster 数が変わります。次に足すなら UniversalEmbedder の実ベクトル、ユーザーの保存、説明可能な理由表示を追加します。",
+      "bodyEn": "The selected main prototype is `Presence-Weighted Landmark Brush`. Dragging creates input, and presence threshold, smoothing, and uncertainty actually change line brightness, width, breaks, and retained count. Next connect real HandLandmarker/PoseLandmarker and timestamps. The derivative `Retrieval Diversity Dial` changes selections and cluster count with diversity and result count. Next add UniversalEmbedder vectors, user saves, and explainable reasons.",
+      "links": [
+        {
+          "label": "Open Presence-Weighted Landmark Brush",
+          "url": "../outputs/2026-10-17_presence_weighted_landmark_brush.html"
+        },
+        {
+          "label": "Open Retrieval Diversity Dial",
+          "url": "../outputs/2026-10-17_retrieval_diversity_dial.html"
+        }
+      ]
+    }
+  ]
+}
