@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-19",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Task の診断ログと WASM 初期化を、利用者に説明できる小さな制御面にする",
+  "headlineEn": "Turn Task diagnostics and WASM startup into small, explainable control surfaces",
+  "summary": "MediaPipe v1.1.1 の Task log 介入 API、Flutter/Web host 環境、WASM 更新を手掛かりに、診断ログの同意・秘匿と初期化ルートを触って比較できる自作サンプル2本を追加しました。",
+  "summaryEn": "Guided by MediaPipe v1.1.1 Task log interception, Flutter/Web hosts, and WASM updates, this adds two original samples for consent-aware diagnostics and startup-route comparison.",
+  "keyTopics": [
+    "MediaPipe v1.1.1 は MediaPipe Tasks の Abseil log をアプリ側で受け取る C API を追加し、診断情報の出し方をプロダクト側で設計できる余地を広げた。",
+    "同リリースは Flutter と Flutter Web host environment、WASM ファイルを更新しており、同じ Task を載せる環境と初期化経路が増えている。",
+    "入力を端末で処理しても Tasks の性能・利用 metrics は送信され得るため、記録目的・同意・削除・予算を UI に露出する必要がある。",
+    "Web ML の初回体験はモデル精度だけでなく、download、compile、cache、idle 時間をどう配分するかで大きく変わる。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.1 adds a C API for applications to intercept Abseil logs from MediaPipe Tasks, opening room to design diagnostic presentation at product level.",
+    "The release updates Flutter and Flutter Web host environments and WASM files, expanding the environments and startup paths carrying the same Task.",
+    "Even with on-device input processing, Tasks performance and usage metrics may be sent, so purpose, consent, deletion, and budget need visible UI.",
+    "First Web ML experience depends not only on model quality but on allocation among download, compile, cache, and idle time."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Task Log Redaction Console",
+      "url": "../outputs/2026-10-19_task_log_redaction_console.html"
+    },
+    {
+      "label": "Today's derivative sample: WASM Warmup Route Planner",
+      "url": "../outputs/2026-10-19_wasm_warmup_route_planner.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "GitHub: MediaPipe repository and privacy notice",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web demo",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-19-task-diagnostics-wasm-routes.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.1 は Task の Abseil log をアプリ側で受ける C API、Flutter / Flutter Web host environment、WASM 更新を含みます。ログを取得できること自体より、どの情報を何のために残し、誰が消せるかをアプリが決められる点が重要です。公式デモの一覧化はせず、その判断を自作の操作面へ置き換えました。",
+      "bodyEn": "v1.1.1 includes a C API for receiving Task Abseil logs, Flutter / Flutter Web host environments, and WASM updates. More important than receiving logs is letting the app decide what to retain, why, and who can delete it. Rather than list official demos, this turns that decision into original control surfaces."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命 `Task Log Redaction Console` は、同意、座標の丸め幅、セッション上限を動かし、疑似 Task event が保存・丸め・遮断のどれになるかを即時に示します。派生 `WASM Warmup Route Planner` は download、compile、idle 余裕を変え、lazy / warmup / cache hit の最初の操作待ちを横並びにします。",
+      "bodyEn": "The main `Task Log Redaction Console` changes consent, coordinate rounding, and session limit to show whether synthetic Task events are retained, rounded, or blocked. The derivative `WASM Warmup Route Planner` adjusts download, compile, and idle headroom to compare lazy, warmup, and cache-hit waits."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "価値がある記録は、Task 名、delegate、初期化・推論時間、匿名化済みエラーコード、同意 version、削除時刻、cache 状態です。生画像、全文 query、細かなランドマークを診断目的で混ぜないことが出発点になります。TaskRunner、Performance API、Resource Timing、IndexedDB、Web Worker、SemanticRetriever を組み合わせれば、端末内だけで原因を切り分ける支援面や、遅い回線では先読みを抑える適応 UI に発展します。",
+      "bodyEn": "Useful records include Task name, delegate, initialization/inference time, anonymized error code, consent version, deletion time, and cache state. Do not mix raw images, full queries, or fine landmarks into diagnostics. Combining TaskRunner, Performance API, Resource Timing, IndexedDB, Web Workers, and SemanticRetriever can grow local diagnosis surfaces and adaptive low-bandwidth preloading."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "ログ介入点では allowlist を先に作り、識別子・座標・free text を drop / round / hash のどれにするかを型ごとに固定します。保存上限と TTL を持たせ、エクスポート前にも確認を入れます。WASM は初回操作の直前に重い create を置かず、idle callback や明示ボタンで warmup を選択可能にします。実測は network、cache、CPU、delegate を分け、平均ではなく p50/p95 を残します。",
+      "bodyEn": "At log interception, define an allowlist first and fix drop / round / hash treatment by type for identifiers, coordinates, and free text. Add retention limits and TTL, plus confirmation before export. Keep expensive WASM creation away from first action, and make warmup selectable through idle callbacks or a clear button. Measure network, cache, CPU, and delegate separately, retaining p50/p95 rather than only an average."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.1.x の Web / Flutter のリリースノート、WASM asset URL と cache policy、Task log の API 契約、MediaPipe privacy notice の変更、Web Worker での DrawingUtils と Task 初期化、ブラウザごとの Resource Timing 制限を追います。",
+      "bodyEn": "Watch v1.1.x Web / Flutter release notes, WASM asset URLs and cache policy, the Task log API contract, MediaPipe privacy notice changes, DrawingUtils and Task initialization in Web Workers, and browser Resource Timing limits."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命でまず同意なしのまま 6件バーストを押し、何も記録しない状態を見てから同意を許可に変えてください。座標丸めを 64px、上限を 2件にすると、最小限の診断へ絞る効果が見えます。派生では download を 900ms 以上、idle を 500ms 以上にして warmup が効く境目を比較します。",
+      "bodyEn": "In the main sample, burst six events with consent off, then enable it. Set coordinate rounding to 64px and the limit to two events to see minimal diagnostics. In the derivative, set download above 900ms and idle above 500ms to compare the warmup boundary."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.1 release、公式 repository の privacy notice、公式 Tasks Web demo を確認。設計: diagnostics を同意・秘匿・上限、startup を待ち時間の配分として整理。実装: ローカル完結のログ console と warmup route UI を自作。検証: JSON parse、gallery build、publish、公開 URL の HTTP 200 を行う。",
+      "bodyEn": "Research: checked the v1.1.1 release, official repository privacy notice, and Tasks Web demo. Design: framed diagnostics as consent/redaction/budget and startup as wait allocation. Implementation: created local-only log console and warmup route UI. Validation: JSON parse, gallery build, publish, and public HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "このアーカイブは、推論結果を見せる段階から、待ち時間・不確かさ・予算・記録方法を体験として設計する段階へ進んでいます。Web ML の信頼性は、入力が端末で処理されるという説明だけでは足りません。混雑時の挙動、metrics の扱い、診断情報の最小化を操作できて初めて、利用者にもチームにも検証可能になります。",
+      "bodyEn": "This archive is moving from showing inference output toward designing wait, uncertainty, budgets, and record handling as experience. Saying input stays on-device is not enough for Web ML trust. Both users and teams need controllable behavior under load, metric handling, and minimized diagnostics."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命 `Task Log Redaction Console` は、疑似イベントを同意・丸め・上限で保存または遮断し、何が残るかを操作できます。次に足すなら実 TaskRunner の時刻・delegate・エラーコードと、IndexedDB の削除 UI です。派生 `WASM Warmup Route Planner` は初期化時間を3経路で比較できます。次に足すなら Performance API の実測 p50/p95 と Web Worker 分離です。",
+      "bodyEn": "The chosen main prototype `Task Log Redaction Console` retains or blocks synthetic events through consent, rounding, and limits. Next add real TaskRunner timing/delegate/error codes and IndexedDB deletion UI. The derivative `WASM Warmup Route Planner` compares startup time over three routes. Next add Performance API p50/p95 and Web Worker separation.",
+      "links": [
+        {
+          "label": "Open Task Log Redaction Console",
+          "url": "../outputs/2026-10-19_task_log_redaction_console.html"
+        },
+        {
+          "label": "Open WASM Warmup Route Planner",
+          "url": "../outputs/2026-10-19_wasm_warmup_route_planner.html"
+        }
+      ]
+    }
+  ]
+}
