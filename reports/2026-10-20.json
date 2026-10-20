@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-20",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "マスク結果を短命な資源として扱い、ROI の受け渡しを落ち着かせる",
+  "headlineEn": "Treat mask results as short-lived resources and calm the ROI handoff",
+  "summary": "MediaPipe の現行リリースと Web のマスク API 動向を手掛かりに、フレーム内の mask lease と ROI handoff を操作して比較できる自作サンプル2本を追加しました。",
+  "summaryEn": "Using the current MediaPipe release and Web mask API direction as context, this adds two original samples for frame-local mask leases and ROI handoff smoothing.",
+  "keyTopics": [
+    "MediaPipe v1.1.1 は WASM 更新と Interactive Segmenter 関連の更新を含み、Web での初期化と結果資源の扱いを継続して確認すべき時期である。",
+    "Web 向け MPMask の ImageBitmap 化と lifecycle を明確にする提案が公開 PR として見えており、結果をいつ copy し、いつ破棄するかは UI 品質にも直結する。",
+    "MediaPipe Tasks は入力を端末上で処理する一方で性能・利用 metrics の扱いに同意設計が必要であり、結果の保存も最小化が出発点になる。",
+    "検出 ROI を次フレームへ渡す際は、検出精度だけでなく、jitter、追従率、再検出条件が操作感を決める。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.1 includes WASM and Interactive Segmenter related updates, keeping Web initialization and result-resource handling worth watching.",
+    "A public proposal clarifying Web MPMask ImageBitmap and lifecycle semantics makes copy and disposal timing directly relevant to UI quality.",
+    "Tasks process inputs on device while performance and usage metrics still need consent design; minimized retention is the starting point.",
+    "When detector ROIs feed the next frame, jitter, follow rate, and reacquisition conditions shape interaction as much as detector accuracy."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Mask Lease Frame Lab",
+      "url": "../outputs/2026-10-20_mask_lease_frame_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: ROI Handoff Smoother",
+      "url": "../outputs/2026-10-20_roi_handoff_smoother.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "GitHub: MediaPipe repository and privacy notice",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-20-mask-lifecycle-roi.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.1 の WASM / Interactive Segmenter 更新と、Web の MPMask lifecycle を明確にしようとする公開 PR を見比べると、推論結果は単なる画像ではなく、寿命と copy の判断を伴う資源だと分かります。公式デモを並べる代わりに、その判断を自作のフレーム操作面として可視化しました。",
+      "bodyEn": "Reading v1.1.1 WASM / Interactive Segmenter context alongside a public proposal to clarify Web MPMask lifecycle shows that inference results are resources with lifetime and copy decisions, not merely images. Instead of listing demos, this makes the decision visible in original frame controls."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命 `Mask Lease Frame Lab` は、擬似 mask を同一フレームで描画・解放するか、次フレーム用に copy するかを切り替え、期限切れ参照と予算超過を数えます。派生 `ROI Handoff Smoother` はドラッグした raw ROI と滑らかな handoff ROI を重ね、反応性と安定性のトレードオフを触って確かめます。",
+      "bodyEn": "The main `Mask Lease Frame Lab` switches between drawing/releasing a synthetic mask in the same frame or copying it for the next, counting expired references and budget overruns. The derivative `ROI Handoff Smoother` overlays dragged raw and smooth handoff ROIs to make responsiveness versus stability tangible."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "蓄積するなら raw pixel や完全な mask ではなく、frame timestamp、mask の解像度、copy の有無、描画時間、ROI 中心・幅、score bin、再検出理由までに絞ります。Performance API、OffscreenCanvas、Web Worker、ImageBitmap、IndexedDB の短い TTL、Task の presence / confidence を組み合わせると、端末内で「なぜ追従が遅れたか」を再現する小さな診断面になります。",
+      "bodyEn": "If anything is retained, keep only frame timestamps, mask dimensions, copy decision, render time, ROI center/width, score bin, and reacquisition reason—not raw pixels or full masks. Performance API, OffscreenCanvas, Web Worker, ImageBitmap, short IndexedDB TTL, and Task presence/confidence can become a local diagnostic surface for delayed tracking."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Task callback の mask は callback 内で overlay まで済ませる設計を基本にし、次フレームや別 worker に渡す必要がある場合だけ独立表現へ copy します。copy は解像度と頻度を計測し、古い frame の結果は generation / timestamp で落とします。ROI は正規化座標で保存し、clamp、平滑化、低 score 時の保持、一定時間後の再検出を別々に調整します。",
+      "bodyEn": "Make callback-local overlay the default for Task masks; copy to an independent representation only when another frame or worker needs it. Measure copy by resolution and rate, dropping old results by generation/timestamp. Store ROI in normalized coordinates and tune clamp, smoothing, low-score hold, and timed reacquisition separately."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.1.x の Web WASM asset 更新、MPMask の Web lifecycle / ImageBitmap API、Interactive Segmenter の delegate 選択、Task callback の ownership 契約、OffscreenCanvas と Web Worker の対応差、公式 privacy notice の変更を追います。公開 PR は未リリースの可能性があるため、仕様として断定せずマージ・リリースノートを待ちます。",
+      "bodyEn": "Watch v1.1.x Web WASM assets, MPMask lifecycle / ImageBitmap APIs, Interactive Segmenter delegate selection, callback ownership contracts, OffscreenCanvas/Web Worker differences, and privacy-notice changes. Public PRs may be unreleased, so wait for merges and release notes before treating them as product behavior."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で負荷を 24ms、予算を 16ms にして連続実行し、copy を on / off で切り替えてください。予算超過と資源の持ち越しが別問題だと分かります。派生では追従率を 0.10 と 0.70 に変え、素早いポインタ移動で手ぶれと遅れの境目を見ます。",
+      "bodyEn": "In the main sample set load to 24ms and budget to 16ms, run continuously, and toggle copy on/off. It separates deadline misses from resource carryover. In the derivative, compare 0.10 and 0.70 follow rates while moving quickly to see the boundary between jitter and lag."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式 v1.1.1 release、MediaPipe repository の privacy notice、公式 Web samples、公開中の Web mask lifecycle 提案を確認。設計: 結果所有権を frame-local lease、追跡を ROI handoff として分離。実装: 合成フレームだけを使う自作 HTML 2本。検証: JSON、gallery build、publish、公開 URL の HTTP 200 を実施します。",
+      "bodyEn": "Research: checked the official v1.1.1 release, repository privacy notice, official Web samples, and a public Web mask lifecycle proposal. Design: separated result ownership into a frame-local lease and tracking into ROI handoff. Implementation: two original HTML files using synthetic frames only. Validation: JSON, gallery build, publish, and public HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "このアーカイブの焦点は、モデルの出力を増やすことから、出力がいつ有効で、いつ捨て、どう次の操作に受け渡すかを設計することへ移っています。Web ML の軽快さは、モデル速度だけでなく、資源の寿命を正直に扱い、遅れを視覚的に説明できることから生まれます。",
+      "bodyEn": "The archive is shifting from adding model outputs to designing when output is valid, when it is discarded, and how it moves to the next interaction. Web ML responsiveness comes not only from model speed but from honest resource lifetimes and explainable delay."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命 `Mask Lease Frame Lab` は、フレーム予算・copy・負荷を動かし、解放、copy、期限切れ参照、遅延を比べられます。次に足すなら実 ImageSegmenter callback と ImageBitmap 計測です。派生 `ROI Handoff Smoother` は raw と handoff ROI のズレを触れます。次に足すなら score / presence による再検出状態です。",
+      "bodyEn": "The selected main `Mask Lease Frame Lab` compares release, copy, expired references, and delay under adjustable budget, copy, and load. Next add real ImageSegmenter callbacks and ImageBitmap timing. The derivative `ROI Handoff Smoother` makes raw/handoff ROI mismatch touchable. Next add score/presence-driven reacquisition.",
+      "links": [
+        {
+          "label": "Open Mask Lease Frame Lab",
+          "url": "../outputs/2026-10-20_mask_lease_frame_lab.html"
+        },
+        {
+          "label": "Open ROI Handoff Smoother",
+          "url": "../outputs/2026-10-20_roi_handoff_smoother.html"
+        }
+      ]
+    }
+  ]
+}

@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Face Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Holistic Landmarker / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Face Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Holistic Landmarker / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-10-08</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
+      <h2>複数Taskの結果は信頼度・鮮度・同意状態を合成してからUI操作に使う</h2>
+      <p class="en">Fuse confidence, freshness, and consent before using multitask results for UI actions</p>
+      <p>Google AI Edge の Gesture Recognizer Web guide、Hand Landmarker Web guide、Holistic Landmarker Web guide、MediaPipe Tasks Vision Web README、公式 MediaPipe Tasks Web demo、MediaPipe releases を確認し、自作サンプルを2本追加しました。本命は Hand / Face / Pose / Object の合成信頼度を操作前に判定する Multisignal Confidence Fusion Mixer、派生は低信頼イベントを send / review / hold / drop に隔離する Confidence Event Quarantine Router です。</p>
+      <div class="actions">
+        <a href="../days/2026-10-08.html">日付ページ</a>
+        <a href="../outputs/2026-10-08_multisignal_confidence_fusion_mixer.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-10-08_confidence_event_quarantine_router.html"><span>MediaPipe</span>Confidence Event Quarantine Router</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-10-07</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
       <h2>複数 Vision Task は 1 フレーム内の推論レーンと stale overlay を分けて扱う</h2>
       <p class="en">Treat multitask Vision inference lanes and stale overlays as separate Web ML concerns</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-09-27_image_embedder_quantization_calibrator.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-27_embedding_threshold_drift_sentinel.html"><span>MediaPipe</span>Embedding Threshold Drift Sentinel</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-26</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span></p>
-      <h2>Text Summarizer は Web 接続前に token budget とレビュー境界を見える化する</h2>
-      <p class="en">Make token budgets and review boundaries visible before wiring Text Summarizer on Web</p>
-      <p>Google AI Edge の Text summarization guide、Web setup guide、LLM Inference Web guide、MediaPipe releases、mediapipe-samples、mediapipe-samples-web、npm package を確認し、自作サンプルを2本追加しました。本命は TLDR / KEYPOINTS、max token、入力長、推定遅延を扱う Text Summarizer Budget Planner、派生は TextProofreader 系の修正候補を公開前承認へ分ける Text Proofreader Revision Gate です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-26.html">日付ページ</a>
-        <a href="../outputs/2026-09-26_text_summarizer_budget_planner.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-26_text_proofreader_revision_gate.html"><span>MediaPipe</span>Text Proofreader Revision Gate</a></div>
     </article></div>
   </main>
 </body>
