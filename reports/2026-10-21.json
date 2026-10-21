@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-21",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "WASM とモデルの待ち時間を、進捗と同意のある操作に分解する",
+  "headlineEn": "Turn WASM and model waiting into progress with consent",
+  "summary": "MediaPipe Web の WASM 資産更新と公開中の loading progress 提案を手掛かりに、初期化の段階表示とモデル先読みの同意判断を試せる自作サンプル2本を追加しました。",
+  "summaryEn": "Using Web WASM asset updates and a public loading-progress proposal as context, this adds two original samples for staged initialization and consent-aware model prefetching.",
+  "keyTopics": [
+    "MediaPipe v1.1.1 には WASM 更新が含まれ、Web Tasks の利用開始前に asset 取得と初期化の待ち方を設計する重要性が続いている。",
+    "Web WASM とモデル download の onLoadingProgress を加える公開提案があり、未リリースのため仕様として断定せず設計の観察対象として扱う。",
+    "初期化は byte を観測できる download と、推定になる compile / 初回実行を分けると、進捗表示が正直になる。",
+    "先読みは速さだけで決めず、接続設定、空き領域、利用者の明示的同意、取消可能性を合わせて扱う。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.1 includes WASM updates, keeping asset fetching and initialization experience important before Web Tasks begins.",
+    "A public proposal would add onLoadingProgress for Web WASM and model downloads; it is treated as a watch item, not released behavior.",
+    "Separating byte-observable downloads from estimated compilation and first run keeps progress honest.",
+    "Prefetch should combine connectivity, storage, explicit consent, and cancellation—not just speed."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: WASM Loading Progress Storyboard",
+      "url": "../outputs/2026-10-21_wasm_loading_progress_storyboard.html"
+    },
+    {
+      "label": "Today's derivative sample: Model Prefetch Consent Router",
+      "url": "../outputs/2026-10-21_model_prefetch_consent_router.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "GitHub: Public Web loading progress proposal #6342",
+      "url": "https://github.com/google-ai-edge/mediapipe/pull/6342"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-21-web-loading-progress.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.1 の WASM 更新と、Web 側で download progress を加えようとする公開提案を並べると、初期化は単なるスピナーではなく、止められ、説明できる小さな工程表になります。外部デモの一覧ではなく、その工程を操作できる自作面にしました。",
+      "bodyEn": "Reading the v1.1.1 WASM update beside a public Web download-progress proposal makes initialization a small, cancellable, explainable schedule rather than a spinner. This archive adds original controls instead of a list of external demos.",
+      "links": [
+        {
+          "label": "MediaPipe release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+        },
+        {
+          "label": "Loading progress proposal",
+          "url": "https://github.com/google-ai-edge/mediapipe/pull/6342"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命 `WASM Loading Progress Storyboard` は回線・モデルサイズ・端末係数で、WASM、モデル、compile、初回推論のバーを変えます。download は実測 bytes、後半は推定 time と表示します。派生 `Model Prefetch Consent Router` は Wi‑Fi / モバイル / Data Saver、空き領域、同意から先読み可否を変えます。",
+      "bodyEn": "The main storyboard changes WASM, model, compile, and first-inference bars using network, model-size, and device inputs; downloads are labelled measured bytes and later stages estimated time. The derivative router changes prefetch policy from connection, storage, and consent."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "残すなら URL や生入力ではなく、asset 種別、開始・終了時刻、byte 数の bin、cancel 理由、cache hit、接続種別、同意状態だけに絞れます。Performance API、Storage API、Service Worker、AbortController、FilesetResolver、Web Worker と組み合わせれば、端末内で初期化の遅れと再試行を診断できます。",
+      "bodyEn": "Retain only asset type, start/end, binned bytes, cancellation reason, cache hit, connection class, and consent state—not URLs or raw input. Performance API, Storage API, Service Worker, AbortController, FilesetResolver, and Web Worker can diagnose local startup delay and retry."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では fetch の ReadableStream がある区間だけ byte 進捗を実測として扱い、compile・GPU warm-up は ETA の幅を含む推定として明示します。取得には AbortController を渡し、画面遷移・Data Saver・同意撤回で止められるようにします。model asset は hash / version をキーにし、失敗した部分ダウンロードを成功扱いにしません。",
+      "bodyEn": "Treat byte progress as measured only where fetch ReadableStream exists, and label compile/GPU warm-up as estimates with uncertainty. Pass AbortController to fetch and stop on navigation, Data Saver, or consent withdrawal. Key model assets by hash/version and never treat partial failed downloads as cache hits."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "PR #6342 のレビュー・マージ・release note、Web Tasks の WASM asset version 更新、実際の progress callback の粒度、FilesetResolver の cancellation 契約、Cache Storage / Storage API のブラウザ差、MediaPipe privacy notice を追います。公開 PR は未リリースの可能性があるため、導入判断は公式 API 文書まで待ちます。",
+      "bodyEn": "Watch PR #6342 review/merge/release notes, Web Tasks WASM asset versions, real callback granularity, FilesetResolver cancellation contracts, Cache Storage/Storage API differences, and the MediaPipe privacy notice. Wait for official API documentation before adopting an open PR."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で 3 Mbps、20 MB、端末係数 2.0 にして開始後に中断し、どの段階までが完了済みかを見てください。派生では同意を on にしたまま Wi‑Fi と Data Saver を切り替え、同意だけでは先読みしないことを確認できます。",
+      "bodyEn": "In the main sample choose 3 Mbps, 20 MB, and device factor 2.0, then cancel after starting to inspect completed stages. In the derivative leave consent on and switch Wi-Fi to Data Saver to see consent alone does not authorize prefetch."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式 v1.1.1 release、MediaPipe repository、公式 Web samples、公開 PR #6342 を確認。設計: 実測と推定、asset 取得と先読み判断を分離。実装: 外部通信をしない合成時間の HTML 2本。検証: JSON、gallery build、publish、公開 URL の HTTP 200 を実施します。",
+      "bodyEn": "Research: checked official v1.1.1 release, repository, Web samples, and public PR #6342. Design: separated measurement from estimates and asset fetching from prefetch policy. Implementation: two original synthetic-timing HTML files with no external calls. Validation: JSON, gallery build, publish, and public HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web ML の初回体験では、モデルそのものより「今何を待っているか」が不信感を左右します。工程を分け、推定には推定と書き、いつでも止められる設計は、速い回線だけを前提にしない実用的な表現です。",
+      "bodyEn": "In first-run Web ML, trust is often shaped more by knowing what is being awaited than by the model itself. Stage separation, honest estimates, and cancellation make an experience that does not assume a fast network."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命 `WASM Loading Progress Storyboard` は、初期化を四段階に分けて進捗と中断を試せます。次に足すなら実際の fetch ReadableStream と PerformanceResourceTiming です。派生 `Model Prefetch Consent Router` は先読み条件を透明にします。次に足すなら Storage API の実測と cache 削除 UI です。",
+      "bodyEn": "The selected main storyboard splits initialization into four stages with progress and cancellation. Next add real fetch ReadableStream and PerformanceResourceTiming. The derivative router makes prefetch conditions transparent. Next add measured Storage API values and cache removal UI.",
+      "links": [
+        {
+          "label": "Open WASM Loading Progress Storyboard",
+          "url": "../outputs/2026-10-21_wasm_loading_progress_storyboard.html"
+        },
+        {
+          "label": "Open Model Prefetch Consent Router",
+          "url": "../outputs/2026-10-21_model_prefetch_consent_router.html"
+        }
+      ]
+    }
+  ]
+}

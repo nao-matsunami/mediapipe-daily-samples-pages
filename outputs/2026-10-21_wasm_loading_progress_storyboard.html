@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WASM Loading Progress Storyboard</title>
+<style>
+  :root{color-scheme:dark;--ink:#eaf2ff;--muted:#9aabc2;--card:#101a2d;--line:#263956;--cyan:#57dcff;--lime:#b6f36b;--amber:#ffbf66;--red:#ff7790}*{box-sizing:border-box}body{margin:0;font:15px/1.5 ui-sans-serif,system-ui;background:radial-gradient(circle at 15% 0,#17325a,transparent 34rem),#09101d;color:var(--ink)}main{max-width:1000px;margin:auto;padding:32px 18px 50px}h1{font-size:clamp(1.7rem,5vw,3.1rem);line-height:1.05;margin:0 0 10px}.lead{color:var(--muted);max-width:70ch}.grid{display:grid;grid-template-columns:300px 1fr;gap:16px;margin-top:22px}.panel{background:color-mix(in srgb,var(--card) 92%,transparent);border:1px solid var(--line);border-radius:16px;padding:16px}label{display:block;margin:12px 0 5px;color:var(--muted)}input{width:100%;accent-color:var(--cyan)}button{border:1px solid #417697;background:#12334b;color:var(--ink);padding:10px 13px;border-radius:9px;font-weight:700;cursor:pointer}button+button{margin-left:7px}button.stop{border-color:#88404e;background:#321923}.stage{display:grid;gap:10px;margin-top:10px}.row{display:grid;grid-template-columns:125px 1fr 50px;gap:10px;align-items:center}.bar{height:13px;background:#08101d;border-radius:99px;overflow:hidden;border:1px solid #233757}.fill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--lime));transition:width .18s ease}.status{font-variant-numeric:tabular-nums;text-align:right;color:var(--muted)}.event{margin-top:15px;border-top:1px solid var(--line);padding-top:12px;color:var(--muted);min-height:55px}.badge{display:inline-block;font-size:.78rem;padding:2px 7px;border:1px solid var(--line);border-radius:99px;margin-left:6px}.hint{margin-top:18px;padding:12px;background:#111f35;border-left:3px solid var(--amber);color:#d7e3f6}.metric{font-size:1.55rem;font-weight:750}.small{color:var(--muted);font-size:.88rem}@media(max-width:700px){.grid{grid-template-columns:1fr}.row{grid-template-columns:105px 1fr 45px}}
+</style>
+<main>
+  <p class="small">ORIGINAL WEB ML PROTOTYPE · synthetic only · no model or camera</p>
+  <h1>WASM Loading Progress<br>Storyboard</h1>
+  <p class="lead">MediaPipe Tasks の初期化を、単一の「読み込み中」ではなく、WASM・モデル・コンパイルの段階として示す操作面です。実測できる区間と見積もり区間を色ではなく文言で区別します。</p>
+  <div class="grid"><section class="panel">
+    <label>ネットワーク速度 <output id="netOut">12</output> Mbps</label><input id="net" type="range" min="1" max="40" value="12">
+    <label>モデルサイズ <output id="sizeOut">8</output> MB</label><input id="size" type="range" min="2" max="30" value="8">
+    <label>端末コンパイル係数 <output id="cpuOut">1.0</output>×</label><input id="cpu" type="range" min="0.5" max="3" step=".1" value="1">
+    <p><button id="start">ロードを開始</button><button class="stop" id="cancel">中断</button></p>
+    <div class="metric" id="eta">待機中</div><div class="small" id="etaSub">開始すると進行予測を表示します</div>
+  </section><section class="panel">
+    <div class="stage" id="stages"></div><div class="event" id="event">イベント: 操作待ち</div>
+    <p class="hint"><strong>設計メモ:</strong> ダウンロードで得た byte 進捗は実測、WASM のコンパイルや GPU 初回準備は推定として示すと、停止・再試行の意思決定を誤らせにくくなります。</p>
+  </section></div>
+</main>
+<script>
+const $=id=>document.getElementById(id), stages=[['WASM 基盤','wasm','実測 bytes'],['Task モデル','model','実測 bytes'],['初回コンパイル','compile','推定 time'],['最初の推論','infer','推定 time']];
+const el=$('stages');el.innerHTML=stages.map(([n,k,t])=>`<div class="row"><span>${n}<span class="badge">${t}</span></span><div class="bar"><div class="fill" id="${k}"></div></div><span class="status" id="${k}t">0%</span></div>`).join('');
+let run=null, p={wasm:0,model:0,compile:0,infer:0}; const inputs=['net','size','cpu'];
+function vals(){return {net:+$('net').value,size:+$('size').value,cpu:+$('cpu').value}}
+function paint(){for(const k in p){$(k).style.width=p[k]+'%';$(k+'t').textContent=Math.round(p[k])+'%'} const {net,size,cpu}=vals();const total=3.2+(size*8/net)+1.5*cpu;const done=(p.wasm+p.model+p.compile+p.infer)/400;const left=Math.max(0,total*(1-done));$('eta').textContent=run?`残り 約 ${left.toFixed(1)} 秒`:(p.infer===100?'準備完了':'待機中');$('etaSub').textContent=`想定 ${total.toFixed(1)} 秒 · 進捗 ${Math.round(done*100)}%`}
+function reset(){p={wasm:0,model:0,compile:0,infer:0};paint()}
+function begin(){if(run)return;reset();let phase=0;$('event').textContent='イベント: WASM 資産の取得を開始';run=setInterval(()=>{const {net,size,cpu}=vals(); const rates=[net*1.8,net*8/size,34/cpu,55/cpu];const keys=['wasm','model','compile','infer'];let k=keys[phase];p[k]=Math.min(100,p[k]+rates[phase]*.12);if(p[k]>=100){phase++; if(phase<4)$('event').textContent=`イベント: ${stages[phase][0]}へ移行`;else{$('event').textContent='イベント: 最初の推論まで準備完了';clearInterval(run);run=null}}paint()},120)}
+function cancel(){if(!run)return;clearInterval(run);run=null;$('event').textContent='イベント: 利用者が中断。完了済み資産は次回のキャッシュ候補。';paint()}
+inputs.forEach(id=>$(id).oninput=()=>{$(id+'Out').textContent=id==='cpu'?(+$('cpu').value).toFixed(1):$(id).value;paint()});$('start').onclick=begin;$('cancel').onclick=cancel;paint();
+</script>
+</html>
