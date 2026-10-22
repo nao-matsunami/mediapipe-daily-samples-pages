@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-22",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "ROI と表示名を、未確定APIではなく明示的な契約として扱う",
+  "headlineEn": "Treat ROI and display labels as explicit contracts",
+  "summary": "MediaPipe Web の公開提案を観察材料に、ROI がどの工程へ効くかを確かめる本命と、モデル metadata の locale fallback を可視化する派生の自作サンプル2本を追加しました。",
+  "summaryEn": "Using public MediaPipe Web proposals as watch items, this adds two original samples: one for ROI scope and one for locale fallback in model metadata.",
+  "keyTopics": [
+    "MediaPipe v1.1.1 は WASM 更新と JavaScript Retrieval SDK snippet 更新を含む、現在の公開リリース基準である。",
+    "ObjectDetector の region-of-interest 対応を明確化する公開 PR #6359 は、未リリースの観察対象として扱う。",
+    "Web classifier の getLabels / getDisplayNames を加える公開 PR #6347 は、metadata を直接読む UI 設計の論点を示す。",
+    "ROI と locale は性能・翻訳の魔法ではなく、入力、推論、結果表示、fallback の境界を明示して使う。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.1 is the released baseline, with refreshed WASM assets and JavaScript Retrieval SDK snippet updates.",
+    "Public PR #6359 clarifies ObjectDetector region-of-interest support and is treated as an unreleased watch item.",
+    "Public PR #6347 would add getLabels/getDisplayNames for Web classifiers, highlighting metadata-driven UI design.",
+    "ROI and locale should state boundaries across input, inference, display, and fallback rather than promise magic."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: ROI Scope Truth Table",
+      "url": "../outputs/2026-10-22_roi_scope_truth_table.html"
+    },
+    {
+      "label": "Today's derivative sample: Label Locale Fallback Lens",
+      "url": "../outputs/2026-10-22_label_locale_fallback_lens.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "GitHub: ObjectDetector ROI clarification proposal #6359",
+      "url": "https://github.com/google-ai-edge/mediapipe/pull/6359"
+    },
+    {
+      "label": "GitHub: Web classifier label proposal #6347",
+      "url": "https://github.com/google-ai-edge/mediapipe/pull/6347"
+    },
+    {
+      "label": "Official MediaPipe Web Tasks demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-22-roi-label-metadata.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式 release の Web 資産更新を現在の基準にしつつ、公開 PR #6359 と #6347 は未リリース機能として読みます。ROI と表示名はいずれも、見た目の小さな option が実際には入力範囲・結果の意味・多言語UXを決めるため、外部デモ一覧ではなく操作できる自作の検証面にしました。",
+      "bodyEn": "The released Web asset baseline is kept separate from public, unreleased PRs #6359 and #6347. ROI and display names look like small options but determine input scope, result meaning, and multilingual UX, so the archive adds interactive original probes rather than an external-demo list.",
+      "links": [
+        {
+          "label": "MediaPipe v1.1.1",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+        },
+        {
+          "label": "ROI proposal",
+          "url": "https://github.com/google-ai-edge/mediapipe/pull/6359"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命 `ROI Scope Truth Table` は ROI の位置と幅を動かし、入力切り出し、推論候補、結果表示の三段で何が変わるかを示します。派生 `Label Locale Fallback Lens` は希望 locale と fallback 方針を変え、metadata の表示名がない時に英語または stable category ID へ落ちる経路を見せます。",
+      "bodyEn": "The main ROI table moves a region and shows changes at crop, inference-candidate, and display stages. The derivative lens changes requested locale and fallback policy, exposing the route to English or a stable category ID when metadata lacks a display name."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存するなら画像や camera frame ではなく、正規化ROI、model hash、candidate 数、処理時間、locale、選ばれた fallback 種別だけにします。Performance API、ImageBitmap、Web Worker、MediaPipe Task の結果、アクセシビリティ用 aria-label、CMS の翻訳辞書と組み合わせれば、端末内の視覚推論を観察可能な制作ツールへ発展できます。",
+      "bodyEn": "Retain normalized ROI, model hash, candidate count, processing time, locale, and chosen fallback type—not images or camera frames. Combined with Performance API, ImageBitmap, Web Worker, Task results, accessible aria-labels, and a CMS translation dictionary, this can become an inspectable local visual-inference tool."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "ROI がモデル入力の crop なのか、検出後の filter なのか、単なる overlay clip なのかをAPI契約と計測で分けます。座標変換は表示、原画像、回転済み入力の各空間を明示します。ラベルは model metadata の display name、利用者locale、fallback locale、category ID を別フィールドにし、機械翻訳をモデルの公式表示名のように表示しません。",
+      "bodyEn": "Separate whether ROI is an input crop, post-detection filter, or display clip using the API contract and measurement. Name display, source-image, and rotated-input coordinate spaces. Keep metadata display name, user locale, fallback locale, and category ID as distinct fields; do not present machine translation as an official model label."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "PR #6359 と #6347 のレビュー、マージ、release note、Web Tasks の実際の型定義、ObjectDetector の image/video/live stream ごとの ROI 契約、model metadata の locale fallback、WASM asset version を追います。公開PRの内容を production API として採用するのは公式文書かリリース後にします。",
+      "bodyEn": "Watch review, merge, release notes, real Web Tasks typings, ROI contracts per ObjectDetector running mode, metadata locale fallback, and WASM asset versions for PRs #6359 and #6347. Do not adopt public-PR content as a production API until official docs or a release confirm it."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で ROI を右端へ寄せ、候補数と表示 clip を比べてください。派生では Français を選び、英語 fallback と category ID のみを切り替えると、欠けた翻訳を隠すより経路を明示する違いが分かります。",
+      "bodyEn": "Move the main sample ROI to the right edge and compare candidate count with display clipping. In the derivative choose Français and switch between English and category-ID-only fallback to see why an explicit path is better than hiding missing translations."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.1 release、MediaPipe repository、公式 Web Tasks demos、公開 PR #6359 / #6347 を確認。設計: released と proposal を分離し、ROI と label fallback の境界を操作に置換。実装: 外部通信・camera・model を使わない自作 HTML 2本。検証: JSON、gallery build、publish、公開URLの HTTP 200 を実施します。",
+      "bodyEn": "Research: checked the v1.1.1 release, repository, official Web Tasks demos, and public PRs #6359/#6347. Design: separated released behavior from proposals and translated ROI/label boundaries into controls. Implementation: two original HTML files without external calls, camera, or models. Validation: JSON, gallery build, publish, and public HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web ML のUIは推論結果を飾るだけでなく、どのpixelsを渡したのか、どの言語名を信頼したのかという来歴を伝える層です。高速化や多言語化は、その経路を隠すほど検証しづらくなります。",
+      "bodyEn": "Web ML UI is not just decoration for results: it communicates which pixels were supplied and which language label was trusted. Performance and localization become harder to verify when that path is hidden."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命 `ROI Scope Truth Table` は、ROI 操作で候補数・crop・display の境界を確かめます。次に足すなら実際の ObjectDetector 結果、回転座標、処理時間の計測です。派生 `Label Locale Fallback Lens` は metadata の表示名と fallback を分けます。次に足すなら実Taskの labels と aria-label 出力です。",
+      "bodyEn": "The selected main prototype tests candidate count, crop, and display boundaries through ROI controls. Next add real ObjectDetector results, rotated coordinates, and timing. The derivative separates metadata display names from fallback. Next add real Task labels and aria-label output.",
+      "links": [
+        {
+          "label": "Open ROI Scope Truth Table",
+          "url": "../outputs/2026-10-22_roi_scope_truth_table.html"
+        },
+        {
+          "label": "Open Label Locale Fallback Lens",
+          "url": "../outputs/2026-10-22_label_locale_fallback_lens.html"
+        }
+      ]
+    }
+  ]
+}

@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Web ML / Release Operations</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Audio</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Embedder</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Text</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-09-28</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span></p>
+      <h2>Object Detector の結果はイベント化の前に安定化レイヤーを挟む</h2>
+      <p class="en">Stabilize Object Detector results before turning them into events</p>
+      <p>Google AI Edge の Object Detector guide、Web setup、MediaPipe Tasks Vision Web README、mediapipe-samples-web、MediaPipe releases、npm package を確認し、自作サンプルを2本追加しました。本命は scoreThreshold / maxResults / allowlist / denylist / ROI half-life を動かす Object Detector Event Stabilizer、派生は検出イベントを送信予算・鮮度・重複で間引く Detection Event Bandwidth Guard です。</p>
+      <div class="actions">
+        <a href="../days/2026-09-28.html">日付ページ</a>
+        <a href="../outputs/2026-09-28_object_detector_event_stabilizer.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-09-28_detection_event_bandwidth_guard.html"><span>MediaPipe</span>Detection Event Bandwidth Guard</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-09-27</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span></p>
       <h2>Image Embedder は量子化後の cosine 判定を UI で校正してから使う</h2>
       <p class="en">Calibrate quantized cosine decisions in the UI before using Image Embedder</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-09-17_embedder_roi_drift_dashboard.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-17_embedding_cache_eviction_playground.html"><span>MediaPipe</span>Embedding Cache Eviction Playground</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-16</span><span class="badge">MediaPipe Tasks / Google AI Edge / Web ML / Image Segmenter</span></p>
-      <h2>Image Segmenter の delegate と mask 寿命を watchdog 化する</h2>
-      <p class="en">Turning Image Segmenter delegates and mask lifetimes into a watchdog</p>
-      <p>Google AI Edge の Image Segmenter Web guide、Web setup guide、Tasks Vision Web README、MediaPipe releases、GitHub issues、npm の @mediapipe/tasks-vision 情報を確認し、Image Segmenter の長時間 video loop に向けた自作サンプルを2本追加しました。本命は GPU / CPU delegate、WebGL capability、mask output、close discipline、fallback を観察する watchdog、派生は `segmentForVideo()` 相当の worker queue と backpressure policy を触る scheduler です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-16.html">日付ページ</a>
-        <a href="../outputs/2026-09-16_segmenter_delegate_watchdog.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-16_mask_backpressure_scheduler.html"><span>MediaPipe</span>Mask Backpressure Scheduler</a></div>
     </article></div>
   </main>
 </body>
