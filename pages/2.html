@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Face Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-10-12</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
+      <h2>MediaPipe の結果を Decision / Retrieval へ渡す前に readiness と文脈予算で絞る</h2>
+      <p class="en">Gate MediaPipe results with readiness and context budgets before Decision and Retrieval handoff</p>
+      <p>Google AI Edge の Web setup、Gesture Recognizer guide、GestureRecognizer JavaScript API、MediaPipe releases、mediapipe-samples-web、公式 Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Decision Handoff Readiness Board、派生は Retrieval Context Budget Router です。</p>
+      <div class="actions">
+        <a href="../days/2026-10-12.html">日付ページ</a>
+        <a href="../outputs/2026-10-12_decision_handoff_readiness_board.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-10-12_retrieval_context_budget_router.html"><span>MediaPipe</span>Retrieval Context Budget Router</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-10-11</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
       <h2>MediaPipe の分類・埋め込み結果は外部アクションへ渡す前に意味で束ねる</h2>
       <p class="en">Group MediaPipe classification and embedding results semantically before sending actions</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-10-01_gesture_running_mode_switchboard.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-10-01_gesture_timestamp_monotonic_guard.html"><span>MediaPipe</span>Gesture Timestamp Monotonic Guard</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-30</span><span class="badge">MediaPipe / Google AI Edge / Face Detector / Web ML</span></p>
-      <h2>Face Detector はモデル範囲とイベント送信を起動前に分けて設計する</h2>
-      <p class="en">Face Detector needs model-range and event-export planning before startup</p>
-      <p>Google AI Edge の Web setup、Face Detector guide、MediaPipe releases、mediapipe-samples-web、npm @mediapipe/tasks-vision を確認し、自作サンプルを2本追加しました。本命は short-range / full-range Face Detector のモデル選択、score threshold、max results、delegate fallback を触る Face Detector Range Preflight、派生は検出後の bbox event、crop risk、consent、送信帯域を扱う Face Event Privacy Budget です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-30.html">日付ページ</a>
-        <a href="../outputs/2026-09-30_face_detector_range_preflight.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-30_face_event_privacy_budget.html"><span>MediaPipe</span>Face Event Privacy Budget</a></div>
     </article></div>
   </main>
 </body>

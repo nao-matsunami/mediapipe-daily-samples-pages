@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-24",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "確信度の揺れとセッション境界を、UI上の契約として扱う",
+  "headlineEn": "Treat confidence noise and session boundaries as UI contracts",
+  "summary": "現行MediaPipe公開版とWeb Tasksの一次情報を参照し、確信度のhysteresisを触れる本命と、映像源切替時の古い結果を隔離する派生の自作サンプル2本を追加しました。",
+  "summaryEn": "Using current MediaPipe primary sources, this adds two original probes for confidence hysteresis and stale-result isolation across session changes.",
+  "keyTopics": [
+    "MediaPipe v1.1.1 は現行公開版で、WASM資産更新とWeb Retrieval SDK snippet更新を含む。",
+    "v1.1.0 はWeb Tasksのlandmark presence score公開、WASM embedding重複呼び出し回避、stats loggingを含む。",
+    "公開PR #6346 のlive threshold更新と #6345 のresetは未リリースの観察対象である。",
+    "確信度の閾値と映像源切替は、推論精度ではなく時間的なUI契約としても設計する。"
+  ],
+  "keyTopicsEn": [
+    "v1.1.1 is the current release with updated WASM assets and Web Retrieval snippets.",
+    "v1.1.0 added Web presence scores, overlapping-WASM-call protection, and stats logging.",
+    "Public PRs #6346 and #6345 remain unreleased watch items.",
+    "Thresholds and video-source changes are temporal UI contracts as well as inference concerns."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Confidence Hysteresis Stage",
+      "url": "../outputs/2026-10-24_confidence_hysteresis_stage.html"
+    },
+    {
+      "label": "Today's derivative sample: Session Boundary Reset Lab",
+      "url": "../outputs/2026-10-24_session_boundary_reset_lab.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "Official MediaPipe Web Tasks demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-24-hysteresis-session-boundaries.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "現行公開版はv1.1.1、presence scoreを含むWeb Tasks改善はv1.1.0で確認します。#6346/#6345は未リリース提案として観察に留め、今日の中心は外部デモではなく、閾値の揺れとセッション切替を実際に操作できる自作検証面です。",
+      "bodyEn": "v1.1.1 is the released baseline and v1.1.0 contains Web presence-score improvements. PRs #6346/#6345 are observation-only; today's center is original interactive probes."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は開始・継続の二閾値を分け、confidence波形と出力状態の切替を同時に見せます。派生は遅い旧結果を投入してから映像源を切り替え、generation tokenで結果が破棄される様子をログで見せます。",
+      "bodyEn": "The main probe separates enter and keep thresholds. The derivative shows a slow old result being rejected after a source switch via a generation token."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存するなら画像そのものではなく、frame timestamp、presence、threshold設定、状態遷移、session ID、処理時間、破棄理由を最小単位にします。MediaPipe Task結果、Performance API、Web Worker、Canvas/WebGL overlay、Web Audio、同意済みの診断基盤を組み合わせると、時間的な劣化を再現・比較できます。",
+      "bodyEn": "Store timestamps, presence, thresholds, transitions, session IDs, latency, and drop reasons—not images. Combine Task results with Performance API, Workers, overlays, audio, and consented diagnostics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "単一の閾値だけでは境界付近で表示が点滅しやすいため、enter/keepと最小継続時間を別パラメータにします。video差替え、task reset、model再読込の境界ごとにsession IDを進め、非同期完了時に一致確認します。メトリクス送信は公式privacy noticeと同意要件を確認して設計します。",
+      "bodyEn": "Use enter/keep thresholds plus a dwell time to avoid flicker. Increment a session ID for source/task/model boundaries and check it on async completion. Design metrics around the official privacy notice and consent."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "#6346/#6345のレビュー、マージ、release note、Web Tasks型定義、実際のthreshold更新時のtracking状態、video再利用時のresource解放、WASM asset versionを追います。",
+      "bodyEn": "Watch PR reviews, merges, release notes, Web typings, tracking state after threshold changes, video reuse disposal, and WASM asset versions."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で開始閾値を0.80、継続閾値を0.35にして、点滅が減る一方で復帰が遅くなる感覚を比べてください。派生では旧結果を投入して直後に切り替え、古い結果が採用されないことを確認してください。",
+      "bodyEn": "Set enter to 0.80 and keep to 0.35, then compare flicker and recovery. In the derivative send an old result then switch immediately and verify rejection."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.1/v1.1.0、公式Web demos、公開PRとprivacy noticeを確認。設計: releaseとproposalを分離。実装: 外部通信なしの自作HTML 2本。検証: JSON、gallery build、publish、公開URLのHTTP 200を実施します。",
+      "bodyEn": "Research checked releases, official demos, PRs, and privacy notice. Design separates released behavior from proposals. Build has two offline originals; validation runs JSON, gallery, publish, and HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの体験品質は、瞬間のscoreだけでなく、いつ始め、いつ維持し、いつ古い結果を忘れるかで決まります。境界を明示すると、精度改善とUI改善を混同せずに検証できます。",
+      "bodyEn": "Web ML quality depends on when output starts, persists, and forgets stale results—not just a score. Explicit boundaries separate UI and model experiments."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "採用した本命は `Confidence Hysteresis Stage`。合成presenceの揺れに対し開始/継続閾値を操作できます。次に足すなら最小継続時間と実FaceLandmarkerのpresenceです。派生は `Session Boundary Reset Lab`。旧sessionの遅延結果を破棄できます。次に足すなら実video差替え、Task lifecycle、AbortControllerです。",
+      "bodyEn": "The main selected prototype controls enter/keep thresholds over synthetic presence; next add dwell time and real FaceLandmarker presence. The derivative rejects delayed old-session results; next add real video switching, Task lifecycle, and AbortController.",
+      "links": [
+        {
+          "label": "Open Confidence Hysteresis Stage",
+          "url": "../outputs/2026-10-24_confidence_hysteresis_stage.html"
+        },
+        {
+          "label": "Open Session Boundary Reset Lab",
+          "url": "../outputs/2026-10-24_session_boundary_reset_lab.html"
+        }
+      ]
+    }
+  ]
+}
