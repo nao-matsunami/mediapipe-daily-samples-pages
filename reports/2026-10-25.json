@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-25",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "空の推論区間を、結果年齢の見えるUI契約にする",
+  "headlineEn": "Make empty inference intervals a visible result-age UI contract",
+  "summary": "MediaPipeの公開版・公式Webデモ・公開PRを一次情報として参照し、合成ランドマークの欠損を保持期限付きで扱う本命と、結果年齢をoverlayで見せる派生の自作サンプル2本を追加しました。",
+  "summaryEn": "Using MediaPipe primary sources, this adds two original probes for gap handling with bounded holds and visible overlay result age.",
+  "keyTopics": [
+    "MediaPipe v1.1.1は現行公開版で、WASM資産更新とJavaScript Retrieval SDK snippet更新を含む。",
+    "v1.1.0はWeb Tasksのlandmark presence scoreと、重複WASM embedding呼び出しの防止を含む。",
+    "公開PR #6362のHolistic空face timestamp修正は、未リリースの観察対象として扱う。",
+    "空結果・遅延結果は、黙って補間せず、年齢と保持期限を表示するUI契約にできる。"
+  ],
+  "keyTopicsEn": [
+    "v1.1.1 is the released baseline with refreshed WASM assets and JavaScript Retrieval snippets.",
+    "v1.1.0 includes Web presence scores and overlapping WASM embedding-call protection.",
+    "Public PR #6362 is an unreleased Holistic empty-face timestamp watch item.",
+    "Empty and delayed results can be exposed as visible age and bounded-hold UI contracts."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Landmark Timeline Gap Lab",
+      "url": "../outputs/2026-10-25_landmark_timeline_gap_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Result Age Overlay Mixer",
+      "url": "../outputs/2026-10-25_result_age_overlay_mixer.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "GitHub: PR #6362 (watch item)",
+      "url": "https://github.com/google-ai-edge/mediapipe/pull/6362"
+    },
+    {
+      "label": "Official MediaPipe Web Tasks demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-25-timestamp-gaps-result-age.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公開版はv1.1.1を基準にし、v1.1.0のpresence scoreと並行呼び出し回避を確認しました。#6362は空face timestampに触れる未リリース提案なので、今日の中心には置きません。中心は、推論が欠けた瞬間を「何も起きていない」と偽装せず、保持と停止を操作・観察できる自作面です。",
+      "bodyEn": "v1.1.1 is the release baseline, while v1.1.0 adds presence and call-protection context. PR #6362 is watch-only; the focus is original interactive gap handling."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は欠損帯と受信点をタイムラインに並べ、保持猶予より短い欠損をHOLD、超える欠損をOFFとして見せます。派生は同じ考えをoverlayの色、破線、年齢バーに翻訳します。ユーザーが『検出なし』と『前の結果を表示中』を区別できます。",
+      "bodyEn": "The main maps gaps to LIVE/HOLD/OFF. The derivative translates the same contract into overlay color, dashes, and an age bar."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存するなら映像ではなく、media time、Task result timestamp、受信時刻、presence、結果年齢、保持期限、OFF遷移理由を最小単位にします。MediaPipe Face/Holistic/Pose Task、Performance API、Web Worker、Canvas/WebGL overlay、Web Audioの警告音、同意済み診断を組み合わせれば、端末差と背景復帰時の時系列品質を比較できます。",
+      "bodyEn": "Store media time, result timestamp, receipt time, presence, age, hold limit, and OFF reason—not video. Combine Tasks with Performance API, Workers, overlays, audio, and consented diagnostics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では結果 timestamp、video.currentTime、JavaScript受信時刻を混同しません。最後の有効結果を持つなら最大年齢を決め、超過後は描画を止めるか明示的にstale化します。新しい映像源やTask再初期化ではsession IDも併用し、古い完了を採用しません。公式privacy noticeのとおり入力は端末処理でも、利用・性能メトリクスの設計は別途確認します。",
+      "bodyEn": "Keep result timestamps, media time, and receipt time separate. Bound holds, make stale states explicit, and use session IDs across lifecycle changes. Metrics need their own privacy review."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "#6362のレビュー、マージ、release note、Holistic/Webの型定義、空結果時のtimestamp契約、実際のvideo停止・tab復帰・カメラ切替時の挙動を追います。v1.1.1以後のWASM assetとWebサンプル更新も確認対象です。",
+      "bodyEn": "Watch #6362 review/merge/release notes, timestamp contracts, typings, source changes, tab resumes, and future WASM/sample updates."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で欠損を420ms、保持を260msにして、黄のHOLDが灰のOFFへ移る位置を観察してください。派生では新規結果間隔を長くしてから「1回だけ遅延」を押し、同じ推論結果でも年齢表示が体験を変えることを確認できます。",
+      "bodyEn": "Set a 420ms gap and 260ms hold, then inspect HOLD turning OFF. In the derivative lengthen result intervals then inject one delay."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.1/v1.1.0、公式Web Tasks demo、公開PR、privacy noticeを確認。設計: releaseとproposalを分離。実装: 外部通信なしで動く自作HTML 2本。検証: JSON、gallery build、publish、公開URLのHTTP 200を行います。",
+      "bodyEn": "Research checked releases, demos, PRs, and privacy notice. Design separates releases from proposals. Build has two offline originals; validation runs JSON, gallery, publish, and HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの連続性は、モデルの出力頻度だけでは決まりません。結果が欠けた時、前回の値が何ms古いか、いつ表示を止めるかを表現層で共有すると、推論改善と不確実さの説明を両立できます。",
+      "bodyEn": "Web ML continuity depends on more than output frequency. Shared result-age and stop rules let UI explain uncertainty without hiding it."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命は `Landmark Timeline Gap Lab`。合成の欠損長と保持猶予を操作し、LIVE/HOLD/OFFをタイムラインで比較できます。次に足すなら実FaceLandmarkerのtimestampとpresenceです。派生は `Result Age Overlay Mixer`。結果年齢を色・破線・バーに反映します。次に足すならvideo.currentTime連携、background復帰、WebGL overlayです。",
+      "bodyEn": "The main compares LIVE/HOLD/OFF over synthetic gaps; next add real FaceLandmarker timestamps and presence. The derivative visualizes result age; next add video time, resume, and WebGL overlays.",
+      "links": [
+        {
+          "label": "Open Landmark Timeline Gap Lab",
+          "url": "../outputs/2026-10-25_landmark_timeline_gap_lab.html"
+        },
+        {
+          "label": "Open Result Age Overlay Mixer",
+          "url": "../outputs/2026-10-25_result_age_overlay_mixer.html"
+        }
+      ]
+    }
+  ]
+}

@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / LiteRT-LM / Web ML</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-10-13</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
+      <h2>Universal Embedder と Semantic Retriever の前で memory collision と chunk 予算を見張る</h2>
+      <p class="en">Watch memory collisions and chunk budgets before Universal Embedder and Semantic Retriever handoff</p>
+      <p>Google AI Edge の Universal Embedder guide、MediaPipe v1.1.0 release、mediapipe-samples-web、公式 Tasks Web demo、MediaPipe Studio を確認し、自作サンプルを2本追加しました。本命は Universal Embedder Memory Collision Lab、派生は Semantic Retriever Chunk Budget Probe です。</p>
+      <div class="actions">
+        <a href="../days/2026-10-13.html">日付ページ</a>
+        <a href="../outputs/2026-10-13_universal_embedder_memory_collision_lab.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-10-13_semantic_retriever_chunk_budget_probe.html"><span>MediaPipe</span>Semantic Retriever Chunk Budget Probe</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-10-12</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
       <h2>MediaPipe の結果を Decision / Retrieval へ渡す前に readiness と文脈予算で絞る</h2>
       <p class="en">Gate MediaPipe results with readiness and context budgets before Decision and Retrieval handoff</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-10-02_object_detector_asset_delegate_preflight.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-10-02_model_asset_cache_warmup_timeline.html"><span>MediaPipe</span>Model Asset Cache Warmup Timeline</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-10-01</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span></p>
-      <h2>Gesture Recognizer は runningMode 切替と timestamp hygiene を先に設計する</h2>
-      <p class="en">Gesture Recognizer needs running-mode switching and timestamp hygiene up front</p>
-      <p>Google AI Edge の Gesture Recognizer Web guide、JavaScript API、Web setup、MediaPipe release notes、mediapipe-samples-web の worker 実装を確認し、自作サンプルを2本追加しました。本命は IMAGE / VIDEO runningMode、setOptions の切替コスト、同期推論予算を見る Gesture Running Mode Switchboard、派生は duplicate / rewind / stale result を扱う Gesture Timestamp Monotonic Guard です。</p>
-      <div class="actions">
-        <a href="../days/2026-10-01.html">日付ページ</a>
-        <a href="../outputs/2026-10-01_gesture_running_mode_switchboard.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-10-01_gesture_timestamp_monotonic_guard.html"><span>MediaPipe</span>Gesture Timestamp Monotonic Guard</a></div>
     </article></div>
   </main>
 </body>
