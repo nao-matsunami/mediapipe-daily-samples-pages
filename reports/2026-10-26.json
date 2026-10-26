@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-26",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "顔エフェクトの表示条件を、変換行列だけに任せない",
+  "headlineEn": "Do not let a transform matrix alone decide face-effect visibility",
+  "summary": "MediaPipeの公開リリース、Face Landmarkerの公式API参照、公式Webデモを一次情報として確認し、変換行列を使う表示側の品質・余白・結果年齢を検証するオリジナルHTML 2本を追加しました。",
+  "summaryEn": "Using MediaPipe releases, the Face Landmarker API reference, and Web demos, this adds two original browser-local probes for effect visibility and transform interpretation.",
+  "keyTopics": [
+    "MediaPipe v1.1.1は現行の公開基準で、WASM資産更新とJavaScript Retrieval SDK snippet更新を含む。",
+    "Face Landmarkerの公式API参照にはdetection・presence・trackingの各しきい値と、facial transformation matrix出力の選択肢がある。",
+    "変換行列は位置決めの入力であり、結果年齢・信頼度・画面端の扱いまで自動では決めない。",
+    "外部デモは参照に留め、公開カードの中心はネットワーク不要で動く自作検証面2本にする。"
+  ],
+  "keyTopicsEn": [
+    "v1.1.1 is the released baseline with refreshed WASM assets and JavaScript Retrieval snippets.",
+    "Face Landmarker documents detection, presence, tracking thresholds and optional facial transformation matrices.",
+    "A transform matrix positions an effect but does not decide freshness, confidence, or edge policy.",
+    "External demos remain references; the archive centers on two original offline probes."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Face Effect Safe Zone",
+      "url": "../outputs/2026-10-26_face_effect_safe_zone.html"
+    },
+    {
+      "label": "Today's derivative sample: Transform Matrix Storyboard",
+      "url": "../outputs/2026-10-26_transform_matrix_storyboard.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.1 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.1"
+    },
+    {
+      "label": "Official FaceLandmarkerOptions reference",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/FaceLandmarkerOptions"
+    },
+    {
+      "label": "Official MediaPipe Web Tasks demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-26-face-transform-effects.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式のFace Landmarker参照は、顔の存在・追跡・検出を別のしきい値で扱え、必要なら顔の変換行列も出力できることを示します。面白さは、エフェクトを置く座標と、エフェクトを表示してよい根拠を分離できる点です。今日の自作面はこの分離を小さく可視化します。",
+      "bodyEn": "The reference separates detection, presence, tracking, and optional transforms. The key idea is separating placement coordinates from the evidence needed to show an effect."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では合成の顔枠に装飾を重ね、presence、tracking、結果年齢、画面端のいずれかが条件外なら装飾を薄くして理由を表示します。派生ではcanonical faceに帽子を置き、平行移動・回転・拡大が一枚の変換表現へどう現れるかを操作します。",
+      "bodyEn": "The main fades an effect when quality, freshness, or margin fails. The derivative makes translation, rotation, and scale readable through a canonical face storyboard."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "記録するなら映像ではなく、結果timestamp、presence/tracking、変換行列、画面内余白、描画を抑えた理由、端末指標を最小単位にします。FaceLandmarker、Canvas/WebGL、Web Worker、Performance API、同意済みの診断ログを組み合わせれば、端末・照明・姿勢で表示品質がどこで落ちるかを比較できます。",
+      "bodyEn": "Store timestamps, scores, transforms, margins, suppression reasons, and device metrics—not video. Combine Tasks, Canvas/WebGL, Workers, Performance API, and consented diagnostics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では行列の座標系、入力の鏡像化、videoの表示サイズ、canvasのCSS倍率を一つの変換契約として明文化します。推論の非同期完了はsession IDと結果年齢で検査し、古い結果には装飾を描かないかstaleと明示します。しきい値は固定の美観値ではなく、入力条件ごとに観察・調整します。",
+      "bodyEn": "Document coordinate system, mirroring, video display size, and CSS scaling as one contract. Gate async completions by session and age, and tune thresholds from observed conditions."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.1.1以後のWeb/WASM資産とTasks型定義、Face Landmarkerの実行モード別のtimestamp挙動、公式Webサンプルの更新、関連する公開issue・release noteを追います。実カメラでは鏡像・縦横比・background復帰・複数顔で同じ表示契約が保てるかを観察対象にします。",
+      "bodyEn": "Watch future Web/WASM assets, typings, mode-specific timestamp behavior, demo updates, and release notes. Test mirroring, aspect ratio, resumes, and multiple faces with real cameras."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で顔を左右端へ寄せ、presence/trackingを上げ、さらに「古い結果を1回注入」を押してください。位置があってもエフェクトを出さない理由が切り替わります。派生では自動再生をオンにし、回転時に帽子と座標軸が同じ変換を受けることを確認できます。",
+      "bodyEn": "Move the face to an edge, raise thresholds, then inject an old result. In the derivative enable autoplay and see the hat and axes share one transform."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公開v1.1.1、Face Landmarker API参照、公式Webデモを確認。設計: 座標と表示可否を分離。実装: 外部通信なしのHTMLを2本作成。検証: JSON検査、gallery再生成、publish、公開URLのHTTP 200を行います。",
+      "bodyEn": "Research checked v1.1.1, Face Landmarker docs, and Web demos. Design separates coordinates from visibility. Build ships two offline originals, then validates JSON, gallery, publish, and HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの見栄えは推論精度だけでは決まりません。結果を画面へ置く変換と、その結果を今見せてよいかのポリシーを分けると、低品質時に誇張したエフェクトを出さず、利用者にも状態が説明しやすくなります。",
+      "bodyEn": "Web ML presentation depends on more than accuracy. Separating placement transforms from visibility policy avoids overstating low-quality results and makes state explainable."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命は `Face Effect Safe Zone`。合成のpresence、tracking、結果年齢、横位置に応じて装飾の表示理由を切り替えます。次に足すなら実FaceLandmarkerの行列と複数顔IDです。派生は `Transform Matrix Storyboard`。canonical faceの帽子と軸に平行移動・回転・拡大を共有させます。次に足すなら鏡像化とvideo/CSS座標の較正です。",
+      "bodyEn": "The main gates an effect by synthetic scores, age, and position; next add real matrices and multi-face IDs. The derivative shares transforms between a hat and axes; next add mirroring and video/CSS calibration.",
+      "links": [
+        {
+          "label": "Open Face Effect Safe Zone",
+          "url": "../outputs/2026-10-26_face_effect_safe_zone.html"
+        },
+        {
+          "label": "Open Transform Matrix Storyboard",
+          "url": "../outputs/2026-10-26_transform_matrix_storyboard.html"
+        }
+      ]
+    }
+  ]
+}
