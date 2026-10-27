@@ -33,7 +33,17 @@
 </head>
 <body>
   <main>
-    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Face Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Holistic Landmarker / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+    <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / Face Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Gesture Recognizer / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Holistic Landmarker / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Embedder / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Image Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Interactive Segmenter / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Classifier / Web ML</span><span class="badge">MediaPipe / Google AI Edge / Text Summarizer / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-10-03</span><span class="badge">MediaPipe / Google AI Edge / Tasks Web / Web ML</span></p>
+      <h2>Tasks Web は bundle と worker の経路を先に選べる形にする</h2>
+      <p class="en">Tasks Web benefits from choosing bundle and worker routes before model hookup</p>
+      <p>Google AI Edge の Web setup、MediaPipe Tasks Vision Web README、MediaPipe releases、mediapipe-samples-web を確認し、自作サンプルを2本追加しました。本命は ESM CDN / IIFE CDN / npm worker の読み込み経路を CSP、offline、WASM path、worker load で比較する Tasks Bundle Worker Route Matrix、派生はローカル入力処理と metrics consent を分けて send / summarize / hold / drop に振り分ける Privacy Metrics Consent Filter です。</p>
+      <div class="actions">
+        <a href="../days/2026-10-03.html">日付ページ</a>
+        <a href="../outputs/2026-10-03_tasks_bundle_worker_route_matrix.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-10-03_privacy_metrics_consent_filter.html"><span>MediaPipe</span>Privacy Metrics Consent Filter</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-10-02</span><span class="badge">MediaPipe / Google AI Edge / Object Detector / Web ML</span></p>
       <h2>Object Detector はモデル資産と delegate route を先に点検する</h2>
       <p class="en">Object Detector benefits from asset and delegate preflight before camera hookup</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-09-22_gesture_worker_queue_tuner.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-09-22_stale_result_journal.html"><span>MediaPipe</span>Stale Result Journal</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-09-21</span><span class="badge">MediaPipe / Google AI Edge / Text Tasks / Web ML</span></p>
-      <h2>Language Detector の信頼度を UI ルートへ変換する</h2>
-      <p class="en">Turning Language Detector confidence into UI routes</p>
-      <p>Google AI Edge の Web setup guide、Language Detector Web guide、MediaPipe release notes、mediapipe-samples-web を確認し、Language Detector の `maxResults`、`scoreThreshold`、`categoryAllowlist`、`categoryDenylist` を実装前に試す自作サンプルを2本追加しました。本命は言語候補の信頼度で UI ルートを切り替える confidence router、派生は allowlist / denylist 方針と設定衝突を可視化する policy playground です。</p>
-      <div class="actions">
-        <a href="../days/2026-09-21.html">日付ページ</a>
-        <a href="../outputs/2026-09-21_language_detector_confidence_router.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-09-21_language_policy_allowlist_playground.html"><span>MediaPipe</span>Language Policy Allowlist Playground</a></div>
     </article></div>
   </main>
 </body>

@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-27",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "解像度が変わっても、ランドマークの意味を変えない",
+  "headlineEn": "Keep landmark meaning stable when resolution changes",
+  "summary": "MediaPipeの公開リリース、Pose Landmarker API参照、公式Web Tasksデモを一次情報として確認し、解像度切替時の平滑化とletterbox座標契約を検証するオリジナルHTML 2本を追加しました。",
+  "summaryEn": "Using MediaPipe releases, Pose Landmarker API reference, and official Web Tasks demos, this adds two original browser-local probes for resolution-aware smoothing and letterbox coordinate contracts.",
+  "keyTopics": [
+    "MediaPipe v1.1.0は、previewとstill captureで入力解像度が変わる際のLandmarksSmoothingCalculatorのdrift修正を含む。",
+    "Pose Landmarkerのvideo/live stream系APIではtimestampが必要で、隣接する入力timestampは単調増加でなければならない。",
+    "live streamは低遅延のため入力をdropし得るので、出力の座標・年齢・入力サイズを一つの表示契約として扱う必要がある。",
+    "公開カードは外部デモ一覧ではなく、ネットワーク不要で動く自作の最小検証面2本を中心にする。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.0 fixes landmark drift when stream resolution changes between preview and still capture.",
+    "Video and live-stream APIs require timestamps, with adjacent input timestamps increasing monotonically.",
+    "Because live streams may drop inputs for latency, coordinates, age, and input dimensions need one rendering contract.",
+    "The archive centers two original offline probes instead of an external demo list."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Resolution Switch Smoothing Lab",
+      "url": "../outputs/2026-10-27_resolution_switch_smoothing_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Letterbox Coordinate Contract",
+      "url": "../outputs/2026-10-27_letterbox_coordinate_contract.html"
+    },
+    {
+      "label": "GitHub: MediaPipe v1.1.0 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.0"
+    },
+    {
+      "label": "Official PoseLandmarker API reference",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/PoseLandmarker"
+    },
+    {
+      "label": "Official MediaPipe Web Tasks demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-27-resolution-coordinates.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.0のrelease noteには、previewとstill captureのあいだでストリーム解像度が動的に変わるときのlandmark drift修正があります。興味深いのは、推論結果が同じ正規化座標でも、表示前にピクセル座標へ持ち込んだ状態を保持すると意味がずれる点です。本命はこの差を一画面で見せます。",
+      "bodyEn": "The v1.1.0 release notes a drift fix across dynamic stream-resolution changes. The main probe visualizes why retaining display-pixel state can change a normalized landmark's meaning."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では動く合成landmarkをSD/HD入力へ切り替え、正規化座標で平滑化した緑と、ピクセル値をそのまま引き継いだ橙を比較します。派生ではポインタでletterbox内を指定し、表示面・ソースpixel・正規化結果・鏡像化の対応を読み出します。",
+      "bodyEn": "The main compares normalized smoothing with carried-over pixel smoothing across SD/HD. The derivative maps pointer input through letterboxing, source pixels, normalized results, and mirroring."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存するなら映像そのものではなく、timestamp、入力width/height、正規化landmark、表示変換、結果年齢、drop回数を最小単位にします。Pose/Holistic/Hand Landmarker、CanvasまたはWebGL、ResizeObserver、Performance API、同意済み診断ログを組み合わせれば、回転・capture切替・縦長UIでの座標破綻を比較できます。",
+      "bodyEn": "Persist timestamps, dimensions, normalized landmarks, display transforms, result age, and drop counts—not video. Combine Tasks, Canvas/WebGL, ResizeObserver, Performance API, and consented diagnostics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "平滑化は推論モデルが返す正規化座標か、入力フレーム座標系で行い、CSS pixelへの変換は最後に一度だけ行います。各結果にはsource size、timestamp、mirror、object-fit相当のcrop/letterbox情報を付けます。live streamでは全フレーム出力を前提にせず、最後の結果の年齢に上限を設けます。",
+      "bodyEn": "Smooth in normalized or input-frame coordinates, converting to CSS pixels only at the end. Attach dimensions, timestamp, mirror, and crop/letterbox state; bound result age because live streams can drop frames."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Web Tasksの型定義・WASM資産・release note、Pose/Holistic/Handの実行モード別timestamp契約、スマホ回転やカメラ切替時の実寸法、公式Webデモ更新を追います。特にinput解像度、video表示比率、canvas backing storeの変化が同じフレームで同期するかを確認します。",
+      "bodyEn": "Watch Web Tasks typings, WASM assets, releases, mode-specific timestamp contracts, camera rotation/switches, and official demos—especially synchronization among input size, video aspect, and canvas backing store."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で追従率を低くし、解像度切替を3秒前後にして橙の不連続量を見てください。派生では縦長9:16と鏡像化をオンにし、左右の表示位置とreported xが意図どおり逆になることを確認できます。",
+      "bodyEn": "Set low follow rate and switch around three seconds to expose the orange discontinuity. In the derivative choose 9:16 and mirror to verify display position and reported x invert intentionally."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.0 release、Pose Landmarker API、公式Web Tasksデモを確認。設計: 解像度・timestamp・表示座標を別々にせず一つの契約として扱う。実装: 本命と派生の自作HTMLを2本作成。検証: JSON検査、gallery再生成、publish、公開URLのHTTP 200を行います。",
+      "bodyEn": "Research checked v1.1.0, Pose Landmarker API, and Web demos. Design treats dimensions, time, and display coordinates as one contract. Build ships two originals, then validates JSON, gallery, publish, and HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの見た目の安定性は、推論精度の問題だけではありません。入力の寸法、非同期結果の時刻、letterboxや鏡像の表示変換を独立した偶然にせず、同じ結果メタデータとして運ぶと、表示側のバグをモデルの揺れと取り違えにくくなります。",
+      "bodyEn": "Visual stability is not only a model-accuracy problem. Carry dimensions, async time, letterboxing, and mirroring with each result so rendering bugs are not mistaken for model jitter."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命は `Resolution Switch Smoothing Lab`。解像度切替時に、正規化座標での平滑化とpixel状態を保持した比較を動かします。次に足すなら実PoseLandmarkerのlandmarkとカメラ切替です。派生は `Letterbox Coordinate Contract`。pointerから正規化推論座標までを可視化します。次に足すならobject-fit: coverのcropと実video要素の較正です。",
+      "bodyEn": "The main compares normalized and pixel-state smoothing across resolution switches; next add real PoseLandmarker output and camera switches. The derivative traces pointer-to-normalized coordinates; next add object-fit cover and real video calibration.",
+      "links": [
+        {
+          "label": "Open Resolution Switch Smoothing Lab",
+          "url": "../outputs/2026-10-27_resolution_switch_smoothing_lab.html"
+        },
+        {
+          "label": "Open Letterbox Coordinate Contract",
+          "url": "../outputs/2026-10-27_letterbox_coordinate_contract.html"
+        }
+      ]
+    }
+  ]
+}
