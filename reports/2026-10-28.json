@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-28",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "推論の値だけでなく、到着時刻にも表示の契約を作る",
+  "headlineEn": "Give inference time, not only values, a rendering contract",
+  "summary": "MediaPipeの公式release、API参照、公式Webデモを確認し、単調timestampの採否と結果年齢の表示規約を検証する、ネットワーク不要の自作HTML 2本を追加しました。",
+  "summaryEn": "Using official MediaPipe releases, API references, and Web demos, this adds two original offline probes for monotonic timestamp admission and result-age rendering contracts.",
+  "keyTopics": [
+    "MediaPipe v1.1.1はWASM資産更新とJavaScript Retrieval SDK snippet更新を含む最新releaseである。",
+    "v1.1.0はWeb Tasksにstats loggingを追加し、Webで重複するWASM embedding呼び出しを防止した。",
+    "Video入力を扱うTask APIではミリ秒timestampが必要であり、非同期の到着順をそのまま画面へ採用しない設計が必要になる。",
+    "公開アーカイブは外部デモ一覧でなく、合成イベントで動く自作検証面2本を中心にする。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.1.1 is the latest release and updates WASM assets and JavaScript Retrieval SDK snippets.",
+    "v1.1.0 adds Web Tasks stats logging and prevents overlapping WASM embedding calls on Web.",
+    "Video Task APIs require millisecond timestamps, so async arrival order should not be rendered blindly.",
+    "The archive centers two original synthetic-event probes rather than external demos."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Monotonic Timestamp Gate",
+      "url": "../outputs/2026-10-28_monotonic_timestamp_gate.html"
+    },
+    {
+      "label": "Today's derivative sample: Result Age Contract Radar",
+      "url": "../outputs/2026-10-28_result_age_contract_radar.html"
+    },
+    {
+      "label": "GitHub: MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official ObjectDetector API reference",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ObjectDetector"
+    },
+    {
+      "label": "Official MediaPipe Web Tasks demos",
+      "url": "https://google-ai-edge.github.io/mediapipe-samples-web/"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-28-timestamp-result-age.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.1.0はWebで重複するWASM embedding呼び出しを防止し、Web Tasksのstats loggingも追加しました。これは速い入力・遅い推論の間を曖昧にせず、何を採用し何を破棄したかを設計対象にする合図です。本命は、古いtimestampを視覚的に破棄する小さなゲートとして作りました。",
+      "bodyEn": "v1.1.0 prevents overlapping Web WASM embedding calls and adds stats logging. The main probe makes admission and stale rejection visible."
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では乱れの確率と推論時間を動かし、単調増加するtimestampだけを緑で採用します。逆順バーストを注入すると赤い古い結果が捨てられます。派生は結果の年齢をLIVE/HOLD/OFFの色とレーダーに変換し、数値がもっともらしくても古ければ抑止する見せ方を試します。",
+      "bodyEn": "The main admits only monotonic timestamps and makes reverse bursts red. The derivative turns result age into LIVE/HOLD/OFF radar language."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "映像を保存しなくても、入力timestamp、結果timestamp、result age、source size、ROI、mirror、generation、drop理由を記録すれば、Taskごとの遅延や画面の誤採用を比較できます。Pose/Hand/Face Landmarker、Performance API、Canvas/WebGL、同意済みのWeb Tasks統計、Web Audioの通知と組み合わせると、現場向けの鮮度監視へ発展します。",
+      "bodyEn": "Persist timestamps, age, dimensions, ROI, mirroring, generation, and drop reason—not video—to compare latency and bad adoption across Tasks."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "入力ごとに単調なtimestampを付け、結果を描く直前にgeneration一致・timestampの新しさ・年齢上限を判定します。callbackの到着順ではなく入力起点の時刻を基準にし、HOLD表示には年齢を併記します。source切替時はlast timestampとgenerationをリセットして、前セッションの結果を採用しません。",
+      "bodyEn": "Attach monotonic input time, then check generation, novelty, and age just before drawing. Use input-origin time, tag HOLD with age, and reset session state on source changes."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe releaseとWeb Tasks型定義、WASM配布物、公式Webデモ、Taskごとのvideo/live callback仕様を追います。特にstats loggingが返す粒度、worker移譲時のclock差、model再読み込み・camera切替・tab復帰でのsession境界を確認します。",
+      "bodyEn": "Watch releases, Web typings, WASM assets, demos, callback contracts, stats granularity, worker clocks, and session boundaries."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で推論時間を長くして乱れを上げ、逆順バーストを注入してください。到着が新しく見えてもtimestampが古ければ捨てる意味を確認できます。派生では結果を止め、年齢が最大値を超えた時にOFFへ変わることを見ます。",
+      "bodyEn": "Increase cost and jitter, inject a reverse burst, then pause the derivative to watch age pass its OFF threshold."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.1.1/v1.1.0 release、公式API参照、公式Webデモを確認。設計: 値・時刻・sessionを同じresult envelopeで扱う。実装: 本命と派生の自作HTMLを2本作成。検証: JSON検査、gallery再生成、publish、公開URLのHTTP 200を行います。",
+      "bodyEn": "Research checked releases, API reference, and Web demos. Design packages value, time, and session together. Build ships two originals, then validates JSON, gallery, publish, and HTTP 200."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの不安定さはモデル精度だけの問題ではなく、非同期の時間設計でもあります。result ageをUIの正式な状態にすると、古い値を滑らかに見せる誘惑より、現在の映像に対して何を知っているかを正直に伝えられます。",
+      "bodyEn": "Web ML instability is also temporal design. Formalizing result age lets the UI state honestly what it knows about the current scene."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命は `Monotonic Timestamp Gate`。乱れた到着から単調な入力だけを採用し、次に足すなら実video timestampとTask callbackを接続します。派生は `Result Age Contract Radar`。結果年齢をLIVE/HOLD/OFFへ変換し、次に足すならsource sizeやROIも含むresult envelopeと同意付き診断ログを足します。",
+      "bodyEn": "The main gates synthetic input by monotonic time; next connect real video timestamps and callbacks. The derivative visualizes age state; next add a full result envelope and consented diagnostics.",
+      "links": [
+        {
+          "label": "Open Monotonic Timestamp Gate",
+          "url": "../outputs/2026-10-28_monotonic_timestamp_gate.html"
+        },
+        {
+          "label": "Open Result Age Contract Radar",
+          "url": "../outputs/2026-10-28_result_age_contract_radar.html"
+        }
+      ]
+    }
+  ]
+}
