@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-31",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "長時間セグメンテーションを、所有権と鮮度の設計として見る",
+  "headlineEn": "Treat long-running segmentation as ownership and freshness design",
+  "summary": "公式release、Web Vision実装例、公開issueを参照し、結果マスクのフレーム所有権と更新間引きを検証するネットワーク不要の自作HTML 2本を追加しました。",
+  "summaryEn": "Using official releases, the Web Vision reference, and a public issue as a watch item, this adds two original offline probes for mask ownership and adaptive cadence.",
+  "keyTopics": [
+    "MediaPipe v1.1.1はWASM資産更新とJavaScript Retrieval SDK snippet更新を含む最新releaseである。",
+    "v1.1.0はWeb Tasksのstats loggingと重複WASM embedding呼び出しの防止を含む。",
+    "Web VisionのImage Segmenter例はcallbackでマスクを受け取るため、描画・コピー・解放の境界を明確にする価値がある。",
+    "連続Web GPU ImageSegmenterでGL handle table増大を報告する公開issue #6367は、未解決のウォッチ対象として扱う。"
+  ],
+  "keyTopicsEn": [
+    "v1.1.1 is the latest release with updated WASM assets and JavaScript Retrieval snippets.",
+    "v1.1.0 adds Web Tasks stats logging and prevents overlapping WASM embedding calls.",
+    "The Image Segmenter callback pattern makes draw/copy/release boundaries worth designing explicitly.",
+    "Public issue #6367 reports GL handle-table growth in continuous Web GPU ImageSegmenter use; it remains a watch item."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Mask Ownership Ledger",
+      "url": "../outputs/2026-10-31_mask_ownership_ledger.html"
+    },
+    {
+      "label": "Today's derivative sample: Segmentation Cadence Conductor",
+      "url": "../outputs/2026-10-31_segmentation_cadence_conductor.html"
+    },
+    {
+      "label": "MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Watch item: issue #6367",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues/6367"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-10-31-mask-ownership-cadence.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式Web Vision READMEのImage Segmenter例はcallbackでマスクを受け取ります。さらに公開issue #6367には連続したWeb GPU ImageSegmenter利用でGL handle tableが増大する報告があります。issueは未解決の観測であって一般化された仕様ではありませんが、長時間セッションでは『推論できたか』だけでなく、結果を誰がいつまで保持するかを設計・観測する理由になります。",
+      "bodyEn": "The Image Segmenter callback and public issue #6367 motivate treating result lifetime as a visible design concern; the issue is a watch item, not an API guarantee.",
+      "links": [
+        {
+          "label": "Official Image Segmenter reference",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        },
+        {
+          "label": "Public issue #6367",
+          "url": "https://github.com/google-ai-edge/mediapipe/issues/6367"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は一枚の合成maskをフレームごとに借用・消費・解放する台帳にし、解放忘れを赤い枠とlive masksの増加として見せます。派生は推論コストと鮮度上限からLIVE/HOLD/OFFを指揮し、古いmaskを滑らかに偽装せず、保持中であることを黄色の破線で表します。",
+      "bodyEn": "The main makes per-frame ownership visible. The derivative conducts LIVE/HOLD/OFF rather than pretending an old mask is current."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "映像やmask本体を保存せずとも、frame id、入力timestamp、mask age、copy回数、解放理由、backend、ROI、source sizeを同意付きで集計すれば、端末・モデル・カメラ別の長時間安定性を比較できます。Image SegmenterやInteractive Segmenter、Performance API、WebGL/WebGPUのメモリ指標、Web Audioの警告、IndexedDBの匿名セッション記録を組み合わせると、現場で再現しやすい品質台帳になります。",
+      "bodyEn": "Frame IDs, age, copies, release reasons, backend, ROI, and dimensions can form a consented stability ledger without retaining video or masks."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "callback内で必要な描画・コピーを終えたらmask参照をフレーム境界で閉じ、後段へ渡すなら明示コピーと上限付きキューを使います。負荷時は入力を無制限に蓄積せず、最新フレーム優先・最大result age・HOLD/OFF規約をセットで持ちます。実機計測ではGC、GPU/GL resource、タブ非表示復帰、source切替を同じログ時系列で確認します。",
+      "bodyEn": "Close mask use at the frame boundary; explicit copies need bounded queues. Pair latest-frame preference with result-age and HOLD/OFF rules."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe releases、Web Tasks型定義、WASM配布物、ImageSegmenterのcontinuous video利用に関するissue/PR、公式Webデモを追います。特にmaskの寿命・callback契約・GPU delegate/worker移譲時のresource観測が文書化されるかを確認します。",
+      "bodyEn": "Watch releases, Web typings, WASM assets, continuous-video issues/PRs, and any documented lifetime or resource-observation contract."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で『解放を忘れる』をオンにして推論頻度を30へ上げてください。live masksが戻らないことを確認できます。次に派生で推論コストを高く、鮮度上限を低くすると、HOLDとOFFが必要になる理由が見えます。",
+      "bodyEn": "Inject the release bug at 30 FPS, then raise cost and lower freshness budget in the derivative."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: release、Web Vision README、公式デモ、公開issueを確認。設計: mask所有権と鮮度を別々でなくresult envelopeに入れる。実装: 自作HTML 2本。検証: JSON検査、gallery再生成、publish、公開URLのHTTP 200まで行います。",
+      "bodyEn": "Research releases, docs, demos, and a public issue. Design a result envelope. Ship two original probes, then validate and publish."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの長時間品質は精度・速度・メモリを別々に最適化しても崩れます。結果を『値』だけでなく、生成時刻、所有者、寿命、表示可否を持つ一回限りの貸出物として扱うと、性能問題をUIの誠実さと運用ログへ同時に接続できます。",
+      "bodyEn": "Long-session quality joins accuracy, latency, memory, and honest UI. A result needs time, owner, lifetime, and display eligibility."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命は `Mask Ownership Ledger`。合成maskの借用と解放を台帳化し、次に足すなら実ImageSegmenter callbackとメモリ計測を接続します。派生は `Segmentation Cadence Conductor`。推論負荷からLIVE/HOLD/OFFを決め、次に足すならカメラtimestamp、ROI、所有権台帳を一つのresult envelopeに結びます。",
+      "bodyEn": "The main visualizes synthetic mask ownership; next connect a real callback and memory metrics. The derivative conducts freshness; next join timestamps, ROI, and ownership in one envelope.",
+      "links": [
+        {
+          "label": "Open Mask Ownership Ledger",
+          "url": "../outputs/2026-10-31_mask_ownership_ledger.html"
+        },
+        {
+          "label": "Open Segmentation Cadence Conductor",
+          "url": "../outputs/2026-10-31_segmentation_cadence_conductor.html"
+        }
+      ]
+    }
+  ]
+}
