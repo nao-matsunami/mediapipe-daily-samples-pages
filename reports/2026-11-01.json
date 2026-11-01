@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-01",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Worker境界と能力検査を、結果の誠実さとして設計する",
+  "headlineEn": "Design worker boundaries and capability checks as result honesty",
+  "summary": "MediaPipe v1.2.0と公式Web Image Segmenter実装を参照し、Workerへ渡す結果封筒と、セグメンテーション能力フォールバックを扱うネットワーク不要の自作HTML 2本を追加しました。",
+  "summaryEn": "Using MediaPipe v1.2.0 and the official Web Image Segmenter implementation, this adds two original offline HTML probes for result envelopes and segmentation capability fallback.",
+  "keyTopics": [
+    "MediaPipe v1.2.0はWeb Worker platform detection、Flutter Web telemetry overrides、F16 ImageFrame support、WASM更新を含む最新releaseである。",
+    "公式Image Segmenter worker実装は入力ImageBitmapとcategory/confidence masksを処理後にcloseし、転送物の寿命を明確にしている。",
+    "能力不足を推論中の例外にせず、GPU、float mask、Workerの検査結果から表示経路を明示選択すると運用しやすい。",
+    "連続Web GPU ImageSegmenterのリソース増大を扱う公開issue #6352は、未解決のウォッチ対象であり仕様ではない。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.0 adds Web Worker platform detection, telemetry overrides, F16 ImageFrame support, and updated WASM assets.",
+    "The official worker closes input bitmaps and output masks after processing.",
+    "Capability-driven routes make fallback explicit instead of surprising at inference time.",
+    "Issue #6352 is an unresolved continuous-Web-GPU watch item, not API behavior."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Worker Result Envelope Lab",
+      "url": "../outputs/2026-11-01_worker_result_envelope_lab.html"
+    },
+    {
+      "label": "Today's derivative sample: Segmentation Capability Route",
+      "url": "../outputs/2026-11-01_segmentation_capability_route.html"
+    },
+    {
+      "label": "MediaPipe v1.2.0 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.0"
+    },
+    {
+      "label": "Official Image Segmenter worker",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+    },
+    {
+      "label": "Watch item: issue #6352",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues/6352"
+    },
+    {
+      "label": "Research note",
+      "url": "../research/2026-11-01-worker-capability-routes.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.2.0はWeb Worker platform detectionを含みます。公式Image Segmenter workerは入力bitmapを閉じ、描画用bitmapを渡し、category/confidence maskも閉じます。この小さな境界設計は、結果を単なる配列でなく、所有者・時刻・転送可否を含む一回限りの封筒として扱うヒントになります。",
+      "bodyEn": "v1.2.0 and the official worker make lifetime boundaries concrete: results benefit from owner, time, and transfer semantics.",
+      "links": [
+        {
+          "label": "v1.2.0 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.0"
+        },
+        {
+          "label": "Official worker reference",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は色の違うカードをmain→worker→displayへ動かし、コピーならcopy数、遅延なら鮮度切れを台帳に出します。派生はGPU、float mask、Workerを切り替え、選ばれた経路と品質コストを可視化します。『速いから使う』ではなく、何を諦めたかを画面に残します。",
+      "bodyEn": "The main animates result envelopes; the derivative exposes route and quality cost so compromise remains visible."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "映像やmaskそのものを保存せず、result id、入力/表示timestamp、owner、transfer/copy、backend、capability snapshot、result ageを同意付きで記録すれば、ブラウザ・端末・モデル別に劣化点を比較できます。Performance API、Web Worker、OffscreenCanvas、Image Segmenter、IndexedDB、Web Audio警告を組み合わせると、体感品質を追える軽量な観測基盤になります。",
+      "bodyEn": "Consent-based envelope metrics can compare browser and device quality without retaining video or masks."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "transfer可能なImageBitmapやArrayBufferは所有権を渡した後に元スレッドで使わない契約にします。コピーが必要な場合は回数とキュー長に上限を置きます。GPU/float mask/Workerのfeature probeは初期化時に行い、CPU・category mask・低cadenceへのfallbackと、LIVE/HOLD/OFFの鮮度規約を一緒に設計します。",
+      "bodyEn": "Treat transfer as exclusive ownership, bound copies, and pair initialization probes with fallback and freshness policy."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe release、Web Tasks型定義、公式sample worker、WASM配布物、F16やWebGPUの能力表記、ImageSegmenter長時間利用のissue/PRを追います。特にWorkerでのタスク実行とmask APIの寿命契約が公式文書にどう現れるかを確認します。",
+      "bodyEn": "Watch releases, typings, workers, WASM, F16/WebGPU capability notes, and long-session segmentation issues."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で入力FPSを60、Worker処理を180ms、鮮度上限を60msへ寄せてください。表示数より鮮度切れが増えることを確認できます。次に派生でfloat maskをオフにし、category mask fallbackが明示される状態を見てください。",
+      "bodyEn": "Drive the main into stale results, then disable float masks in the derivative to inspect the explicit fallback."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.2.0、公式worker、公式sample、公開issueを確認。設計: ownershipとcapabilityをresult envelopeとrouteに分離。実装: 自作HTML 2本。検証: JSON、gallery、publish、公開HTTP 200まで行います。",
+      "bodyEn": "Research official sources, separate ownership from capability routes, ship two original probes, validate and publish."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLでは推論結果の正しさはモデル精度だけで終わりません。いつ生成されたか、誰が所有しているか、現在の端末でどの経路を通ったかが分からなければ、表示は正しく見えても運用上は説明不能です。境界とfallbackをUIに出すことは、性能対策であると同時に利用者への誠実さです。",
+      "bodyEn": "Result correctness includes age, ownership, and route. Making boundaries visible is both performance work and honest UX."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命は `Worker Result Envelope Lab`。生成・転送/コピー・鮮度・表示を1本の結果封筒として追います。次に足すなら実Worker、OffscreenCanvas、MediaPipe callbackとPerformanceObserverを接続します。派生は `Segmentation Capability Route`。能力から経路を選びます。次に足すなら実機feature probe、モデル解像度、結果年齢を接続します。",
+      "bodyEn": "The main traces envelopes; next attach a real worker and callbacks. The derivative chooses routes; next attach real probes, resolution, and result age.",
+      "links": [
+        {
+          "label": "Open Worker Result Envelope Lab",
+          "url": "../outputs/2026-11-01_worker_result_envelope_lab.html"
+        },
+        {
+          "label": "Open Segmentation Capability Route",
+          "url": "../outputs/2026-11-01_segmentation_capability_route.html"
+        }
+      ]
+    }
+  ]
+}
