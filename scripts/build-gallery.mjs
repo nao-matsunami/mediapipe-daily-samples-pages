@@ -109,7 +109,7 @@ function pageShell(title, body, basePath = "") {
     .link-list { padding-left: 20px; }
     @media (max-width: 700px) { header { align-items: start; flex-direction: column; } main { padding-inline: 14px; } }
   </style>
-</head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-GD2PHJX65F"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-GD2PHJX65F');</script></head>
 <body>
   <main>
     ${body}
