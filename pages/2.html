@@ -30,10 +30,20 @@
     .link-list { padding-left: 20px; }
     @media (max-width: 700px) { header { align-items: start; flex-direction: column; } main { padding-inline: 14px; } }
   </style>
-</head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-GD2PHJX65F"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-GD2PHJX65F');</script></head>
 <body>
   <main>
     <header><div><h1>Browser Vision Daily Samples</h1><p>MediaPipe、OpenCV.js、WebGL、XR などの公式情報を参考にした日次の自作ブラウザビジョン最小サンプル集。</p><p class="meta"><span class="badge">MediaPipe</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p></div><p class="date">12 samples</p></header><div class="grid"><article class="card">
+      <p class="meta"><span class="date">2026-10-19</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
+      <h2>Task の診断ログと WASM 初期化を、利用者に説明できる小さな制御面にする</h2>
+      <p class="en">Turn Task diagnostics and WASM startup into small, explainable control surfaces</p>
+      <p>MediaPipe v1.1.1 の Task log 介入 API、Flutter/Web host 環境、WASM 更新を手掛かりに、診断ログの同意・秘匿と初期化ルートを触って比較できる自作サンプル2本を追加しました。</p>
+      <div class="actions">
+        <a href="../days/2026-10-19.html">日付ページ</a>
+        <a href="../outputs/2026-10-19_task_log_redaction_console.html">サンプル</a>
+      </div>
+      <div class="sample-list"><a href="../outputs/2026-10-19_wasm_warmup_route_planner.html"><span>MediaPipe</span>WASM Warmup Route Planner</a></div>
+    </article><article class="card">
       <p class="meta"><span class="date">2026-10-18</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
       <h2>GPU マスクの時間予算と retrieval の文脈予算を、手で調整できる面にする</h2>
       <p class="en">Make GPU mask time budgets and retrieval context budgets tangible controls</p>
@@ -143,16 +153,6 @@
         <a href="../outputs/2026-10-08_multisignal_confidence_fusion_mixer.html">サンプル</a>
       </div>
       <div class="sample-list"><a href="../outputs/2026-10-08_confidence_event_quarantine_router.html"><span>MediaPipe</span>Confidence Event Quarantine Router</a></div>
-    </article><article class="card">
-      <p class="meta"><span class="date">2026-10-07</span><span class="badge">MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML</span></p>
-      <h2>複数 Vision Task は 1 フレーム内の推論レーンと stale overlay を分けて扱う</h2>
-      <p class="en">Treat multitask Vision inference lanes and stale overlays as separate Web ML concerns</p>
-      <p>Google AI Edge の Gesture Recognizer Web guide、GestureRecognizer JavaScript API、Object Detector guide、MediaPipe releases、公式 MediaPipe Tasks Web demo を確認し、自作サンプルを2本追加しました。本命は Hand / Gesture、Object、Face の推論レーンをフレーム予算・鮮度・優先度で選ぶ Multitask Vision Lane Scheduler、派生は周期の違う検出結果を fade / hide / ghost で扱う Result Staleness Overlay Probe です。</p>
-      <div class="actions">
-        <a href="../days/2026-10-07.html">日付ページ</a>
-        <a href="../outputs/2026-10-07_multitask_vision_lane_scheduler.html">サンプル</a>
-      </div>
-      <div class="sample-list"><a href="../outputs/2026-10-07_result_staleness_overlay_probe.html"><span>MediaPipe</span>Result Staleness Overlay Probe</a></div>
     </article></div>
   </main>
 </body>

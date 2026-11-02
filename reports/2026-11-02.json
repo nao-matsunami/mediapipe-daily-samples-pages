@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-02",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "ライブ推論の『落ちた入力』を、見える状態にする",
+  "headlineEn": "Make dropped live-inference inputs visible",
+  "summary": "MediaPipe Tasks のライブ入力規約と最新 Web Retrieval の一次情報を参照し、結果年齢・背圧・表示保留を体験できるネットワーク不要の自作HTML 2本を追加しました。",
+  "summaryEn": "Referencing MediaPipe Tasks live-input semantics and Web Retrieval updates, this adds two original offline HTML probes for result age, backpressure, and held display.",
+  "keyTopics": [
+    "MediaPipe Image Segmenter の live stream は単調増加 timestamp を要求し、遅延を下げるため入力を落とすことがある。",
+    "MediaPipe 1.1.0 のJavaScript更新は Web Retrieval、SemanticRetriever、UniversalEmbedder のGPU利用を含む。",
+    "Web Tasks Vision の公式READMEは入力処理が端末上で行われることを明記している。",
+    "結果を全件描くのでなく、年齢・混雑・表示可否を別状態として記録すると、体感品質を説明できる。"
+  ],
+  "keyTopicsEn": [
+    "Live segmentation requires monotonic timestamps and may drop inputs for latency.",
+    "MediaPipe 1.1.0 adds Web Retrieval and GPU UniversalEmbedder.",
+    "Vision input processing is on-device.",
+    "Age, congestion, and visibility make perceived quality explainable."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Live Stream Freshness Garden",
+      "url": "../outputs/2026-11-02_live_stream_freshness_garden.html"
+    },
+    {
+      "label": "Today's derivative: Result Age Sonification",
+      "url": "../outputs/2026-11-02_result_age_sonification.html"
+    },
+    {
+      "label": "Official MediaPipe Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "MediaPipe release notes",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official Web sample collection",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official Image Segmenter API",
+      "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ImageSegmenter"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式 Image Segmenter API はライブ入力の timestamp を単調増加にし、低遅延化のため一部入力が処理されない場合があると説明します。これは失敗ではなく、最新性を選ぶ設計です。本命試作では捨てた入力、処理中、古くなった結果、実際に描いた結果を別々の花にして、この選択を画面へ出しました。",
+      "bodyEn": "The official live API permits drops for latency. The main probe turns each outcome into a distinct flower.",
+      "links": [
+        {
+          "label": "Image Segmenter live API",
+          "url": "https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/ImageSegmenter"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は cadence、推論レーン、鮮度上限を動かすと庭が混む仕掛けです。派生は年齢を色・上下位置・短い音へ写します。利用者は精度数値だけでなく、『いま表示している結果が何ms前か』を直感的に読めます。",
+      "bodyEn": "Map result age to color, position, and a short sound rather than hiding it behind one accuracy number."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "映像そのものを保存せず、入力時刻、callback時刻、drop理由、選んだbackend、表示可否だけを同意付きで蓄積できます。Performance API、MediaPipe Tasks callback、Web Audio、IndexedDB、後日の SemanticRetriever を組み合わせれば、端末ごとの『遅いが安定』『速いが古い』を検索可能な品質地図にできます。",
+      "bodyEn": "Consent-based timing metadata can become a searchable quality map without retaining camera imagery."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "VIDEO/LIVE_STREAM では timestamp を入力採番時に確定し、callback時に現在時刻との差を測ります。キューを無制限にせず、busyなら drop、古い結果なら hold と決めます。UIは drop を例外として隠さず、件数・年齢・現在のfallbackを開示します。",
+      "bodyEn": "Timestamp at capture, bound the queue, and expose drop/hold decisions in the UI."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Web Tasks の型定義・release notes、Web Retrieval の実例、公式 samples の worker 実装、WebGPUとWASM配布物を追います。特に UniversalEmbedder のGPU経路と、連続callback時のリソース寿命を確認します。",
+      "bodyEn": "Watch Web typings, retrieval examples, workers, WebGPU, and long-running callback lifetimes."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で cadence を45fps、推論を420ms、鮮度を40msにします。赤と紫が増え、表示数だけでは品質を判断できないことが分かります。次に派生で音を有効化し、古い結果の低い音を確認してください。",
+      "bodyEn": "Max cadence and latency while minimizing freshness, then listen for held-result tones."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式API、release、Web sample を確認。設計: 入力・推論・表示を時間で分離。実装: 自作HTML 2本。検証: JSON、gallery再生成、GitHub Pages公開HTTP確認まで進めます。",
+      "bodyEn": "Research primary sources, separate capture/inference/display in time, ship two probes, publish and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "オンデバイスMLのUXは『推論できた』かだけでは足りません。どの瞬間の入力を、どの負荷のもとで、いつ表示したのかが利用者の行動を左右します。落ちることを前提にした可視化は、低遅延を損なわず信頼を上げる設計になります。",
+      "bodyEn": "On-device ML UX needs time and load context, not just an inference-success bit."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Live Stream Freshness Garden` は入力、背圧、結果年齢、表示を可視化します。次に足すなら実カメラと MediaPipe callback、年齢ヒストグラムです。派生 `Result Age Sonification` は年齢を音へ写します。次に足すならアクセシビリティ設定と実callback timestampです。",
+      "bodyEn": "The main visualizes capture, backpressure, age, and display; the derivative sonifies age. Next attach real callbacks.",
+      "links": [
+        {
+          "label": "Open Freshness Garden",
+          "url": "../outputs/2026-11-02_live_stream_freshness_garden.html"
+        },
+        {
+          "label": "Open Result Age Sonification",
+          "url": "../outputs/2026-11-02_result_age_sonification.html"
+        }
+      ]
+    }
+  ]
+}
