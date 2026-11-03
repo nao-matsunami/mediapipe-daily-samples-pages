@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-03",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "F16マスクを、表現の選択として扱う",
+  "headlineEn": "Treat F16 masks as an expressive choice",
+  "summary": "MediaPipe 1.2.0 の F16 ImageFrame 対応を手掛かりに、マスクの量子化と用途別フォーマット選択を可視化するネットワーク不要の自作HTML 2本を追加しました。",
+  "summaryEn": "Using MediaPipe 1.2.0 F16 ImageFrame support as a cue, this adds two offline original HTML probes for mask quantization and intent-aware format routing.",
+  "keyTopics": [
+    "MediaPipe v1.2.0 は ImageFrame の F16 形式対応を挙げている。",
+    "Web Image Segmenter は背景ぼかしなどの視覚効果に使う領域分割Taskで、Tasks Visionパッケージから利用できる。",
+    "公式Webサンプル集はブラウザ内で動作するTask APIの実例を提供する。",
+    "マスクの精度選択はモデル設定だけでなく、遅延・転送量・表現目的を利用者へ説明するUIの問題でもある。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.2.0 lists F16 ImageFrame support.",
+    "Web Image Segmenter divides images into regions for effects.",
+    "Official web samples run Task APIs in browser.",
+    "Mask precision is also a UI explanation problem."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: F16 Matte Precision Loupe",
+      "url": "../outputs/2026-11-03_f16_matte_precision_loupe.html"
+    },
+    {
+      "label": "Today's derivative: Mask Format Route Cards",
+      "url": "../outputs/2026-11-03_mask_format_route_cards.html"
+    },
+    {
+      "label": "MediaPipe v1.2.0 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.0"
+    },
+    {
+      "label": "Official Image Segmenter for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "MediaPipe v1.2.0 は ImageFrame の F16形式を追加しました。Image Segmenter は画像を領域へ分け、背景ぼかしのような効果へ使えるTaskです。本命はこの二つを直結した製品主張にはせず、連続値マスクを8-bitとF16相当で丸めた場合の境界の見え方を、独立した自作可視化として扱います。",
+      "bodyEn": "The main probe independently visualizes how 8-bit and F16-like quantization change a continuous matte boundary.",
+      "links": [
+        {
+          "label": "MediaPipe v1.2.0",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.0"
+        },
+        {
+          "label": "Image Segmenter web guide",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter/web_js"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では左右のマット境界を同時に拡大し、柔らかさとしきい値を自分で動かせます。派生では、ライブプレビュー・キーイング・計測保存の目的を選び、F16可否、GPU、低電力を切り替えると理由つきのルートカードが変わります。高精度を正解とせず、用途を先に言語化します。",
+      "bodyEn": "Compare boundaries interactively, then route formats from intent and capability rather than treating highest precision as universal."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "実マスクを保存しなくても、選んだ形式、推定フレーム時間、境界の粗さ、端末能力、ユーザー同意を記録できます。MediaPipe callback、Performance API、WebGPU/WebGL、IndexedDB、Web Audio を組み合わせれば、端末ごとの『どの品質が知覚可能か』を映像を持ち出さず分析できます。",
+      "bodyEn": "Consent-based format, timing, and capability metadata can map perceptible quality without retaining imagery."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Image Segmenter は @mediapipe/tasks-vision で利用し、createFromOptions時にモデルと出力種別を選びます。実装ではmaskの所有期間、Canvasへ描く頻度、CPU/GPU転送を分けて測り、F16利用可否は機能検出とfallbackの理由をUIへ出します。今回のHTMLはそれらの前段となる表現・選択ロジックのみをローカルで検証します。",
+      "bodyEn": "Detect support, provide a reasoned fallback, and measure mask ownership, draw cadence, and transfers separately."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.2.x のWeb Worker検出やWASM配布物、Image Segmenterの出力型、WebGPUのfloat texture対応、公式サンプルの実機指標を追います。F16がどのWeb経路で実際に露出するかは、releaseと型定義・公式ガイドで継続確認します。",
+      "bodyEn": "Watch worker/WASM updates, output types, float textures, and whether F16 surfaces in documented Web paths."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で柔らかさを0.02、拡大を10xにすると、8-bitとF16相当の段差数の違いを読み取れます。次に派生でキーイングを選び、F16を外すか低電力を有効にして、fallbackが説明として成立しているか確かめてください。",
+      "bodyEn": "Tighten the edge and zoom in, then disable F16 or enable low power to inspect the explained fallback."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: release、公式Webガイド、公式サンプルを確認。設計: 精度比較と用途ルーティングに分離。実装: 自作HTML 2本。検証: JSON、gallery再生成、GitHub Pages HTTP確認まで実施します。",
+      "bodyEn": "Research primary sources, split comparison from routing, ship two probes, then publish and check Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "オンデバイスMLの画質選択は、内部バッファの型だけで完結しません。結果を何に使うのか、待てる時間はどれほどか、低電力時に何を諦めるかを画面上で共有して初めて、可変精度は安心して使える表現になります。",
+      "bodyEn": "Variable precision becomes trustworthy when intent, latency tolerance, and power tradeoffs are visible."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `F16 Matte Precision Loupe` は、連続マットの8-bit/F16相当の丸めを拡大比較します。次に足すなら実Image Segmenterのconfidence maskです。派生 `Mask Format Route Cards` は目的・能力・低電力から理由つきfallbackを選びます。次に足すなら実測フレーム時間とメモリ計測です。",
+      "bodyEn": "The main compares quantized mattes; the derivative explains capability-aware fallback. Next attach real masks and metrics.",
+      "links": [
+        {
+          "label": "Open F16 Matte Precision Loupe",
+          "url": "../outputs/2026-11-03_f16_matte_precision_loupe.html"
+        },
+        {
+          "label": "Open Mask Format Route Cards",
+          "url": "../outputs/2026-11-03_mask_format_route_cards.html"
+        }
+      ]
+    }
+  ]
+}
