@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-04",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Workerの結果を、世代と所有権で扱う",
+  "headlineEn": "Treat worker results by generation and ownership",
+  "summary": "MediaPipe v1.2.0 のWeb Worker検出と公式Image Segmenter Worker実装を手掛かりに、転送後の所有権と遅延結果の世代ガードを分けて確認できる自作HTML 2本を追加しました。",
+  "summaryEn": "Using v1.2.0 Worker detection and the official Image Segmenter Worker as cues, this adds two original HTML probes for transfer ownership and generation guards.",
+  "keyTopics": [
+    "MediaPipe v1.2.0 はWeb Workerプラットフォーム検出とWASMアセット更新を記載している。",
+    "公式Web Visionパッケージはブラウザ内でVision Taskを利用する経路を示す。",
+    "Workerでの入力転送、結果の鮮度、画面採用は別々に設計・計測する。",
+    "公式サンプルのWorker実装は、実TaskをWorkerへ置く構成の一次参照になる。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.2.0 lists Web Worker detection and WASM updates.",
+    "Web Vision documents browser Task usage.",
+    "Transfer, freshness, and display acceptance are separate concerns.",
+    "The official worker sample is a primary implementation reference."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Worker Transfer Generation Lab",
+      "url": "../outputs/2026-11-04_worker_transfer_generation_lab.html"
+    },
+    {
+      "label": "Today's derivative: Worker Message Contract Cards",
+      "url": "../outputs/2026-11-04_worker_message_contract_cards.html"
+    },
+    {
+      "label": "MediaPipe v1.2.0 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.0"
+    },
+    {
+      "label": "MediaPipe Tasks Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official Image Segmenter Worker",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.2.0 はWeb Workerプラットフォーム検出を含み、公式サンプルにはImage SegmenterをWorkerで扱う実装があります。本命はそれを再配布せず、入力を手放すこと、古い結果を表示しないこと、鮮度を越えた結果を捨てることを独立した自作可視化にします。",
+      "bodyEn": "The main probe independently visualizes transfer ownership, generation rejection, and freshness expiry.",
+      "links": [
+        {
+          "label": "MediaPipe v1.2.0",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.0"
+        },
+        {
+          "label": "Official worker implementation",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は8フレームのバーストを投入し、青い入力、紫のWorker処理、緑の採用、橙の破棄を動かします。派生はライブ・静止画・同意つき計測を切り替え、同じWorkerでもメッセージ契約が変わることをカードで見せます。",
+      "bodyEn": "The main animates a burst through handoff and the derivative switches minimal message contracts by use case."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "映像やマスクを保存せず、frame id、結果年齢、破棄理由、選択ルートだけを集計すれば、端末ごとの鮮度を比較できます。Performance API、Web Worker、OffscreenCanvas、IndexedDB、MediaPipe callbackを組み合わせると、実装の混雑と知覚される遅延を分けて分析できます。",
+      "bodyEn": "Aggregate IDs, ages, and discard reasons without retaining imagery, then combine workers, metrics, and local storage."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装ではtransferableなImageBitmapやOffscreenCanvasを渡した後の送信元参照を使わない、timestamp/idを返信に必ず戻す、描画直前にgenerationとageを判定する、の順に契約を固定します。Taskの実行時間とpostMessage時間は別々に計測します。今回のHTMLはネットワークやモデルを使わない設計検証です。",
+      "bodyEn": "Do not reuse transferred sources; return IDs/timestamps and gate results immediately before drawing."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.2.xのWASM配布物とWorker検出、公式Workerサンプルのtransfer方針、Tasks Visionの型定義、OffscreenCanvasとWebGPUの実機差を追います。非同期APIのcancel/resetが文書化される場合も確認します。",
+      "bodyEn": "Watch Worker/WASM distribution, type definitions, transfer policy, and browser capability differences."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で入力間隔を80ms、Worker処理を700msにしてバーストを押すと、latest-onlyを有効にした時の世代破棄が読めます。次にlatest-onlyを外し、年齢だけで画面がどこまで守られるか比べてください。",
+      "bodyEn": "Use a fast input interval and slow worker, then compare generation gating with age-only gating."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: release、Web Vision README、公式Workerを確認。設計: 所有権と世代/鮮度を分離。実装: 自作HTML 2本。検証: JSON、gallery、GitHub Pages公開URLを確認します。",
+      "bodyEn": "Research primary sources, split contracts, ship two probes, then publish and check Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Worker化は推論を画面から遠ざけるだけではありません。結果が何の入力に対応し、いつまで有効で、誰がバッファを所有するかをUIとログで読めるようにして初めて、速さの改善が安心して扱える振る舞いになります。",
+      "bodyEn": "Workers become trustworthy when ownership, correspondence, and validity are observable."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Worker Transfer Generation Lab` は、入力・Worker・表示の間で転送、世代破棄、鮮度破棄を動かします。次に足すなら実ImageBitmap transferとPerformance計測です。派生 `Worker Message Contract Cards` は用途ごとの最小メッセージ契約を切り替えます。次に足すなら実Workerとの往復時間比較です。",
+      "bodyEn": "The main animates transfer and freshness gates; the derivative makes message contracts explicit.",
+      "links": [
+        {
+          "label": "Open Worker Transfer Generation Lab",
+          "url": "../outputs/2026-11-04_worker_transfer_generation_lab.html"
+        },
+        {
+          "label": "Open Worker Message Contract Cards",
+          "url": "../outputs/2026-11-04_worker_message_contract_cards.html"
+        }
+      ]
+    }
+  ]
+}
