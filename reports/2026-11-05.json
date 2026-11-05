@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-05",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "SIMD前提とマスク寿命を、起動前から説明する",
+  "headlineEn": "Explain SIMD prerequisites and mask lifetime before startup",
+  "summary": "MediaPipe v1.2.2のTasks Webにおけるnon-SIMD WASM削除と公式Worker実装を手掛かりに、互換性ルートとマスク資源寿命を分けて試す自作HTML 2本を追加しました。",
+  "summaryEn": "Using v1.2.2's non-SIMD WASM removal and the official Worker implementation as cues, this adds two original probes for capability routing and mask lifetime.",
+  "keyTopics": [
+    "MediaPipe v1.2.2はTasks Web SDKからnon-SIMD WebAssembly buildを削除した。",
+    "公式Image Segmenter WorkerはImageBitmap転送とマスクの明示的なcloseを実装している。",
+    "起動可否、GPU選択、回線待ちを一つの失敗表示に混ぜず説明する。",
+    "借用・copy・解放を別の状態として観測するとWorker/コールバック境界が安全になる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.2 removes non-SIMD WebAssembly builds from Tasks Web.",
+    "The official worker transfers ImageBitmaps and closes masks explicitly.",
+    "Startup eligibility, GPU choice, and download waiting need separate explanations.",
+    "Borrow, copy, and release should be observable as distinct states."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: SIMD Capability Gate Lab",
+      "url": "../outputs/2026-11-05_simd_capability_gate_lab.html"
+    },
+    {
+      "label": "Today's derivative: Mask Resource Lifetime Stage",
+      "url": "../outputs/2026-11-05_mask_resource_lifetime_stage.html"
+    },
+    {
+      "label": "MediaPipe v1.2.2 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+    },
+    {
+      "label": "Official Image Segmenter Worker",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.2.2はJavaScript Tasks Web SDKからnon-SIMD WASM buildを削除しました。一方、公式Image Segmenter Workerは入力のImageBitmapを転送し、結果マスクを描画後にcloseします。本命は両者を転載せず、起動前の説明と資源寿命を観察できる自作UIに分けました。",
+      "bodyEn": "The main separates compatibility explanation from resource lifetime rather than duplicating the official implementation.",
+      "links": [
+        {
+          "label": "MediaPipe v1.2.2",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+        },
+        {
+          "label": "Official worker",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/workers/image-segmenter.worker.ts"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はSIMD、分離済みコンテキスト、GPU希望、回線品質を変えると、開始・段階的fallback・対応外案内を異なる言葉で出します。派生はマスクを借用、copy、release、意図的漏れの色として舞台上に置きます。",
+      "bodyEn": "The main makes startup routes legible; the derivative stages borrow, copy, release, and leak."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "実画像を保存せず、能力判定、初期化時間、モデル容量、結果年齢、copy数、解放漏れだけを匿名集計できます。Performance API、Worker、OffscreenCanvas、IndexedDB、MediaPipe callbackを組み合わせれば、端末差と知覚される待機を比較できます。",
+      "bodyEn": "Aggregate capability, timing, age, copy count, and release errors without retaining imagery."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "SIMDを前提にする配布では、初期化前に必要条件と代替導線をUIに出します。Workerへ転送したImageBitmapは送信元で再利用せず、Task callbackのmaskは必要な描画/copyの後に解放し、結果のid/timestampと解放時刻を別々に記録します。今回のHTMLはネットワークやモデルを使わない設計検証です。",
+      "bodyEn": "Explain prerequisites before initialization; do not reuse transferred sources; release callback resources after needed work."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "v1.2.xのWASM配布と型定義、公式Workerが使うmask/transfer方針、SIMD利用可否の実機差、WebGPU/OffscreenCanvasのfallbackを追います。Tasks Webの起動エラー分類が更新される場合も確認します。",
+      "bodyEn": "Watch WASM distribution, worker ownership policy, device SIMD differences, and fallback APIs."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命でSIMDを外し、GPU希望を変えてください。「推論を開始できない」と「GPUを今は選ばない」が別の案内になることを確認できます。次に派生でcopyとclose漏れを同時にONにし、保持と漏れを混同しない表示を見ます。",
+      "bodyEn": "Toggle SIMD and GPU first, then compare intentional copy with an omitted close."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: v1.2.2、公式Worker、公式Webサンプル。設計: 能力ルートと資源寿命を分離。実装: 自作HTML 2本。検証: JSON、gallery、GitHub Pagesを公開確認します。",
+      "bodyEn": "Research primary sources, split the contracts, ship two probes, then publish and verify Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの互換性は「動く/動かない」だけではありません。開始条件、選ばなかった高速経路、結果バッファの寿命を先に見せると、性能の都合が利用者にとって理解可能な選択になります。",
+      "bodyEn": "Compatibility becomes a comprehensible choice when prerequisites, routes, and resource lifetime are visible."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `SIMD Capability Gate Lab` はSIMD/GPU/回線を変えて開始ルートを表示します。次に足すなら実WASM初期化と進捗計測です。派生 `Mask Resource Lifetime Stage` はmaskの借用・copy・closeを動かします。次に足すなら実TaskのmaskとPerformance APIです。",
+      "bodyEn": "The main explains capability routes; the derivative visualizes mask lifetime.",
+      "links": [
+        {
+          "label": "Open SIMD Capability Gate Lab",
+          "url": "../outputs/2026-11-05_simd_capability_gate_lab.html"
+        },
+        {
+          "label": "Open Mask Resource Lifetime Stage",
+          "url": "../outputs/2026-11-05_mask_resource_lifetime_stage.html"
+        }
+      ]
+    }
+  ]
+}
