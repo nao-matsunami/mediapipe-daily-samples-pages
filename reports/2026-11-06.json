@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-06",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "長時間セグメンテーションを、鮮度と資源圧で安全に間引く",
+  "headlineEn": "Throttle long-running segmentation by freshness and resource pressure",
+  "summary": "MediaPipe v1.2.2のSIMD前提化、公式Image SegmenterのWorker/Bitmap処理、継続実行時のGPU資源圧に関する公開Issueを手掛かりに、結果の鮮度と保存方針を別々に試す自作HTML 2本を追加しました。",
+  "summaryEn": "Using v1.2.2, the official Image Segmenter worker, and a public long-session GPU issue as cues, this adds two original probes for freshness pressure and snapshot policy.",
+  "keyTopics": [
+    "MediaPipe v1.2.2のTasks Web SDKはnon-SIMD WebAssembly buildを削除している。",
+    "公式Image Segmenter WebサンプルはWorkerとImageBitmapを使い、描画後にBitmapをcloseする。",
+    "連続segmentForVideoのGPU資源増大は公開Issueで報告されており、未解決の観測対象として扱う。",
+    "遅い結果、資源圧による入力間引き、長期保存を一つの失敗状態に混ぜない。"
+  ],
+  "keyTopicsEn": [
+    "Tasks Web v1.2.2 removes non-SIMD WebAssembly builds.",
+    "The official Image Segmenter sample uses a worker and closes ImageBitmaps after drawing.",
+    "A public issue reports GPU resource growth in continuous segmentation and remains a watch item.",
+    "Separate stale results, admission drops, and persistence decisions."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Long Session Pressure Garden",
+      "url": "../outputs/2026-11-06_long_session_pressure_garden.html"
+    },
+    {
+      "label": "Today's derivative: Result Snapshot Policy Cards",
+      "url": "../outputs/2026-11-06_result_snapshot_policy_cards.html"
+    },
+    {
+      "label": "MediaPipe v1.2.2 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+    },
+    {
+      "label": "Official Image Segmenter Web sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/image-segmenter.ts"
+    },
+    {
+      "label": "Public long-session Image Segmenter issue (watch item)",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues/6352"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.2.2のTasks Webはnon-SIMD WASMを外し、公式Image SegmenterサンプルはWorkerでImageBitmapを扱い、描画後にcloseします。さらに連続segmentForVideoでGPU資源が増えるという公開Issueがあります。Issueは未解決の報告であって仕様ではありませんが、長時間運転のUIに鮮度と資源圧を出す理由として有用です。",
+      "bodyEn": "The release, worker sample, and public issue motivate visible long-session safety contracts without treating an issue as API documentation.",
+      "links": [
+        {
+          "label": "v1.2.2",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+        },
+        {
+          "label": "Official sample",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/image-segmenter.ts"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は緑=期限内に描画、橙=到着したが古い、赤=保留スロット前で入力を間引いた、という三色の庭にします。派生はライブ合成・後編集・匿名集計を選ぶと、borrow/copy/aggregateのどれが中心になるかをカードで示します。",
+      "bodyEn": "The main turns result disposition into a three-color garden; the derivative maps product intent to borrow, copy, or aggregate."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "画像を保存せずに入力数、表示数、結果年齢、保留数、copy数、close時刻をPerformance APIやWorkerメッセージから集計できます。MediaPipe Image Segmenter、OffscreenCanvas、Web Audioの警告音、IndexedDBの同意済み集計、XR上の鮮度表示を組み合わせると、端末差の説明を作れます。",
+      "bodyEn": "Count inputs, display age, pending slots, copies, and release times without retaining imagery; combine workers, canvas, audio, storage, and XR overlays."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "ライブ経路では最新結果だけを表示候補にし、期限を越えた結果は描画しません。保存が要るときだけ必要最小限をcopyし、借用したbitmap/maskは同期処理の後に解放します。キューの深さ、結果age、copy、closeを別メトリクスにすると原因を切り分けやすくなります。今回の2本はモデルやネットワークを使わない設計検証です。",
+      "bodyEn": "Use latest-only display, expire old results, copy only explicit snapshots, release borrowed resources after synchronous work, and measure each contract separately."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks WebのWASM配布と型定義、公式WorkerにおけるImageBitmap/maskの解放順、Issue #6352の更新、WebGPUとOffscreenCanvasの長時間挙動を追います。公開PRはリリースされるまで仕様として扱いません。",
+      "bodyEn": "Watch WASM/type changes, official release order, issue #6352, and long-session WebGPU/OffscreenCanvas behavior; do not treat PRs as released behavior."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で推論コストを上げ、鮮度を短く、保留スロットを小さくしてください。橙と赤が別の理由で増えることを確認できます。次に派生で「1枚を後で比較」を選び、copyが必要なのは履歴を本当に使う時だけだと確認してください。",
+      "bodyEn": "Increase cost, shorten freshness, and reduce slots to distinguish expiry from admission drops; then choose review mode to see when copying is warranted."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、公式Web実装、公開Issue。設計: 鮮度・資源圧・保存方針を分離。実装: 自作HTML 2本。検証: JSON、gallery、GitHub Pagesの公開URLを確認します。",
+      "bodyEn": "Research primary sources, separate contracts, implement two probes, then validate JSON, gallery, and Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの長時間品質は平均FPSだけで決まりません。いま表示した結果がどれだけ新しいか、なぜ入力を捨てたか、何だけを履歴に残したかを説明できると、性能制御は利用者と運用者の双方にとって検証可能になります。",
+      "bodyEn": "Long-session quality is not just average FPS: explain displayed age, admission decisions, and retained history."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Long Session Pressure Garden` は入力レート、仮想コスト、鮮度、保留上限を変え、描画・鮮度切れ・資源圧破棄を動かします。次に足すなら実Taskのtimestamp/close計測です。派生 `Result Snapshot Policy Cards` は用途ごとにborrow/copy/aggregateを選びます。次に足すなら同意UIと実callbackのイベント表です。",
+      "bodyEn": "The main visualizes displayed, expired, and admission-dropped results; the derivative selects borrow, copy, or aggregate by intent.",
+      "links": [
+        {
+          "label": "Open Long Session Pressure Garden",
+          "url": "../outputs/2026-11-06_long_session_pressure_garden.html"
+        },
+        {
+          "label": "Open Result Snapshot Policy Cards",
+          "url": "../outputs/2026-11-06_result_snapshot_policy_cards.html"
+        }
+      ]
+    }
+  ]
+}
