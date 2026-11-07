@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-07",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "手の左右、鏡像、ジェスチャー操作を別々の契約にする",
+  "headlineEn": "Make handedness, mirroring, and gesture actions separate contracts",
+  "summary": "MediaPipe Tasks WebのGesture Recognizer公式実装と、Webカメラの鏡像・左右ラベルに関する公開議論を手掛かりに、見た目の左右と推論結果を混同しない本命試作、分類結果を安全に操作へ接続する派生試作を追加しました。",
+  "summaryEn": "Using the official Gesture Recognizer implementation and a public mirroring discussion as cues, this adds two original probes for handedness/display contracts and guarded gesture actions.",
+  "keyTopics": [
+    "公式MediaPipe WebサンプルにはGesture Recognizerがあり、Task処理はmodule Workerへ渡される。",
+    "プレビューをCSSで鏡像にしても、Taskへ渡す入力フレーム自体は反転しない設計にできる。",
+    "HandednessのLeft/Right、画面の左/右、人物の解剖学的な左/右は別の値として扱う。",
+    "ジェスチャー分類は即座に操作せず、信頼度、連続性、クールダウンを通すと誤作動を説明できる。"
+  ],
+  "keyTopicsEn": [
+    "The official Web sample includes Gesture Recognizer and routes task work through a module worker.",
+    "A CSS-mirrored preview need not flip the input frame passed to the Task.",
+    "Task handedness, screen side, and anatomical side are separate values.",
+    "Confidence, continuity, and cooldown make gesture actions explainable."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Handedness Mirror Contract",
+      "url": "../outputs/2026-11-07_handedness_mirror_contract.html"
+    },
+    {
+      "label": "Today's derivative: Gesture Action Guard",
+      "url": "../outputs/2026-11-07_gesture_action_guard.html"
+    },
+    {
+      "label": "Official Gesture Recognizer Web sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/gesture-recognizer.ts"
+    },
+    {
+      "label": "MediaPipe Tasks Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Public handedness/mirroring discussion (watch item)",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues/6376"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式Gesture Recognizer WebサンプルはTask処理をmodule Workerへ渡します。公開Issue #6376では、Webデモがカメラ入力を反転せずにTaskへ渡し、video/overlayだけをCSS鏡像にする点が議論されています。Issueは仕様ではなく観測対象ですが、表示の左右と推論の左右を別フィールドにする理由をよく表しています。",
+      "bodyEn": "The official sample uses a module worker; an open issue illustrates why display-side and inference-side handedness should remain separate fields.",
+      "links": [
+        {
+          "label": "Official sample",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/gesture-recognizer.ts"
+        },
+        {
+          "label": "Issue #6376 (watch item)",
+          "url": "https://github.com/google-ai-edge/mediapipe/issues/6376"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では人物の右手、入力フレーム、Taskラベル、画面位置を同時に変えます。CSS鏡像だけと入力反転を独立したボタンにしたので、「画面左」を発話したいのか「TaskのLeft」を使いたいのかを選べます。派生では👍/✌️を二回連続で送らないと行動にしません。",
+      "bodyEn": "The main independently toggles preview mirroring and input flipping; the derivative requires repeated gesture evidence before action."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存せずにtimestamp、categoryName、score、入力反転フラグ、表示側、ガード通過数だけを集計できます。Hand Landmarkerの21点、Gesture Recognizer、WebHIDの物理スイッチ、Web Audioの確認音、XRの視野内ラベル、匿名のIndexedDB統計を組み合わせると、環境ごとの誤作動を画像なしで比較できます。",
+      "bodyEn": "Aggregate timestamps, labels, scores, flip state, screen side, and guard outcomes without storing imagery; combine landmarks, WebHID, audio, XR, and consented local statistics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "入力ピクセルを反転する処理と、CSS transformでプレビューだけを鏡像にする処理を混ぜません。UIには「画面左」「入力のLeft」「人物の右手」を明記します。ジェスチャーはscore閾値だけでなく、同一結果の連続回数、結果age、クールダウン、キーボード等の代替操作を設けます。今回の2本はモデル・カメラを使わない設計検証です。",
+      "bodyEn": "Do not conflate pixel flips with CSS mirroring. Label each coordinate/meaning frame explicitly and gate gesture actions with more than a score threshold."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks WebのGesture/Hand Landmarker型定義、公式WebサンプルのWorkerと動画座標変換、Issue #6376の更新、前面カメラと背面カメラでの説明文、アクセシビリティ用の非ジェスチャー入力を追います。公開PRやIssueはリリースされるまで仕様として扱いません。",
+      "bodyEn": "Watch Task typings, worker coordinate handling, issue #6376, front/back camera copy, and accessible non-gesture inputs; do not treat issues as released API."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で「プレビューを鏡像表示」だけを切り替え、Taskラベルが変わらない一方で画面位置は変わることを見ます。次に「入力フレームも反転」を押し、意味まで変わることを確認してください。派生では👍を二回押してから、低信頼✊が操作にならないことを試します。",
+      "bodyEn": "Toggle preview-only mirroring, then input flipping, and compare their distinct effects; then verify the guard accepts repeated high-confidence input but not low confidence."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式Task Web実装、Web Vision README、公開の左右/鏡像議論。設計: 人物・入力・Task・画面・行動を分離。実装: 自作HTMLを2本。検証: JSON、gallery、GitHub Pagesの公開URLを確認します。",
+      "bodyEn": "Research primary sources, separate five meanings, implement two original probes, then validate JSON, gallery, and Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの操作性は精度だけで決まりません。モデルが見た座標、利用者が見た座標、プロダクトが行動に変えた判断を追跡できれば、鏡像カメラでも誤解をUIで解けます。分類器の出力は命令ではなく、次の判断への証拠として扱うのが安全です。",
+      "bodyEn": "Usability depends on traceable meanings across model input, user display, and product action; a classifier output is evidence, not an order."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Handedness Mirror Contract` は、人物の手・CSS鏡像・入力反転を操作し、Task handednessと画面側を分離して見せます。次に足すなら実Hand Landmarkerのlandmarkと撮影カメラの状態です。派生 `Gesture Action Guard` は仮想分類を信頼度・連続性・クールダウンで選別します。次に足すなら実Gesture Recognizer callbackと明示確認UIです。",
+      "bodyEn": "The main separates anatomy, input flips, Task handedness, and screen side; the derivative gates classifications before actions.",
+      "links": [
+        {
+          "label": "Open Handedness Mirror Contract",
+          "url": "../outputs/2026-11-07_handedness_mirror_contract.html"
+        },
+        {
+          "label": "Open Gesture Action Guard",
+          "url": "../outputs/2026-11-07_gesture_action_guard.html"
+        }
+      ]
+    }
+  ]
+}
