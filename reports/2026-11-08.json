@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-08",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "複数手の結果を仲裁し、SIMD前提の起動を説明する",
+  "headlineEn": "Arbitrate multi-hand results and explain SIMD-first startup",
+  "summary": "MediaPipe v1.2.2のWeb SDKにおける非SIMD WASM build廃止と、handednessが被写体基準で入力の水平反転により反転するという公式注記を手掛かりに、複数手の意図を安全に仲裁する本命と、能力検出を説明可能な起動ルートへ変える派生試作を追加しました。",
+  "summaryEn": "Using the v1.2.2 SIMD-only Web SDK and the official subject-relative handedness note, this adds an original multi-hand intent arbiter and a capability-aware startup explainer.",
+  "keyTopics": [
+    "MediaPipe v1.2.2はTasks Web SDKから非SIMD WebAssembly buildを除去した。",
+    "HandednessのLeft/Rightは被写体基準で、水平反転した入力を渡すと出力の左右も反転する。",
+    "Gesture Recognizerは複数手のランドマーク、handedness、ジェスチャー分類を返すため、複数候補の仲裁がUI設計になる。",
+    "能力不足を黙って劣化させず、検出結果と次の行動を起動画面で説明できる。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.2.2 removes non-SIMD WebAssembly builds from Tasks Web.",
+    "Handedness is subject-relative and horizontally mirrored input inverts the outputs.",
+    "Gesture Recognizer returns multi-hand landmarks, handedness, and gesture categories, making arbitration a UI concern.",
+    "A startup screen can explain capability results and the next action instead of silently degrading."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Two-Hand Intent Arbiter",
+      "url": "../outputs/2026-11-08_two_hand_intent_arbiter.html"
+    },
+    {
+      "label": "Today's derivative: SIMD Startup Explainer",
+      "url": "../outputs/2026-11-08_simd_startup_explainer.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.2 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+    },
+    {
+      "label": "Official Gesture Recognizer Web guide",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer?tab=Web"
+    },
+    {
+      "label": "Official Tasks Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.2.2の公式リリースはTasks Web SDKから非SIMD WASM buildを除去しました。また、同リリースはHandLandmarkerResultとGestureRecognizerResultのLeft/Rightを被写体の手として明確化し、水平反転した画像を入力すると出力が反転すると説明しています。Gesture RecognizerのWebガイドは複数手のランドマーク、handedness、ジェスチャーを返すため、分類精度だけでなく複数候補をどう一操作へ畳むかが面白い設計点です。",
+      "bodyEn": "The release documents SIMD-only Tasks Web and subject-relative handedness; the Gesture Recognizer's multi-hand output makes intent arbitration a meaningful product decision.",
+      "links": [
+        {
+          "label": "MediaPipe v1.2.2",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+        },
+        {
+          "label": "Gesture Recognizer Web",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer?tab=Web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では被写体Leftの👍とRightの✌️を同時に送ると、画面の位置や配列順で選ばず「保留」にします。二回連続した単独候補だけを操作に確定し、✋はキャンセルを優先します。派生ではSIMD・安全なコンテキスト・Worker・回線を切替え、SDKの技術制約を利用者が試せる行動へ言い換えます。",
+      "bodyEn": "The main holds conflicting simultaneous intentions and confirms only stable evidence; the derivative turns environment capabilities into actionable startup copy."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "画像を保存せず、timestamp、手ごとのcategoryName/score、競合理由、安定フレーム数、選択された起動ルートだけを集計できます。Hand Landmarkerの21点、Web Audioの確認音、WebHIDの押しボタン、XR内の片手ターゲット、同意済みIndexedDBの匿名統計と組み合わせれば、誤発火と能力不足を個人画像なしで比較できます。",
+      "bodyEn": "Aggregate event metadata, scores, conflict reasons, stability, and startup routes without imagery; combine with landmarks, audio, WebHID, XR, and consented local statistics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "handedness、画面側、優先手、ジェスチャー、最終UI操作を別フィールドにします。左右ラベルを優先順位に使うなら、被写体基準であることと入力反転の有無を明示します。SIMD前提のSDKは非対応時に旧build URLを推測せず、WebAssembly capability検出と更新・別端末・代替操作を案内します。今回の2本はモデル・カメラなしの契約検証です。",
+      "bodyEn": "Keep handedness, screen side, priority hand, gesture, and final action separate. For SIMD-only SDKs, detect capability and offer clear alternatives rather than guessing legacy asset URLs."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks WebのWASM配布と型定義、Gesture/Hand Landmarkerの複数手順序とscore、公式デモのアクセス可能な代替操作、Worker経路、v1.2.2以降のリリースを追います。IssueやPRはリリースされるまで仕様として扱いません。",
+      "bodyEn": "Watch Tasks Web WASM distribution, multi-hand ordering and scores, accessible alternatives, worker routes, and releases after v1.2.2; do not treat issues or PRs as shipped API."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で「両手を同時に送る」を押し、異なる高信頼候補が保留になることを見てから、片手を二回押して実行になることを試してください。次に派生でSIMDを非対応にし、技術エラーではなく対応ブラウザや別端末を案内するルートへ切り替わることを確認します。",
+      "bodyEn": "Hold a two-hand conflict, then repeat one hand to confirm it; next disable SIMD and inspect the actionable route."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、Gesture Recognizer Webガイド、Tasks Web Vision README。設計: 複数候補の仲裁と起動説明を分離。実装: 自作HTMLを2本。検証: JSON、gallery、GitHub Pages公開URLを確認します。",
+      "bodyEn": "Research primary sources, separate arbitration from startup explanation, implement two original HTML probes, then validate JSON, gallery, and Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの不確実さはモデル内部だけにありません。二つの手、鏡像、環境能力、待ち時間が同時に存在するため、出力を即座に命令へ変換せず、保留・確認・代替経路を設計することが信頼につながります。",
+      "bodyEn": "Web ML uncertainty spans inputs, displays, capabilities, and time; holding, confirming, and offering alternatives builds trust."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Two-Hand Intent Arbiter` は仮想の複数手結果を競合・安定・キャンセルで仲裁します。次に足すなら実Gesture Recognizer callback、score、結果age、キーボード確認です。派生 `SIMD Startup Explainer` は仮想能力から起動ルートを選びます。次に足すなら実 `WebAssembly.validate()`、`FilesetResolver`、モデルダウンロード進捗です。",
+      "bodyEn": "The main arbitrates synthetic multi-hand results; the derivative chooses a startup route from synthetic capabilities.",
+      "links": [
+        {
+          "label": "Open Two-Hand Intent Arbiter",
+          "url": "../outputs/2026-11-08_two_hand_intent_arbiter.html"
+        },
+        {
+          "label": "Open SIMD Startup Explainer",
+          "url": "../outputs/2026-11-08_simd_startup_explainer.html"
+        }
+      ]
+    }
+  ]
+}
