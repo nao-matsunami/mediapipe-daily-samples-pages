@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-09",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "端末内のランドマーク結果を「鮮度」と「背圧」で扱う",
+  "headlineEn": "Handle on-device landmark results through freshness and backpressure",
+  "summary": "MediaPipe Tasks Webの公式READMEにあるHand Landmarkerと端末内処理の説明、公式Webサンプル集を参照し、推論結果の年齢を操作可否へ変換する本命と、動画入力を最新一件に畳む派生試作を追加しました。",
+  "summaryEn": "Referencing the official Tasks Web README and samples, this adds an original result-freshness probe and a latest-wins video backpressure probe.",
+  "keyTopics": [
+    "Hand Landmarkerは手のキーポイントを検出し、視覚効果の描画に利用できる。",
+    "MediaPipe Tasksは入力を端末上で処理するが、利用状況メトリクスと同意の設計も必要になる。",
+    "公式Webサンプル集はブラウザ内で動くTasks APIの例をまとめ、Vision・Audio・Retrievalを扱う。",
+    "Web動画UIでは推論完了と表示時点がずれるため、timestamp・結果年齢・入力背圧を明示的に管理する。"
+  ],
+  "keyTopicsEn": [
+    "Hand Landmarker detects hand keypoints for visual effects.",
+    "Tasks process inputs on-device, while app metrics and consent still need design.",
+    "The official Web samples cover browser-based Vision, Audio, and Retrieval Tasks.",
+    "Video UI needs explicit timestamp, result-age, and backpressure handling."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Landmark Freshness Chorus",
+      "url": "../outputs/2026-11-09_landmark_freshness_chorus.html"
+    },
+    {
+      "label": "Today's derivative: Inference Backpressure Mixer",
+      "url": "../outputs/2026-11-09_inference_backpressure_mixer.html"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式Tasks Web Vision READMEはHand Landmarkerを手のキーポイントを検出し視覚効果を重ねられるTaskとして示しています。また、入力は端末内で処理される一方、利用状況メトリクスについて同意を得る責任も明記します。公式Webサンプル集はVision、Audio、Retrievalをブラウザ内で動かしています。そこで今日の焦点を「何を検出するか」から、検出済みの結果をいつUIへ使うかへ移しました。",
+      "bodyEn": "Official sources describe on-device Tasks and browser samples; today moves focus from what is detected to when a result is safe to use in UI.",
+      "links": [
+        {
+          "label": "Tasks Web Vision README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        },
+        {
+          "label": "MediaPipe Web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は21点の仮想ランドマークを新鮮・遅延・古い結果として送れます。260ms以内だけを明るいライブ描画とUI候補にし、古い結果は残像として診断に残します。派生は8フレームを連続投入しても推論中は一件、保留は最新一件だけにし、中間フレームを置換します。",
+      "bodyEn": "The main gates a synthetic 21-point result by age; the derivative keeps one running inference and one latest pending frame."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "画像を保存せず、入力timestamp、完了timestamp、結果age、推論時間、置換数、採用/保留理由だけをローカル集計できます。Gesture Recognizerのcategory score、Hand Landmarkerの21点、Performance API、Web Audioの遅延音、同意済みIndexedDB、XRの手のレイテンシ表示と組み合わせると、体感遅延と誤発火を個人画像なしで比較できます。",
+      "bodyEn": "Collect timing and decision metadata without imagery, then combine it with landmarks, gesture scores, Performance API, audio, local storage, and XR latency displays."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "result timestampと描画時刻を別に持ち、ageの閾値をTaskや操作の危険度ごとに決めます。動画入力は毎requestAnimationFrameで無制限に呼ばず、in-flightを一件にし、保留入力はlatest-winsで置換します。MediaPipeのコールバックで受けた画像・マスクなどはライフタイム仕様を確認し、必要な表示データはコピーまたはそのスコープで消費します。",
+      "bodyEn": "Keep result and render timestamps separate; bound in-flight work; replace pending video input with the latest frame; follow result lifetime rules."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks Webのvideo modeとtimestamp契約、画像・マスクのライフタイム、Worker経路、公式サンプルのアクセシブルな代替操作、MediaPipeリリースを追います。未マージPRやIssueは出荷済みの仕様としては扱いません。",
+      "bodyEn": "Watch video-mode timestamp contracts, image and mask lifetimes, worker paths, accessible alternatives, and released changes only."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で「古い結果」を送って操作が待機になることを確認し、「時計を+160ms」で新鮮な結果も期限切れになる様子を見てください。次に派生で8フレーム連続投入を押し、保留が一件だけになり中間入力が置換されることを確認します。",
+      "bodyEn": "Send a stale result and advance time; then burst eight frames and observe a single pending latest frame."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Tasks Web Vision README、公式Webサンプル、公式リリース。設計: 新鮮さの判定と背圧制御を分離。実装: 自作HTMLを2本。検証: JSON、gallery、GitHub Pages公開URLを確認します。",
+      "bodyEn": "Research official sources, separate freshness from backpressure, implement two original HTML probes, then validate gallery and Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "端末内推論は送信先を減らしても、時間の問題を消しません。推論結果を値だけでなく「いつの観測か」として受け取り、遅れた結果を静かに表示・操作・ログへ振り分けると、Web MLのインタラクションはかなり落ち着きます。",
+      "bodyEn": "On-device inference does not erase timing. Treat outputs as observations with time and route late results intentionally."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Landmark Freshness Chorus` は仮想21点をresult ageでライブ/残像/待機へ分けます。次に足すなら実Hand Landmarker callback、video timestamp、ageヒストグラムです。派生 `Inference Backpressure Mixer` は最新一件だけを保留する推論キューです。次に足すなら実video.currentTime、Worker、PerformanceObserver、キーボード操作です。",
+      "bodyEn": "The main gates synthetic landmarks by result age; the derivative models a latest-wins inference queue.",
+      "links": [
+        {
+          "label": "Open Landmark Freshness Chorus",
+          "url": "../outputs/2026-11-09_landmark_freshness_chorus.html"
+        },
+        {
+          "label": "Open Inference Backpressure Mixer",
+          "url": "../outputs/2026-11-09_inference_backpressure_mixer.html"
+        }
+      ]
+    }
+  ]
+}
