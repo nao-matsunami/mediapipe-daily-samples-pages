@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-10",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "手の左右とWASM前提を、起動前のUI契約にする",
+  "headlineEn": "Make handedness and WASM prerequisites explicit UI contracts",
+  "summary": "MediaPipe v1.2.2の公式リリースで明確化されたhandednessの被写体基準・ミラー反転と、Tasks Web SDKからの非SIMD WASMビルド削除を参照し、左右の意味を可視化する本命と、SIMD前提を初期化前に案内する派生試作を追加しました。",
+  "summaryEn": "Referencing the official v1.2.2 release, this adds an original handedness viewpoint probe and a SIMD prerequisite startup gate.",
+  "keyTopics": [
+    "MediaPipe v1.2.2はHandLandmarkerResultとGestureRecognizerResultの左右が被写体基準であり、水平ミラー入力では反転することを明確化した。",
+    "同リリースではMediaPipe Tasks Web SDKから非SIMD WebAssemblyビルドが削除された。",
+    "MediaPipe Tasksは入力を端末上で処理するが、利用状況メトリクスと同意の設計は別途必要である。",
+    "Web MLの開始導線は、カメラ許可やモデル取得より前に能力検査と互換性説明を置くと失敗を小さくできる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.2 clarifies that handedness is subject-relative and flips for horizontally mirrored input.",
+    "The release removes non-SIMD WebAssembly builds from MediaPipe Tasks Web.",
+    "Tasks process inputs on-device while usage-metric consent still needs design.",
+    "Web ML startup benefits from capability checks before permissions and downloads."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Hand Viewpoint Contract",
+      "url": "../outputs/2026-11-10_hand_viewpoint_contract.html"
+    },
+    {
+      "label": "Today's derivative: SIMD Startup Gate",
+      "url": "../outputs/2026-11-10_simd_startup_gate.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.2 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+    },
+    {
+      "label": "Official MediaPipe repository and privacy notice",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式v1.2.2リリースは、Hand LandmarkerとGesture RecognizerのLeft/Rightが閲覧者ではなく被写体の手を指し、水平ミラー画像では出力が反転することを明記しました。またTasks Web SDKは非SIMD WASMビルドを削除しています。どちらも推論精度の話に見えて、実際にはUIが何を意味するか、いつ失敗を伝えるかというプロダクト契約の話です。",
+      "bodyEn": "The official release makes handedness and the SIMD-only Web SDK explicit product-contract concerns.",
+      "links": [
+        {
+          "label": "MediaPipe v1.2.2 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+        },
+        {
+          "label": "Tasks Web Vision README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は被写体基準のLeft/Rightと、通常・ミラーのプレビューを切り替え、画面に見える手の側と安全な文言を分けます。派生はSIMD利用可/不可を切り替え、利用不可ならモデル取得の前に互換性案内へ進みます。二つを合わせると、視覚的にもっともらしい表示より先に座標系と実行条件を説明できます。",
+      "bodyEn": "The main separates subject handedness from screen side; the derivative routes SIMD capability before loading."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "画像を保存せず、handedness、入力のミラー有無、座標変換、UIに採用した側、能力検査結果、起動失敗理由だけをローカル集計できます。Hand Landmarkerの21点、Gesture Recognizerのカテゴリ、CSS transform、WebXRの参照空間、同意済みIndexedDB、アクセシブルなテキスト指示と組み合わせれば、左右取り違えや起動不能の傾向を個人画像なしで診断できます。",
+      "bodyEn": "Collect transform and startup-decision metadata locally, then combine it with landmarks, gestures, XR spaces, storage, and accessible copy."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "handednessを画面のleft/rightというUI語へ直接流さず、subjectSpace→inputTransform→screenSpaceの変換を一箇所に置きます。ミラーの有無はカメラCSSだけでなく推論へ渡す画像にも影響するため、座標とラベルのどちらを反転するかをテストします。WASMは小さな能力検査を先に実行し、通った場合だけFilesetResolver・モデル・カメラを初期化します。",
+      "bodyEn": "Centralize subject-to-screen transforms and capability-gate SDK/model/camera initialization."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipeリリースのWeb/WASM資産、Tasks Webの互換性表記、Hand Landmarker・Gesture Recognizerのミラー入力仕様、公式Webサンプルのアクセシブルな操作経路、WebAssembly SIMDのブラウザ対応状況を追います。IssueやPRは出荷仕様と混同しません。",
+      "bodyEn": "Watch released Web/WASM assets, compatibility guidance, mirrored-input contracts, accessibility, and SIMD support."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で被写体のLeftを選び、ミラーをONにして画面上の側が反転すること、文言が被写体基準のままなことを見ます。次に派生でSIMD利用不可を押し、モデル取得前に案内へ移ることを確認します。",
+      "bodyEn": "Toggle mirroring in the main, then trigger the unsupported branch before any model load in the derivative."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、公式リポジトリ、公式Webサンプル。設計: 左右の意味と起動前能力検査を分離。実装: 自作HTMLを2本。検証: JSON、gallery、GitHub Pagesの公開URLを確認します。",
+      "bodyEn": "Research official sources, separate viewpoint from capability gating, implement two original probes, and publish."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの不具合はモデルの外にもあります。誰の左か、どの座標系か、どの端末で始められるかを明示すると、同じ推論結果でもUIの信頼性が上がります。端末内処理はデータ経路を短くしますが、意味と互換性の設計を省略する理由にはなりません。",
+      "bodyEn": "Reliable Web ML makes viewpoint, coordinate space, and startup compatibility explicit."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Hand Viewpoint Contract` は被写体基準のhandednessを画面座標と分け、ミラー時の見え方を試せます。次に足すなら実Hand Landmarkerの21点、video inputの反転契約、キーボード代替操作です。派生 `SIMD Startup Gate` は能力検査から初期化/案内へ分岐するUIです。次に足すなら実WASM feature check、FilesetResolver、失敗理由別の案内です。",
+      "bodyEn": "The main tests subject-relative handedness; the derivative tests an explicit SIMD startup route.",
+      "links": [
+        {
+          "label": "Open Hand Viewpoint Contract",
+          "url": "../outputs/2026-11-10_hand_viewpoint_contract.html"
+        },
+        {
+          "label": "Open SIMD Startup Gate",
+          "url": "../outputs/2026-11-10_simd_startup_gate.html"
+        }
+      ]
+    }
+  ]
+}
