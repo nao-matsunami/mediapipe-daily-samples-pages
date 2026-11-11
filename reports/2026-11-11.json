@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-11",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "複数手の結果を世代で守り、保持期間を選べるようにする",
+  "headlineEn": "Guard multi-hand results by generation and choose their retention lease",
+  "summary": "MediaPipe v1.2.2のTasks Web SIMD前提と、複数手処理に関する公開Issueをウォッチ項目として参照し、手ごとの非同期結果を世代番号で受理する本命と、推論結果の借用・コピー・集計だけを選び分ける派生試作を追加しました。",
+  "summaryEn": "This adds an original per-hand generation guard and a result-retention policy probe, referencing the official v1.2.2 release and an open multi-hand issue as a watch item.",
+  "keyTopics": [
+    "MediaPipe v1.2.2ではTasks Web SDKから非SIMD WASMビルドが削除されている。",
+    "複数手の非同期結果は到着順ではなく、手ごとの世代番号と時刻で受理を決めると表示の取り違えを防ぎやすい。",
+    "公開Issue #6396は複数手のGesture Recognizerに関する未解決の利用者報告であり、出荷済み仕様ではない。",
+    "結果の借用・コピー・集計のみを目的別に分けると、長時間セッションの資源とデータ経路を説明しやすい。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.2 removes non-SIMD WASM builds from Tasks Web.",
+    "Per-hand generation and time guards prevent arrival-order mistakes.",
+    "Issue #6396 is an unresolved user report, not released behavior.",
+    "Purpose-specific result leases make resource and data paths legible."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Multi-hand Identity Rail",
+      "url": "../outputs/2026-11-11_multihand_identity_rail.html"
+    },
+    {
+      "label": "Today's derivative: Result Lease Triptych",
+      "url": "../outputs/2026-11-11_result_lease_triptych.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.2 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+    },
+    {
+      "label": "Open multi-hand GestureRecognizer report #6396 (watch item)",
+      "url": "https://github.com/google-ai-edge/mediapipe/issues/6396"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式v1.2.2はTasks Webから非SIMD WASMビルドを削除しました。一方、公開Issue #6396には複数手のGesture Recognizerで所有権エラーが出るという利用者報告があります。後者は未解決の報告でありAPI仕様ではありませんが、複数の非同期結果を到着順で描かず、手ごとの世代・時刻・有効期限で選ぶ設計を考えるきっかけになります。",
+      "bodyEn": "The release documents the Web SDK baseline; the open issue is only a watch item that motivates explicit per-hand result admission.",
+      "links": [
+        {
+          "label": "MediaPipe v1.2.2 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.2"
+        },
+        {
+          "label": "Issue #6396",
+          "url": "https://github.com/google-ai-edge/mediapipe/issues/6396"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はA/Bそれぞれに世代番号を与え、遅い古い結果を破棄するレールです。ガードを切ると古い結果が誤って上書きする様子を見られます。派生はライブ合成、限定コピー、集計のみを三連の柱として表し、用途を選ぶと保持の意味が変わることを示します。",
+      "bodyEn": "The main exposes stale per-hand arrivals; the derivative turns retention intent into a visible choice."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "ローカルに残すのは手ID、世代、結果年齢、破棄理由、選んだ保持方針だけにできます。Hand Landmarkerのランドマーク、Gesture Recognizerのカテゴリ、Performance API、Workerメッセージ、IndexedDBの明示的な上限、Web Audioの遅延通知を組み合わせれば、個人画像を保存せずに体験の詰まりを計測できます。",
+      "bodyEn": "Keep only IDs, generations, ages, discard reasons, and policies locally; combine with landmarks, worker telemetry, bounded storage, and feedback."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "手IDごとにlatestGenerationとlatestTimestampを持ち、コールバックで一致しない結果は表示せず解放します。必要ならフレーム内借用、上限付きコピー、集計値のどれかを型ごとに選びます。実Taskのcloseやmaskの寿命は公式APIの現行仕様を確認して実装し、公開Issueを仕様の根拠にしません。",
+      "bodyEn": "Track latest generation/timestamp per identity, reject mismatches, then choose frame-local, bounded-copy, or aggregate retention per result type."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipeのWebリリース、Tasks WebのSIMD・Worker資産、Gesture Recognizerの複数手報告の解決状況、公式サンプルの結果解放方法、長時間Video/Live StreamでのGPU資源挙動を追います。Issue/PRはマージ・リリースされるまでウォッチ項目に留めます。",
+      "bodyEn": "Watch released Web assets, worker behavior, official cleanup patterns, and issue resolution without treating reports as APIs."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で遅延を大きくし、世代ガードONでは古い結果が破棄され、OFFでは誤上書きが増えることを見ます。次に派生で「あとで見直す」を選び、コピーが20件で頭打ちになる設計へ実Taskの結果を接続します。",
+      "bodyEn": "Increase delay and compare the guarded versus unguarded rail, then test the bounded-copy policy."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、公式Webサンプル、公開Issue。設計: 結果の同一性と保持期間を分離。実装: 自作HTMLを2本。検証: JSON、gallery、GitHub Pagesの公開URLを確認します。",
+      "bodyEn": "Research official sources and a watch item, separate identity from retention, build two originals, then publish."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの安定性は推論器の速さだけで決まりません。どの結果が最新か、誰に属するか、いつまで生きるかをUIとコードの両方で扱うと、複数対象・Worker・長時間セッションへ拡張しやすくなります。",
+      "bodyEn": "Web ML reliability also depends on identity, freshness, and lifetime contracts."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Multi-hand Identity Rail` は手ごとの世代ガードで古い非同期結果を破棄します。次に足すなら実Gesture Recognizer、単調タイムスタンプ、手の追跡IDです。派生 `Result Lease Triptych` は借用・上限付きコピー・集計のみを目的で選びます。次に足すなら実マスク/ランドマークのcopy・close APIと永続化同意です。",
+      "bodyEn": "The main guards per-hand arrivals; the derivative selects a result lease.",
+      "links": [
+        {
+          "label": "Open Multi-hand Identity Rail",
+          "url": "../outputs/2026-11-11_multihand_identity_rail.html"
+        },
+        {
+          "label": "Open Result Lease Triptych",
+          "url": "../outputs/2026-11-11_result_lease_triptych.html"
+        }
+      ]
+    }
+  ]
+}
