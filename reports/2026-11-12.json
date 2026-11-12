@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-12",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "時刻とストロークを、推論前に小さな契約として整える",
+  "headlineEn": "Make timestamps and strokes small contracts before inference",
+  "summary": "MediaPipe Tasks Web の VIDEO における単調増加タイムスタンプと、Interactive Segmenter の固定画像＋ストロークという操作モデルを参照し、フレーム受理ゲートとストローク意図ノートの自作ミニ試作を追加しました。",
+  "summaryEn": "Two original mini-prototypes make VIDEO timestamp admission and pinned-image stroke intent visible before connecting a real MediaPipe task.",
+  "keyTopics": [
+    "Hand Landmarker と Gesture Recognizer の Web VIDEO 例は、単調増加タイムスタンプを使う同期呼び出しを示している。",
+    "Interactive Segmenter は固定した1枚の画像に対し、正・負のストロークを繰り返し渡す状態付きタスクである。",
+    "フレームの到着順と推論に渡す時刻を分けると、遅延・重複・巻き戻りをUIで説明できる。",
+    "ストロークの意図を正規化座標で残せば、マスク本体を保存せず再推論や比較の入口を作れる。"
+  ],
+  "keyTopicsEn": [
+    "Official Web VIDEO examples use monotonically increasing timestamps.",
+    "Interactive Segmenter is stateful around a pinned still image and signed strokes.",
+    "Separating arrival order from inference time clarifies late and duplicate frames.",
+    "Normalized stroke intent enables replay without retaining a mask."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Timestamp Admission Gate",
+      "url": "../outputs/2026-11-12_timestamp_admission_gate.html"
+    },
+    {
+      "label": "Today's derivative: Stroke Intent Notebook",
+      "url": "../outputs/2026-11-12_stroke_intent_notebook.html"
+    },
+    {
+      "label": "Official Hand Landmarker for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker?tab=Web"
+    },
+    {
+      "label": "Official Gesture Recognizer for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer?tab=Web"
+    },
+    {
+      "label": "Official Interactive Segmenter for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/interactive_segmenter?tab=Web"
+    },
+    {
+      "label": "MediaPipe primary source repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式のHand Landmarker / Gesture RecognizerのWeb VIDEO例は、フレームごとに単調増加する時刻を渡して同期処理します。Interactive Segmenterは別の設計で、1枚の画像をsetImageしてから正・負のストロークを反復します。前者は時間、後者は意図を小さな入力契約として持つため、同じ『推論』でもUIの責務が違う点が面白いところです。",
+      "bodyEn": "The official VIDEO and interactive APIs expose different small input contracts: monotonic time versus signed strokes on a pinned image.",
+      "links": [
+        {
+          "label": "Hand Landmarker Web guide",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker?tab=Web"
+        },
+        {
+          "label": "Interactive Segmenter Web guide",
+          "url": "https://developers.google.com/edge/mediapipe/solutions/vision/interactive_segmenter?tab=Web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は到着したフレームを光るゲートへ送り、古い時刻が止められる様子を見せます。派生は＋/−のストロークを色分けして、ユーザーの『選びたい／除きたい』をマスク結果と混同せずに扱います。両者を組み合わせると、ライブ映像から選んだ瞬間だけ静止画の精密編集へ渡す二段階UIになります。",
+      "bodyEn": "The main visualizes temporal admission; the derivative preserves signed intent before a mask exists."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "保存対象を時刻・受理/破棄理由・ストロークの正規化座標・モードに絞れば、映像やマスクを残さず操作品質を測れます。Performance APIで処理時間を足し、IndexedDBに件数上限付きで意図を保存し、Web Audioで破棄を短く知らせれば、プライバシーを保った分析とフィードバックへ発展します。",
+      "bodyEn": "Store only timestamps, reasons, and normalized intent; add performance telemetry, bounded storage, and feedback."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "VIDEOでは表示用の到着順と推論用timestampを混ぜず、最後に受理した値より大きい時刻だけを通します。Interactive Segmenterでは同じ画像に対するstroke配列を明示し、maskを配列へコピーする場合だけ寿命と上限を決めます。公式例どおり、取得したmaskは利用後にcloseします。",
+      "bodyEn": "Keep arrival order separate from inference timestamps, and bound any copied mask data before closing the task result."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipeのWeb SDKリリース、Tasks VisionのWASM/SIMD資産、公式WebサンプルのVIDEOループ、Interactive Segmenterのモデル・GPU挙動、MediaPipe GitHubのWeb関連変更を追います。",
+      "bodyEn": "Watch Web SDK releases, WASM assets, official loops, segmenter model behavior, and upstream Web changes."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で『古いフレームを混ぜる』を押し、ゲートON/OFFで最後に描かれる状態が変わることを見ます。次に派生で＋と−を交互に描き、保存されるのが意図の座標だけであることを確かめます。",
+      "bodyEn": "Inject a late frame with the gate on and off, then alternate signed strokes and inspect the intent-only log."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式Webガイドと一次リポジトリ。設計: 時刻契約とストローク契約を分離。実装: 自作HTMLを2本。公開: gallery再生成、Pages push、3 URL確認。",
+      "bodyEn": "Research, separate two input contracts, build two originals, then regenerate and publish."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの体験はモデル選択だけでは完成しません。入力がいつ有効か、誰の意図か、どの結果を保存しないかを先にUIへ置くと、モデルを差し替えても説明可能な体験になります。",
+      "bodyEn": "A legible Web ML experience starts with input validity, intent, and retention boundaries."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Timestamp Admission Gate` は単調増加の時刻だけを通すフレーム受理UIです。次に足すなら実Hand Landmarkerとvideo.currentTimeの重複検知です。派生 `Stroke Intent Notebook` は正・負のストロークを正規化座標で記録します。次に足すなら固定画像、実Interactive Segmenter、maskの表示とcloseです。",
+      "bodyEn": "The main admits monotonic timestamps; the derivative records signed normalized strokes.",
+      "links": [
+        {
+          "label": "Open Timestamp Admission Gate",
+          "url": "../outputs/2026-11-12_timestamp_admission_gate.html"
+        },
+        {
+          "label": "Open Stroke Intent Notebook",
+          "url": "../outputs/2026-11-12_stroke_intent_notebook.html"
+        }
+      ]
+    }
+  ]
+}
