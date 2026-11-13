@@ -1,0 +1,114 @@
+{
+  "date": "2026-11-13",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "観測の強さと音声の区切りを、Web ML の手前で設計する",
+  "headlineEn": "Design observation strength and voice chunks before Web ML",
+  "summary": "MediaPipe v1.2.3 の Web 向け増分 Text-to-Speech 入力と、Web Tasks のランドマーク出力を手掛かりに、presence score の連続表現とストリーム音声の中止境界を試せる自作ミニ試作を2本追加しました。",
+  "summaryEn": "Two original mini prototypes explore continuous landmark presence and cancellable incremental voice chunks before wiring up a real Web task.",
+  "keyTopics": [
+    "MediaPipe v1.2.3 は Web の増分 Text-to-Speech ストリーム入力をサポートした。",
+    "MediaPipe v1.1.0 では Web Tasks API に landmark ごとの presence score が公開された。",
+    "v1.2.2 では非SIMD WebAssembly ビルドが取り除かれ、Web の実行環境確認がより重要になった。",
+    "ランドマークの弱い観測と、生成途中の音声塊は、成功/失敗だけでなく連続的なUI状態として扱える。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 supports incremental Text-to-Speech stream input on Web.",
+    "v1.1.0 exposed per-landmark presence scores to the Web Tasks API.",
+    "v1.2.2 removed non-SIMD WebAssembly builds.",
+    "Weak observations and partial voice chunks should remain continuous UI states."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Landmark Presence Weave",
+      "url": "../outputs/2026-11-13_landmark_presence_weave.html"
+    },
+    {
+      "label": "Today's derivative: Incremental Voice Cadence",
+      "url": "../outputs/2026-11-13_incremental_voice_cadence.html"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "MediaPipe primary source repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official Web Tasks overview",
+      "url": "https://ai.google.dev/edge/mediapipe/solutions/tasks/web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "MediaPipe v1.2.3 のリリースノートには、Web で増分 Text-to-Speech ストリーム入力を扱う変更が記載されています。また v1.1.0 は Web Tasks API に landmark ごとの presence score を公開しました。どちらも最終結果だけでなく、途中の量や区切りをアプリ側が設計できる入口です。",
+      "bodyEn": "Recent releases expose incremental speech input and per-landmark presence, making intermediate states part of product design.",
+      "links": [
+        {
+          "label": "MediaPipe release notes",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命ではスコアを線の太さ、透明度、わずかな揺れへ割り当て、消えた点を突然隠しません。派生では発話を短い塊で並べ、中止は再生中の音だけでなく未再生キューを捨てる操作として見せます。手の存在感が落ちた時に、次の説明音声を保留する組み合わせも考えられます。",
+      "bodyEn": "Map confidence to a visual weave and make cancellation discard queued voice chunks."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "時刻付きのpresence配列、スムージング後の座標、音声キューの投入・再生・中止イベントを匿名ログとして蓄積すれば、誤操作の直前に何が弱かったかを映像なしで比較できます。Web Audio の短いフィードバック、SpeechSynthesis、IndexedDB の上限付きセッション保存、Hands/Pose の実ランドマークを組み合わせると、身体入力で音声案内を制御するプロトタイプになります。",
+      "bodyEn": "Timestamped presence and queue events enable privacy-preserving interaction analysis and multimodal prototypes."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Web 配布では SIMD 前提のWASM資産が使えるかを初期化前に確認し、失敗時の案内を用意します。presence score は閾値で即時に除外せず、描画・補間・コマンド発火で別々のしきい値と時間窓を持たせます。増分音声はキューの上限、中止時の破棄範囲、最新入力を優先する規則を先に決めます。",
+      "bodyEn": "Probe SIMD support, use separate temporal thresholds, and define bounded queue and cancellation policy."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Web SDK のWASM更新、Text-to-Speech と DecisionMaker のWeb API、per-landmark presence の実装例、WebGPU/GPU delegate の挙動、GitHubのWeb関連Issueを追います。",
+      "bodyEn": "Watch WASM updates, new Web APIs, presence examples, GPU behavior, and upstream issues."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で手首のpresenceを0.4未満へ下げ、点を消さずに接続が弱くなる感覚を見ます。派生では2〜3塊を追加してから再生し、途中で中止してキューと音が止まる境界を確かめます。",
+      "bodyEn": "Lower wrist presence, then queue voice chunks and cancel during playback."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリースと一次リポジトリ。設計: 観測強度とストリーム境界を分離。実装: 外部依存なしのHTMLを2本。公開: gallery再生成、Pages push、3 URL確認。",
+      "bodyEn": "Research releases, separate continuous states, build two originals, publish and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの信頼感は、推論の正解率を強く断言することではなく、弱い観測と途中の出力に居場所を与えることで生まれます。数値の変化と取り消し可能なキューを先にUI化すると、モデル更新後も挙動を説明しやすくなります。",
+      "bodyEn": "Trust comes from giving weak observations and partial output a legible place in the UI."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Landmark Presence Weave` は、ランドマークpresenceを連続的な線と点の表現へ変えます。次に足すなら、実Hand/Pose Landmarkerの結果と時間窓付きの補間です。派生 `Incremental Voice Cadence` は、増分音声の塊・再生・中止を可視化します。次に足すなら、実Tasks Webの増分TTS入力、発話開始ポリシー、キュー上限です。",
+      "bodyEn": "The main weaves landmark presence; the derivative makes incremental voice chunks and cancellation visible.",
+      "links": [
+        {
+          "label": "Open Landmark Presence Weave",
+          "url": "../outputs/2026-11-13_landmark_presence_weave.html"
+        },
+        {
+          "label": "Open Incremental Voice Cadence",
+          "url": "../outputs/2026-11-13_incremental_voice_cadence.html"
+        }
+      ]
+    }
+  ]
+}
