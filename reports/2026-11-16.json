@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-16",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Web Tasks の待ち時間と左右を、実装前に可視化する",
+  "headlineEn": "Make Web Tasks waiting and handedness visible before implementation",
+  "summary": "MediaPipe の Web 向け更新と公式ブラウザサンプルを参照し、WASM/モデル初期化の進捗状態と自撮り表示における handedness の変換契約を試せる、自作・外部依存なしのミニ試作を2本追加しました。",
+  "summaryEn": "Two dependency-free original prototypes explore startup progress and selfie handedness contracts before wiring a real Web Task.",
+  "keyTopics": [
+    "MediaPipe の最新リリースには Web Tasks WASM 資産の更新が含まれる。",
+    "Web Tasks はブラウザ内で実行でき、公式 samples-web は vision・audio・text を横断する実例を提供する。",
+    "上流では Web WASM とモデルの onLoadingProgress 提案があり、初期化待ちを製品UIとして設計する必要がある。",
+    "selfieMode と handedness は、人物基準・画面基準・操作基準を別の契約として扱うと誤操作を減らせる。"
+  ],
+  "keyTopicsEn": [
+    "The latest MediaPipe release updates Web Tasks WASM assets.",
+    "Official web samples span vision, audio, and text tasks in the browser.",
+    "An upstream loading-progress proposal makes startup UX a product concern.",
+    "Selfie mirroring and handedness need separate person, screen, and action contracts."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: WASM Loading Progress Orchestra",
+      "url": "../outputs/2026-11-16_wasm_loading_progress_orchestra.html"
+    },
+    {
+      "label": "Today's derivative: Handedness Mirror Compass",
+      "url": "../outputs/2026-11-16_handedness_mirror_compass.html"
+    },
+    {
+      "label": "MediaPipe official repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official Web Tasks Vision package source",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "MediaPipe v1.2.3 の公開ノートには Web Tasks WASM 資産の更新が記され、公式 samples-web はブラウザ内で動く Tasks を vision・audio・text にまたがって示しています。上流PRには Web WASM とモデルダウンロードの onLoadingProgress 提案もあります。推論画面の品質は、推論開始後だけでなく、まだ始められない時間をどう説明するかで決まります。",
+      "bodyEn": "Official releases, samples, and an upstream progress proposal make startup UX part of the Web Tasks product surface.",
+      "links": [
+        {
+          "label": "MediaPipe releases",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases"
+        },
+        {
+          "label": "MediaPipe samples for Web",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は WASM取得、コンパイル、モデル取得、準備完了を一つのオーケストラとして段階表示します。派生は人物の左右、画面上の左右、モデルラベルを別行で固定表示します。これにより、読み込み失敗時は再試行対象を、ジェスチャー時は発火先を、利用者が推測せず確認できます。",
+      "bodyEn": "Show startup phases explicitly, and keep person, screen, and model handedness legible as separate states."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "開始時刻、各フェーズの所要時間、失敗種別、反転設定、handedness、最終アクションを映像なしで蓄積すれば、端末・ネットワーク別の離脱点や左右誤操作を分析できます。Performance API、IndexedDB の上限付きログ、Hand Landmarker のランドマーク、WebHID/音フィードバックと組み合わせると、環境適応型の入力体験へ発展します。",
+      "bodyEn": "Privacy-preserving phase timings and handedness events can reveal startup friction and side mistakes without retaining video."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では FilesetResolver とモデル取得を一括スピナーにせず、ネットワーク、WASM初期化、モデル、カメラ許可を状態機械に分けます。失敗時は再試行してよい層を明示します。handedness は model output を直接UIへ渡さず、mirror/selfie設定を通す変換関数を一箇所に置き、画面座標と人物基準の意味をテストします。",
+      "bodyEn": "Use a startup state machine and a single tested transform between model output, mirrored view, and action coordinates."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Web SDK のWASM更新、onLoadingProgress と selfieMode の進捗、WebGPU/GPU delegate 時の初期化差、公式 samples-web の新タスク、長時間 video 実行時のWeb Issueを追います。",
+      "bodyEn": "Watch Web SDK assets, progress and selfie APIs, GPU startup differences, official demos, and long-session issues."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で「低速回線」と「失敗を試す」を順に押し、どの層の再試行かが読めるかを確認します。派生でミラー表示と検出ラベルを別々に切り替え、同じ人物の手が画面と操作のどちらへ向くべきかを確かめます。",
+      "bodyEn": "Try slow and failed startup, then toggle mirror and label independently to inspect the coordinate contract."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、一次リポジトリ、公式Webサンプル。設計: 起動と左右を独立した状態として定義。実装: 自作HTMLを2本。公開: gallery再生成、Pages push、3 URL確認。",
+      "bodyEn": "Research first-party sources, define two contracts, build two originals, publish, and verify public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの信頼性はモデル精度だけで決まりません。待ち時間が何を意味するか、画面に見える手がどの座標系で解釈されるかを先に説明可能にすると、モデル・端末・回線が変わっても体験の筋が通ります。",
+      "bodyEn": "Explainable waiting and coordinate systems make Web ML resilient to model, device, and network changes."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `WASM Loading Progress Orchestra` は、WASMとモデルの起動を段階・進捗・再試行先として動かします。次に足すなら、実Tasks Webの進捗イベント、AbortController、Performance API計測です。派生 `Handedness Mirror Compass` は、ミラーと検出ラベルを独立に切り替え、画面への変換を可視化します。次に足すなら、実Hand Landmarker、21点描画、アクションの左右マッピング検証です。",
+      "bodyEn": "The main prototype orchestrates startup progress; the derivative exposes mirror and handedness transforms.",
+      "links": [
+        {
+          "label": "Open WASM Loading Progress Orchestra",
+          "url": "../outputs/2026-11-16_wasm_loading_progress_orchestra.html"
+        },
+        {
+          "label": "Open Handedness Mirror Compass",
+          "url": "../outputs/2026-11-16_handedness_mirror_compass.html"
+        }
+      ]
+    }
+  ]
+}
