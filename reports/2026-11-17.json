@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-17",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Face Landmarkerのスコアを、時間のあるUI契約に変換する",
+  "headlineEn": "Turn Face Landmarker scores into temporal UI contracts",
+  "summary": "公式Webサンプル、MediaPipeリリース、Web Tasksの一次コードを参照し、Face Landmarkerのblendshapeスコアを表情譜面へ変換する本命と、presenceをヒステリシスで扱う派生の自作ミニ試作を2本追加しました。",
+  "summaryEn": "Two original prototypes turn Face Landmarker-style scores into an expression score and a hysteresis admission gate.",
+  "keyTopics": [
+    "公式のWebサンプルはFace Landmarkerで478個の3D顔ランドマークを扱う。",
+    "Face Landmarkerの一次コードはlandmarks、blendshapes、face geometryの出力ストリームを持つ。",
+    "公式サンプルUIはGPU/CPU、検出・presence・trackingしきい値を明示し、推論設定を体験設計の一部にしている。",
+    "MediaPipe v1.2.3はWebの増分Text-to-Speech入力とWeb Tasks WASM資産更新を含む。"
+  ],
+  "keyTopicsEn": [
+    "Official web samples expose 478 face landmarks.",
+    "The primary Face Landmarker source emits landmarks, blendshapes, and face geometry.",
+    "Official UI makes delegates and confidence thresholds visible.",
+    "v1.2.3 includes incremental web TTS input and Web Tasks WASM updates."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Blendshape Expression Score",
+      "url": "../outputs/2026-11-17_blendshape_expression_score.html"
+    },
+    {
+      "label": "Today's derivative: Presence Hysteresis Gate",
+      "url": "../outputs/2026-11-17_presence_hysteresis_gate.html"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official Face Landmarker Web sample",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/face_landmarker/js"
+    },
+    {
+      "label": "Face Landmarker Web source",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/face_landmarker/face_landmarker.ts"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式の mediapipe-samples-web は Face Landmarker を含むブラウザ内完結のTask集で、設定としてGPU/CPU、検出・presence・trackingの各しきい値を表に出しています。一次コードには landmarks、blendshapes、face geometry の出力ストリームが並びます。これは『顔を検出した』で終わらず、連続値をどの時間幅・どの意味でUIへ渡すかが製品側の仕事になることを示します。",
+      "bodyEn": "Official samples expose configuration, while the primary task source exposes multiple output streams; product UI must give continuous scores temporal meaning.",
+      "links": [
+        {
+          "label": "Official Web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        },
+        {
+          "label": "Face Landmarker source",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/face_landmarker/face_landmarker.ts"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は smile、blink、brow、jaw の合成スコアを表情の譜面として描きます。派生は、presenceが境界をまたぐ時に表示が点滅しないよう、開始と終了を別しきい値にします。前者は表現の連続性、後者は操作の安定性を短い画面で検証できます。",
+      "bodyEn": "The main score makes expression continuous; the derivative makes interaction admission stable."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "顔ごとのtrack ID、blendshape時系列、presence、状態遷移、閾値変更履歴を、映像を保存せずに短期ログ化できます。Web Audioの音量・発話区間、字幕の語句、WebHIDの触覚、WebXRアバター、IndexedDBの上限付きイベントと組み合わせれば、表情を直接録画しない応答的な演出や誤発火分析に使えます。",
+      "bodyEn": "Time-bounded, video-free score and state logs can combine with audio, subtitles, haptics, XR avatars, and IndexedDB."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では生の最大スコアを即アクションに結び付けず、顔IDごとに時刻付きの平滑化、入場・退場のヒステリシス、最小保持時間を設けます。公式UIにならい、delegateと各confidence値を可視化し、低速端末での推論間引きも状態として表示します。",
+      "bodyEn": "Use per-track smoothing, hysteresis, and dwell time; make delegate and thresholds observable."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Web TasksのWASM更新、Face Landmarkerのblendshape/geometry API、公式samples-webのFace UI、GPU delegateの初期化・計測、長時間カメラ利用でのtrack切替とフレーム落ちを追います。",
+      "bodyEn": "Watch Web WASM, Face APIs, official Face UI, GPU startup, and long-session tracking behavior."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で smile と jaw を少しずつ上げ、表情名の切替が急すぎないか見ます。派生で「境界ノイズ」を選び、admit/release の距離を狭めたり広げたりして、どこで点滅が止まるかを確かめます。",
+      "bodyEn": "Blend smile and jaw, then use boundary noise to tune the gap between admit and release."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式Webデモ、公式サンプル、Face Landmarkerの一次ソース、最新リリース。設計: 表情連続性と操作安定性を分離。実装: 外部依存なしの自作HTMLを2本。公開: gallery再生成、Pages push、公開URL確認。",
+      "bodyEn": "Research first-party sources, separate expression from admission, build two originals, publish, and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの出力は認識結果ではなく、揺れを含む観測値です。表現に使うなら連続性を、操作に使うなら離散化と取り消し条件を先に設計すると、モデル更新や照明変化に対しても体験が壊れにくくなります。",
+      "bodyEn": "ML outputs are noisy observations: expression needs continuity, while controls need discrete contracts and release rules."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Blendshape Expression Score` は、合成blendshapeを顔と8秒の譜面として動かします。次に足すなら実Face Landmarker、track ID、時系列平滑化、音・字幕キューです。派生 `Presence Hysteresis Gate` は、揺れるpresenceを入場・退場しきい値で安定させます。次に足すなら実ランドマークpresence、保持時間、誤発火ログです。",
+      "bodyEn": "The main turns blendshapes into a score; the derivative stabilizes presence with hysteresis.",
+      "links": [
+        {
+          "label": "Open Blendshape Expression Score",
+          "url": "../outputs/2026-11-17_blendshape_expression_score.html"
+        },
+        {
+          "label": "Open Presence Hysteresis Gate",
+          "url": "../outputs/2026-11-17_presence_hysteresis_gate.html"
+        }
+      ]
+    }
+  ]
+}
