@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-18",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Webセグメンテーションを、メモリ寿命と時刻の契約として設計する",
+  "headlineEn": "Design Web segmentation as memory and timestamp contracts",
+  "summary": "MediaPipeの公式リポジトリ、Web Tasks一次コード、公式Webサンプルを参照し、連続マスクのコピー予算を可視化する本命と、映像時刻に対するROIずれを観察する派生の自作ミニ試作を2本追加しました。",
+  "summaryEn": "Two original prototypes make continuous mask memory budgets and video ROI timestamp drift tangible.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はWeb Tasks WASM資産の更新を含む。",
+    "MediaPipeの一次情報ではWeb向けImage SegmenterとMPMask APIが継続して整備されている。",
+    "長時間のvideo segmentationでは、結果マスクをいつコピーし、いつ解放するかがUIの滑らかさと資源使用量を左右する。",
+    "推論結果には映像入力時刻を添え、古いROIを現在フレームへ無条件に重ねない設計が必要になる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 updates Web Tasks WASM assets.",
+    "Web Image Segmenter and MPMask APIs remain active first-party surfaces.",
+    "Mask copy and release policy controls long-session resource use.",
+    "Video inference results need timestamp-aware ROI presentation."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Mask Lifecycle Budget",
+      "url": "../outputs/2026-11-18_mask_lifecycle_budget.html"
+    },
+    {
+      "label": "Today's derivative: ROI Timestamp Lens",
+      "url": "../outputs/2026-11-18_roi_timestamp_lens.html"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "MediaPipe Web Tasks vision source",
+      "url": "https://github.com/google-ai-edge/mediapipe/tree/master/mediapipe/tasks/web/vision"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "MediaPipe primary repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式のmediapipe-samples-webはブラウザ内で動くTasksの実例をまとめ、一次リポジトリではWeb vision taskの実装・型が公開されています。Image Segmenterのような連続結果は『推論できた』だけでは足りません。描画だけの結果、比較・保存する結果、古くなった結果を分けることで、長時間でも説明できる体験になります。",
+      "bodyEn": "First-party web samples and source make Tasks concrete; continuous segmentation needs explicit ownership, retention, and staleness rules.",
+      "links": [
+        {
+          "label": "Official Web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        },
+        {
+          "label": "Web vision source",
+          "url": "https://github.com/google-ai-edge/mediapipe/tree/master/mediapipe/tasks/web/vision"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はマスクを短期リングバッファに複製する頻度と保持数を操作し、メモリ予算を越えた瞬間を見せます。派生は現在映像と遅延したROIを二重に描き、推論遅延と平滑化が『追従感』をどう変えるかを確認します。",
+      "bodyEn": "The main exposes mask retention cost; the derivative exposes the visual cost of delayed ROI alignment."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "フレーム時刻、ROI、マスクの保持時間、コピー数、処理時間、予算超過イベントを映像なしで記録できます。Performance API、WebGPU/WebGL描画、IndexedDBの上限付き診断ログ、WebRTC映像、Web Audioの区間マーカーと組み合わせれば、端末ごとの品質自動調整や、編集可能な短期リプレイへ発展できます。",
+      "bodyEn": "Video-free timestamps, ROI, retention, copy, and budget events can power adaptive quality and bounded replay diagnostics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では結果オブジェクトの所有権を明確にし、同期コールバック内で使い切るものと、ImageBitmapやTypedArrayへコピーして後段に渡すものを分けます。video modeでは単調増加の時刻を記録し、許容遅延を過ぎた結果は描画せず再推論へ回します。",
+      "bodyEn": "Separate callback-local results from copied artifacts; gate video results by monotonically increasing timestamps and a staleness budget."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Web Tasks WASM更新、MPMaskの画像化・寿命API、Image SegmenterのGPU長時間利用、公式サンプルのvideo timestamp処理、WebGPU委譲とメモリ計測を追います。",
+      "bodyEn": "Watch Web WASM, MPMask lifecycle APIs, long GPU segmentation, timestamp handling, and WebGPU memory measurement."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命でバーストを選び、保持フレームとコピー間引きを動かして赤を消せる組み合わせを探します。派生では遅延を400msへ上げて急移動を押し、どのずれからUI上で破棄したくなるかを確認します。",
+      "bodyEn": "Use burst mode to tune the memory contract, then combine 400ms lag with a jump to choose a discard threshold."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、一次リポジトリ、公式Webサンプル。設計: 結果の寿命と入力時刻を分離。実装: 外部依存なしの自作HTMLを2本。公開: gallery再生成、Pages push、公開URL確認。",
+      "bodyEn": "Research first-party sources, separate lifetime from time alignment, build two originals, publish, and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの連続出力はデータ構造であると同時に、時間と資源の契約です。『どの時刻の観測か』『いつまで生かすか』『コピーする価値があるか』をUIに出すと、精度だけでは説明できない遅延・発熱・メモリのトレードオフを設計対象にできます。",
+      "bodyEn": "Continuous Web ML output is a contract over time and resources, not only a value to render."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Mask Lifecycle Budget` は、合成マスクのコピー頻度・保持期間・予算を動かして長時間セグメンテーションの資源契約を確認します。次に足すなら実Image Segmenter、MPMaskの解放、処理時間の計測です。派生 `ROI Timestamp Lens` は、遅延結果と現在映像のずれを可視化します。次に足すなら実video timestamp、古い結果の破棄、ROI再検出です。",
+      "bodyEn": "The main makes mask lifetime budgets tangible; the derivative makes timestamp drift tangible.",
+      "links": [
+        {
+          "label": "Open Mask Lifecycle Budget",
+          "url": "../outputs/2026-11-18_mask_lifecycle_budget.html"
+        },
+        {
+          "label": "Open ROI Timestamp Lens",
+          "url": "../outputs/2026-11-18_roi_timestamp_lens.html"
+        }
+      ]
+    }
+  ]
+}
