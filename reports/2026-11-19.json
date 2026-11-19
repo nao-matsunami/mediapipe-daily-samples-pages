@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-19",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "増分ストリームを、期限付きの対話キューとして設計する",
+  "headlineEn": "Design incremental streams as expiring interaction queues",
+  "summary": "MediaPipe v1.2.3のWeb増分TTS入力とWASM更新を一次情報で確認し、逐次出力の滞留を扱う本命のキュー試作と、割り込み時に意味の区切りを残す派生試作を自作しました。",
+  "summaryEn": "Two original prototypes turn incremental Web streams into bounded queues and interruptible phrase units.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はJavaScriptで増分TextToSpeechストリーム入力をサポートする。",
+    "同リリースはMediaPipe Tasks WebのWASM資産も更新している。",
+    "逐次出力は生成速度だけでなく、消費遅延・上限・破棄規則をUIの契約として設計する必要がある。",
+    "割り込みでは全消去より、完了した意味単位を残して未確定の末尾だけ止める方が理解を保ちやすい。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 supports incremental TextToSpeech stream input on JavaScript.",
+    "The release updates Web Tasks WASM assets.",
+    "Streaming UX needs bounded queues and expiry rules.",
+    "Interruptions can preserve completed units while cancelling tentative tails."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Stream Chunk Backpressure Studio",
+      "url": "../outputs/2026-11-19_stream_chunk_backpressure_studio.html"
+    },
+    {
+      "label": "Today's derivative: Interruptible Phrase Timeline",
+      "url": "../outputs/2026-11-19_interruptible_phrase_timeline.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.3 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+    },
+    {
+      "label": "MediaPipe Web Tasks vision source",
+      "url": "https://github.com/google-ai-edge/mediapipe/tree/master/mediapipe/tasks/web/vision"
+    },
+    {
+      "label": "MediaPipe primary repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "MediaPipe v1.2.3のJavaScript更新には増分TextToSpeechストリーム入力が含まれ、Web Tasks WASMも更新されています。逐次生成は一気に返る結果と違い、利用者の次の操作が到着するまでに出力が古くなります。本日の2本はモデルを模倣せず、そこで必ず必要になる待ち行列、失効、割り込みの設計をブラウザだけで触れる形にしました。",
+      "bodyEn": "The v1.2.3 JavaScript update includes incremental TTS stream input and refreshed Web WASM; the prototypes focus on queue expiry and interruption rather than imitating a model.",
+      "links": [
+        {
+          "label": "Official release notes",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+        },
+        {
+          "label": "Official Web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は生成速度と消費速度を別々に動かし、満杯時に『最古を捨てて最新を優先』か『生成を止める』かを比較します。派生は単語単位のタイムラインを途中で止め、既に確定した区切りだけを残します。音声、字幕、ジェスチャー通知、LLMの逐次説明を同じ設計で扱えます。",
+      "bodyEn": "The main compares expiration versus pausing; the derivative preserves completed phrase units through interruption."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "チャンク番号、生成時刻、消費時刻、満杯回数、失効理由、割り込み位置を映像や発話本文を保存せずに記録できます。Performance APIとWeb Audioの再生ヘッド、MediaPipe Hand Landmarkerのジェスチャー、IndexedDBの上限付きログ、WebRTCの遅延計測と組み合わせれば、端末別のキュー長調整や、操作に反応する読み上げの品質評価へ拡張できます。",
+      "bodyEn": "Queue events can combine with performance, audio, gestures, bounded storage, and WebRTC latency to tune stream UX."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では、チャンクに連番・入力時刻・期限・キャンセル理由を付け、最大キューを明示します。満杯時の規則はタスクごとに固定し、古い案内なら破棄、手順説明なら一時停止、危険通知なら優先割り込み、と分けます。再生中断はAbortControllerやAudioContextの停止だけでなく、字幕の確定範囲にも同じ決定を反映します。",
+      "bodyEn": "Attach IDs, timestamps, expiry, and cancellation causes; choose drop, pause, or priority interruption by task."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Webの増分TTS API詳細、WASM更新時の初期化互換性、Web Tasksの中断・close API、ブラウザ音声の語境界イベント、公式サンプルのストリーミングUIを追います。",
+      "bodyEn": "Watch incremental TTS details, WASM compatibility, cancellation APIs, speech boundary events, and first-party streaming UI."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で生成を最速・消費を遅くしてから、まず『古い断片を落とす』を選びます。次に『生成を一時停止』へ切り替え、どちらが自分のUIの意味に合うか比べます。派生では途中で割り込み、どこまで確定表示を残すと違和感が少ないか観察します。",
+      "bodyEn": "Overproduce first, compare dropping with pausing, then interrupt a phrase to judge the stable unit boundary."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、一次リポジトリ、公式Webサンプル。設計: 出力を期限付きチャンクとして定義。実装: 外部依存なしの本命と派生を2本作成。公開: gallery再生成、Pages push、公開URL確認。",
+      "bodyEn": "Research first-party sources, model output as expiring chunks, build two originals, publish, and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLがリアルタイムになるほど、問題は『出せるか』から『今も出す価値があるか』へ移ります。キューの長さは性能設定ではなく意味の鮮度を決める表現の一部です。入力の更新に対して、古い出力を消す、最後まで待つ、区切りまで残す、の選択を可視化すると体験の意図を議論できます。",
+      "bodyEn": "As Web ML becomes real time, queue length becomes an expressive freshness policy, not merely a performance setting."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Stream Chunk Backpressure Studio` は、合成チャンクの生成・消費・上限を操作し、満杯時の失効と停止を比較します。次に足すなら実MediaPipe TextToSpeechストリーム、AudioContext、AbortControllerです。派生 `Interruptible Phrase Timeline` は、途中割り込みでも確定済みの単位を残します。次に足すなら実語境界イベント、字幕、音量フェードです。",
+      "bodyEn": "The main tests bounded queue policies; the derivative tests stable phrase units during interruption.",
+      "links": [
+        {
+          "label": "Open Stream Chunk Backpressure Studio",
+          "url": "../outputs/2026-11-19_stream_chunk_backpressure_studio.html"
+        },
+        {
+          "label": "Open Interruptible Phrase Timeline",
+          "url": "../outputs/2026-11-19_interruptible_phrase_timeline.html"
+        }
+      ]
+    }
+  ]
+}
