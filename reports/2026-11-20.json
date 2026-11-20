@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-20",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "鮮度と確信度を分け、Web ML の反応を設計する",
+  "headlineEn": "Design Web ML responses by separating freshness and confidence",
+  "summary": "MediaPipeのWeb向け更新と公式サンプルを一次情報で確認し、遅延と確信度を混ぜて出力を安定化する本命試作、境界越えを滞在時間で抑える派生試作を自作しました。",
+  "summaryEn": "Two original prototypes separate result freshness from confidence, then use dwell time to prevent accidental boundary actions.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はJavaScriptの増分TextToSpeechストリーム入力とWeb Tasks WASM更新を含む。",
+    "MediaPipeは入力処理を端末上で行うことを明記しており、映像を送らずに反応設計を検証できる。",
+    "リアルタイムUIでは確信度だけでなく、結果の古さを別の契約として扱う必要がある。",
+    "境界操作は閾値だけでなく滞在時間と余白で誤発火を抑えられる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 includes incremental JavaScript TTS input and Web Tasks WASM updates.",
+    "MediaPipe documents on-device processing.",
+    "Real-time UI needs freshness as well as confidence.",
+    "Dwell time and margin reduce boundary misfires."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Freshness × Confidence Crossfade",
+      "url": "../outputs/2026-11-20_freshness_confidence_crossfade.html"
+    },
+    {
+      "label": "Today's derivative: Boundary Dwell Latch",
+      "url": "../outputs/2026-11-20_boundary_dwell_latch.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.3 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+    },
+    {
+      "label": "MediaPipe primary repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "MediaPipe v1.2.3はJavaScriptの増分TextToSpeechストリーム入力とWeb Tasks WASMの更新を含みます。逐次結果では『正しいか』に加えて『今も新しいか』が体験を決めます。本日の自作2本はモデル出力をまねず、この二つの判定がUIに渡る直前の契約を触れる形にしました。",
+      "bodyEn": "v1.2.3 highlights incremental JavaScript TTS input and refreshed Web WASM. These originals make freshness and confidence contracts tangible.",
+      "links": [
+        {
+          "label": "Official release notes",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+        },
+        {
+          "label": "Official web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命では水色の最新入力、黄の遅延推論、緑の出力を重ね、古い結果や低確信時に緑が最後の受理位置を保つ様子を見せます。派生は円を指先ターゲットに見立て、短い横切りと意図的な滞在を別の操作にします。音声キュー、字幕、ジェスチャー、注視選択に転用できます。",
+      "bodyEn": "The main crossfades raw, delayed, and accepted positions; the derivative distinguishes a pass-through from intentional dwell."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "フレーム時刻、推論時刻、age、presence、速度、ラッチ回数を映像自体なしに記録できます。Performance API、Hand Landmarkerの21点、Web Audioの再生位置、IndexedDBの上限付きイベント、WebRTC遅延と結べば、端末・照明・操作別に許容遅延と滞在時間をチューニングできます。",
+      "bodyEn": "Timestamp, age, presence, velocity, and latch events can combine with performance, landmarks, audio, storage, and WebRTC metrics."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "`detectForVideo(video, timestamp)` の時刻と結果受領時刻を別に保持し、ageをUI判定へ渡します。confidence閾値だけで即座に非表示にせず、ageと組み合わせた減衰へするとちらつきを減らせます。境界操作には内側余白・滞在時間・退出時リセットを明示し、ログにも理由を残します。",
+      "bodyEn": "Keep inference and receipt timestamps separately; combine confidence with age decay and explicit dwell/margin/reset rules."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Tasks Webの各結果にあるpresence/scoreの意味、WASM更新時のAPI互換性、公式Webサンプルのvideo loop、増分TTSのキャンセル・キュー契約、WebGPU/Worker移行時の時刻共有を追います。",
+      "bodyEn": "Watch result score semantics, WASM compatibility, video loops, stream cancellation, and timestamp sharing across Workers."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で擬似推論遅延を最大にしてポインタを速く動かし、許容遅延を下げます。緑の出力を即時追従させるより、誤った古い位置を避ける方がよい場面を確かめます。派生では円を一瞬通過してから、内側で止めて確定との差を比べます。",
+      "bodyEn": "Maximize synthetic lag, lower the age budget, and compare stale avoidance with immediate response; then compare pass-through and dwell."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、一次リポジトリ、公式Webサンプル。設計: freshnessとconfidenceを別の値として定義。実装: 外部依存なしの本命・派生を制作。公開: gallery再生成、Pages push、公開URL確認。",
+      "bodyEn": "Research primary sources, define freshness and confidence separately, build two originals, publish, and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "オンデバイス推論ではプライバシーと応答性を両立しやすい一方、結果が届く時刻は必ず揺れます。精度を一つの数値に畳まず、鮮度・確信・意図の持続を別々に見せると、モデル変更にも耐える操作設計になります。",
+      "bodyEn": "On-device inference still has timing variance; keeping freshness, confidence, and intent duration separate yields resilient interaction design."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Freshness × Confidence Crossfade` は、ポインタ入力を遅延推論へ見立て、取得時刻からのageとconfidenceで追従率を調整し、不適格な結果では最後の受理位置を保持します。次に足すなら実Hand Landmarker時刻・presence・フレーム計測です。派生 `Boundary Dwell Latch` は、内側に留まった時だけ操作を確定します。次に足すなら指先速度に応じた可変余白です。",
+      "bodyEn": "The main blends an output by age and confidence; the derivative latches only after intent has persisted.",
+      "links": [
+        {
+          "label": "Open Freshness × Confidence Crossfade",
+          "url": "../outputs/2026-11-20_freshness_confidence_crossfade.html"
+        },
+        {
+          "label": "Open Boundary Dwell Latch",
+          "url": "../outputs/2026-11-20_boundary_dwell_latch.html"
+        }
+      ]
+    }
+  ]
+}

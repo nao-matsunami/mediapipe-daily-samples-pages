@@ -59,25 +59,28 @@ async function readLatestReport() {
 
   const file = datedReports.at(-1);
   const report = JSON.parse(await fs.readFile(path.join(reportsDir, file), "utf8"));
-  const sampleLink = report.links?.find((link) => link.url?.startsWith("../outputs/") && link.url.endsWith(".html"));
+  const sampleUrls = [...new Set((report.links ?? [])
+    .map((link) => link?.url)
+    .filter((url) => typeof url === "string" && /^(?:\.\.\/)?outputs\/.+\.html$/.test(url))
+    .map((url) => url.replace(/^\.\.\//, "")))];
 
-  if (!report.date || !sampleLink) {
-    throw new Error(`Latest report ${file} is missing date or representative sample link.`);
+  if (!report.date || !sampleUrls.length) {
+    throw new Error(`Latest report ${file} is missing date or sample HTML links.`);
   }
 
   return {
     date: report.date,
-    sampleUrl: sampleLink.url,
+    sampleUrls,
   };
 }
 
 async function checkUrl(url) {
   try {
-    const response = await fetch(url, { method: "HEAD", redirect: "follow", cache: "no-store" });
+    const response = await fetch(url, { method: "HEAD", redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(15_000) });
     return response.status;
   } catch {
     try {
-      const response = await fetch(url, { method: "GET", redirect: "follow", cache: "no-store" });
+      const response = await fetch(url, { method: "GET", redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(15_000) });
       return response.status;
     } catch {
       return 0;
@@ -120,7 +123,7 @@ async function main() {
   const urlsToVerify = [
     publicUrl(),
     publicUrl(`days/${latest.date}.html`),
-    publicUrl(latest.sampleUrl),
+    ...latest.sampleUrls.map((url) => publicUrl(url)),
   ];
 
   await copyProject();
