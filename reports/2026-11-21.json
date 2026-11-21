@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-21",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "ジェスチャー分類を、意図のある操作へ翻訳する",
+  "headlineEn": "Translate gesture classification into intentional actions",
+  "summary": "MediaPipe Tasks Web の公式実装とリリースを参照し、揺れるジェスチャースコアを連続フレームで安定化する本命と、ホールド後のリリースだけを確定する派生の自作2本を制作しました。",
+  "summaryEn": "Two original prototypes turn volatile gesture scores into intentional controls through frame consensus and hold-to-release phrases.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はJavaScriptの増分TextToSpeech入力とWeb Tasks WASM更新を含む。",
+    "公式WebサンプルはGesture Recognizerで検出・presence・trackingのしきい値を個別に扱う。",
+    "Gesture Recognizerはジェスチャー分類と手のランドマークを同時に返すため、UI側で時間方向の意図を作れる。",
+    "MediaPipe Tasksは入力を端末上で処理すると明記しており、カメラ映像を外部へ送らずに操作契約を検証できる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 includes incremental JavaScript TTS input and refreshed Web Tasks WASM.",
+    "The official web sample exposes detection, presence, and tracking thresholds separately.",
+    "Gesture Recognizer returns gesture classification alongside hand landmarks.",
+    "MediaPipe Tasks documents on-device input processing."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Gesture Consensus Gate",
+      "url": "../outputs/2026-11-21_gesture_consensus_gate.html"
+    },
+    {
+      "label": "Today's derivative: Gesture Release Phrase",
+      "url": "../outputs/2026-11-21_gesture_release_phrase.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.3 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+    },
+    {
+      "label": "Official MediaPipe Tasks Web vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式WebサンプルのGesture Recognizerは、ジェスチャー名とscoreに加え、検出・presence・trackingのしきい値を個別に設定します。モデルの1フレームの答えをそのまま実行命令にせず、UI側で時間的な合意を加える余地がある点が面白いところです。本日の自作試作はそこだけを取り出し、カメラやモデルなしに操作感を検証できるようにしました。",
+      "bodyEn": "The official Web sample separates detection, presence, and tracking thresholds. These originals isolate the UI contract that turns a one-frame answer into temporal intent.",
+      "links": [
+        {
+          "label": "Official Gesture Recognizer sample source",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/tasks/gesture-recognizer.ts"
+        },
+        {
+          "label": "Official Tasks Web Vision README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はポインタ位置を擬似ジェスチャーscoreへ写し、しきい値以上の連続フレームだけでACTへ変えます。派生は、円内のホールドを『候補』、外へ抜く動きを『確定』にする小さなフレーズです。ピンチでツールを選び、手を開いて決定するようなXR・字幕送り・音のキュー操作に応用できます。",
+      "bodyEn": "The main requires consecutive scores; the derivative turns hold then release into a compact control phrase for XR, captions, or audio cues."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "カテゴリ名、score、handedness、21点ランドマーク、前フレームとの差分、候補開始時刻、確定・取消理由をイベントとして残せます。Performance APIのフレーム時間、Web Audioの拍位置、IndexedDBの上限付きログ、WebXRの視線・空間アンカーと組み合わせると、場所や端末ごとの誤発火率を比較し、操作語彙を調整できます。",
+      "bodyEn": "Category, score, handedness, landmarks, motion, timings, and cancel reasons can combine with performance, audio, storage, and WebXR signals."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "Gesture Recognizerの各フレームでは、同じ手・同じカテゴリだけを連続カウントし、None、カテゴリ交代、時刻逆行、手の消失でカウンタを明示的にリセットします。確定後は短いクールダウンを入れ、後段に渡すイベントへ推論時刻・受領時刻・score列を添えるとデバッグしやすくなります。",
+      "bodyEn": "Count only the same hand and category; reset explicitly on None, category change, timestamp regression, or hand loss, then log timing and scores with the emitted event."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Tasks WebのWASM更新とAPI互換性、Gesture Recognizerのcustom model・カテゴリ契約、公式サンプルのWorker化とcleanup、WebGPU利用時のフレーム予算、増分TTSの入力キャンセルを追います。",
+      "bodyEn": "Watch Web WASM/API compatibility, custom gesture categories, worker cleanup, WebGPU frame budgets, and incremental TTS cancellation."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命でノイズを上げ、連続フレーム数を1から増やして、反応速度と誤発火のトレードオフを見ます。派生では短く円内を通る操作と、十分にホールドしてから外へ出る操作を比べ、リリースが操作の句読点になるかを確かめます。",
+      "bodyEn": "Raise noise and compare one frame against longer consensus; then compare a pass-through with a deliberate hold and release."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、Tasks Web Visionの一次実装、公式ブラウザサンプル。設計: score、時間、確定を分離。実装: 外部依存なしの本命・派生を作成。公開: gallery再生成、Pages push、3つの公開URLを確認。",
+      "bodyEn": "Research primary sources, separate score/time/commit, build two originals, then publish and check three public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "分類器の出力は語彙であって、操作の文法ではありません。scoreを平滑化するだけより、連続、ホールド、リリース、取消を小さな状態機械として設計すると、モデルや照明が変わっても人が予測しやすいWeb ML操作になります。",
+      "bodyEn": "Classifier output is vocabulary, not interaction grammar; small state machines for consensus, hold, release, and cancel remain predictable across model and lighting changes."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Gesture Consensus Gate` はポインタ由来の揺れる擬似scoreを連続フレームで合意させ、ACTを一度だけ開きます。何が動くか: しきい値、ノイズ、必要フレーム数を操作し、カウンタと履歴を観察できます。次に足すなら実Gesture Recognizerのカテゴリ・handedness・クールダウンです。派生 `Gesture Release Phrase` は、円内ホールド後に外へ出た時だけフレーズを確定します。何が動くか: ホールド時間と解除余白、確定履歴を操作できます。次に足すなら実カテゴリの消失、Web Audio、字幕です。",
+      "bodyEn": "Gesture Consensus Gate gates noisy scores by frame consensus; Gesture Release Phrase commits only on release after a hold.",
+      "links": [
+        {
+          "label": "Open Gesture Consensus Gate",
+          "url": "../outputs/2026-11-21_gesture_consensus_gate.html"
+        },
+        {
+          "label": "Open Gesture Release Phrase",
+          "url": "../outputs/2026-11-21_gesture_release_phrase.html"
+        }
+      ]
+    }
+  ]
+}
