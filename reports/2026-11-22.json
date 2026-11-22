@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-22",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "ライブ推論を、描画予算と追跡の約束へ変える",
+  "headlineEn": "Turn live inference into display budgets and tracking promises",
+  "summary": "MediaPipeの公式リリース、一次リポジトリ、公式Webデモを参照し、ライブ映像で推論の開始頻度を整える本命と、複数ランドマーク候補を連続性で引き継ぐ派生の自作2本を制作しました。",
+  "summaryEn": "Two original prototypes explore paced live inference and continuity-first handoff between landmark candidates.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はMediaPipe Tasks WebのWASM更新とJavaScriptの増分TextToSpeech入力を含む。",
+    "公式リポジトリはMediaPipe Tasksが入力を端末上で処理すると説明しており、Web MLの操作契約をローカルで検証しやすい。",
+    "上流issueにはWeb GPU ImageSegmenterの連続video処理でGL handle tableが増え続ける報告があり、長時間セッションでは推論頻度・寿命・計測を分けて扱う必要がある。",
+    "公式CodePenにはImage SegmentationやObject DetectionなどのWebデモがあり、推論結果を表現へ接続する入口になる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 refreshes MediaPipe Tasks Web WASM and adds incremental JavaScript TTS input.",
+    "MediaPipe documents on-device processing for Tasks input data.",
+    "An upstream Web GPU ImageSegmenter issue highlights lifetime pressure in continuous video work.",
+    "Official CodePen demos show Web vision tasks as an expressive starting point."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Inference Budget Conductor",
+      "url": "../outputs/2026-11-22_inference_budget_conductor.html"
+    },
+    {
+      "label": "Today's derivative: Landmark Handoff Compass",
+      "url": "../outputs/2026-11-22_landmark_handoff_compass.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.3 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+    },
+    {
+      "label": "Official MediaPipe repository and privacy notice",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    },
+    {
+      "label": "Official MediaPipe Web demos",
+      "url": "https://codepen.io/mediapipe/pens/"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "MediaPipe v1.2.3ではWeb TasksのWASMが更新され、JavaScriptでは増分TextToSpeech入力も加わりました。一方、上流のWeb GPU ImageSegmenter issueには連続segmentForVideoでGL handle tableが増える報告があります。ライブMLは『モデルを動かす』だけでなく、いつ起動するか、結果をいつ手放すか、表示がどの時刻を表すかを設計対象にするのが面白いところです。",
+      "bodyEn": "A refreshed Web runtime and an upstream continuous-video lifetime report make scheduling, ownership, and displayed time part of the live-ML design.",
+      "links": [
+        {
+          "label": "Official v1.2.3 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+        },
+        {
+          "label": "Upstream Web GPU ImageSegmenter issue",
+          "url": "https://github.com/google-ai-edge/mediapipe/issues/6367"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は、描画のたびに推論せず、1秒あたりの予約回数と推論コストから次の開始時刻を決めます。黄色の現在位置と紫の最後に受理した結果のずれが、遅延を視覚的なリズムにします。派生は、二つの候補のscoreだけではなく直前位置への近さを使い、誰の手・姿勢を操作対象として引き継ぐかを触って比較できます。",
+      "bodyEn": "The main turns inference timing into a visible rhythm; the derivative compares score-only selection with continuity-first candidate handoff."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "推論開始・完了・採用・破棄の時刻、結果年齢、推論コスト、候補ごとのscore、重心、handedness、presence、引き継ぎ理由を小さなイベントとして保存できます。Performance APIとLong Tasks、IndexedDBの上限付きセッションログ、Web Audioの拍、WebXRの空間アンカーを組み合わせると、端末別の予算や『人が切り替わったと感じる』閾値を比較できます。",
+      "bodyEn": "Start/finish/adopt/drop timings, age, cost, scores, centroids, handedness, and handoff reasons can combine with performance, storage, audio, and XR signals."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装ではvideoの描画ループとdetectForVideoの開始を分離し、未完了中に新しい要求を積まないか、最新フレームだけを保つかを明示します。結果オブジェクトやmaskは所有期間を短くし、Taskのcloseとvideo track停止を画面離脱時に行います。複数人物ではscore最大へ即切替せず、位置・手性・ID・不在時間を含む切替余白を置くと、操作対象が跳びにくくなります。",
+      "bodyEn": "Separate rendering from task starts, state a queue policy, keep result ownership short, clean up tasks/tracks, and add a margin around multi-person handoffs."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Tasks WebのWASM/API更新、ImageSegmenterの長時間video処理とGPU資源の修正状況、Web Worker・OffscreenCanvasの公式サンプル採用、複数手・複数人物でのtracking契約、WebGPU/WebGLの性能差を追います。",
+      "bodyEn": "Watch Web WASM/API changes, long-video ImageSegmenter fixes, worker/OffscreenCanvas examples, multi-subject tracking contracts, and WebGPU/WebGL performance."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で推論コストを上げ、毎秒予算を下げて、現在位置と最後のML結果の距離を比べます。派生では点Aを点Bへ近づけ、scoreの重みを上げ下げして、誤った乗り換えと追従性の境目を見ます。",
+      "bodyEn": "Raise main-task cost and lower its rate, then steer A toward B and tune score weight to find handoff boundaries."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、MediaPipe一次リポジトリ、上流issue、公式Webデモ。設計: 推論予約と表示、候補scoreと連続性を分離。実装: 外部依存なしの本命・派生を作成。公開: gallery再生成、Pages push、公開URL 3本を確認。",
+      "bodyEn": "Research primary sources, separate scheduling from display and score from continuity, build two originals, publish, and verify three public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLのUI品質は最高精度の1フレームだけでは決まりません。結果の時刻、資源の寿命、誰を同じ対象と見なすかという時間方向の約束が、体感上の信頼を作ります。小さなスケジューラと引き継ぎ規則を先に可視化すると、後からモデルやデリゲートを替えても検証軸を保てます。",
+      "bodyEn": "Live Web ML trust comes from temporal promises about time, resource lifetime, and identity—not merely the best single-frame score."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Inference Budget Conductor` は、ポインタ由来の現在位置に対して、推論コストと毎秒予算で最後の受理結果を遅れて追わせます。何が動くか: コスト・予算・速度を操作し、予約回数、スキップされた描画、結果遅延を観察できます。次に足すなら実MediaPipe Task、Worker、Performance markです。派生 `Landmark Handoff Compass` は、二つの擬似ランドマーク候補をscoreと位置連続性で選びます。何が動くか: ポインタでAを動かし、切替余白と重みで追跡対象の乗り換えを比較できます。次に足すなら実Hand/Pose Landmarkerの重心、handedness、presence、再取得ログです。",
+      "bodyEn": "Inference Budget Conductor paces accepted results; Landmark Handoff Compass selects between candidates using score and continuity.",
+      "links": [
+        {
+          "label": "Open Inference Budget Conductor",
+          "url": "../outputs/2026-11-22_inference_budget_conductor.html"
+        },
+        {
+          "label": "Open Landmark Handoff Compass",
+          "url": "../outputs/2026-11-22_landmark_handoff_compass.html"
+        }
+      ]
+    }
+  ]
+}
