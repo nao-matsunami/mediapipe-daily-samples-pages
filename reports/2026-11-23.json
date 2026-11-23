@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-23",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "ジェスチャー結果を、説明できる操作と片付けへ変える",
+  "headlineEn": "Turn gesture results into explainable actions and cleanup",
+  "summary": "MediaPipeの公式Webガイド、最新リリース、公式Webサンプルを参照し、ジェスチャーを複数の契約で操作に昇格させる本命と、Task切替時のcleanup順序を試す派生の自作2本を制作しました。",
+  "summaryEn": "Two original prototypes explore explainable action admission and explicit cleanup while switching web tasks.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はTasks WebのWASM更新とJavaScript向け増分TextToSpeech入力を含む。",
+    "公式Gesture Recognizer/Hand LandmarkerのWebガイドは、ブラウザでTask APIを使う入口を示す。",
+    "公式mediapipe-samples-webはon-deviceの音声・視覚・テキストTaskをWebで実演し、ルート切替で前のTaskをcleanupする実装を持つ。",
+    "MediaPipe v1.2.2は手性が被写体基準であり、水平反転入力では左右が反転することを明確化した。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 refreshes Tasks Web WASM and adds incremental JavaScript TTS input.",
+    "Official Web guides provide the entry point for Gesture Recognizer and Hand Landmarker.",
+    "The official web samples demonstrate on-device tasks and explicit task cleanup on route changes.",
+    "v1.2.2 clarifies subject-relative handedness and its inversion for mirrored input."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Action Admission Loom",
+      "url": "../outputs/2026-11-23_action_admission_loom.html"
+    },
+    {
+      "label": "Today's derivative: Task Cleanup Switchboard",
+      "url": "../outputs/2026-11-23_task_cleanup_switchboard.html"
+    },
+    {
+      "label": "Official Gesture Recognizer for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer?tab=Web"
+    },
+    {
+      "label": "Official Hand Landmarker for Web",
+      "url": "https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker?tab=Web"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式mediapipe-samples-webはWeb上で複数のon-device Taskを扱い、ルート変更時に前のTaskのcleanupを呼びます。これと最新v1.2.3のWeb WASM更新を合わせて読むと、Web MLの品質は認識率だけでなく、結果を操作へ採用する規則と、切替・終了で資源を返す規則の両方に現れます。",
+      "bodyEn": "Official Web samples clean up the prior task on route changes. Together with refreshed Web WASM, this makes action policy and resource lifecycle first-class UI concerns.",
+      "links": [
+        {
+          "label": "Official web sample router",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/main.ts"
+        },
+        {
+          "label": "Official v1.2.3 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は確信度・鮮度・静止・再発火待ちを四つのバッジにし、すべて通るとだけ操作を発火します。どの条件で保留されたかを身体的なポインタ移動と一緒に見せるので、単一thresholdより調整意図を共有しやすくなります。派生はTask、track、結果参照をスイッチボードに見立て、危険な切替で残ったhandleを可視化します。",
+      "bodyEn": "The main exposes score, freshness, stillness, and cooldown as four action badges; the derivative makes task, track, and result ownership visible during switches."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "採用/保留の理由、category score、timestamp、指先速度、handedness、フレーム年齢、cleanup開始/完了、Task種別を小さなイベント列として残せます。Performance API、Long Tasks、IndexedDBの容量上限付きログ、Web Audioの確認音、WebHIDやXRの出力と組み合わせれば、端末別に誤発火・遅延・セッション寿命を比較できます。",
+      "bodyEn": "Admission reasons, scores, timestamps, velocity, handedness, result age, and cleanup spans can combine with performance logs, bounded storage, audio, HID, and XR."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装では認識結果を受けた時点で時刻と座標系を固定し、scoreだけで操作を確定しません。video loopでは最新の一要求だけを保持し、画面離脱・route変更・カメラ停止の共通cleanupにTaskのclose、track.stop、timer/AbortController、結果参照の解放を集約します。ミラー映像では手性が反転する契約もUIのラベルと行動マップへ反映します。",
+      "bodyEn": "Fix result time and coordinates, keep only the newest request, centralize close/track/abort/result cleanup, and map mirrored handedness explicitly."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Tasks WebのWASM/API更新、公式Webサンプルのcleanup設計、Web Worker/OffscreenCanvasへの展開、Gesture Recognizerの複数手結果とcategoryの安定性、WebGPU/WebGLの長時間利用時の資源計測を追います。",
+      "bodyEn": "Watch Tasks Web updates, official cleanup patterns, worker/offscreen adoption, multi-hand gesture stability, and long-session GPU measurement."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命ではポインタを止めたまま確信度を上げ、次に結果年齢を160msより大きくして、同じ分類でも操作が保留される理由を比べます。派生ではHand→Gesture→Segmenterを切り替えた後にunsafe switchを押し、残留handleの表示と正常cleanupの差を見ます。",
+      "bodyEn": "Hold the pointer and tune score then age in the main; in the derivative, compare clean task switches with the unsafe switch."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI EdgeのGesture/Hand Webガイド、公式リリース、公式Webサンプル。設計: 認識と操作採用、Task setupとcleanupを分離。実装: 外部依存なしの本命・派生を作成。公開: gallery再生成、Pages push、公開URL 3本を確認。",
+      "bodyEn": "Research first-party docs and samples, separate recognition from admission and setup from cleanup, build two originals, publish, and verify three public URLs."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの操作感は、モデル出力をただ早く表示することではなく、「なぜ今は発火しないのか」「画面を離れたら何が止まるのか」を説明できることから強くなります。採用と解放を小さな可視化として先に固定すれば、モデル・delegate・UIを後から交換しても、検証の軸を維持できます。",
+      "bodyEn": "Web ML feels trustworthy when it explains why an action is held and what stops on exit. Visualizing admission and release preserves that test axis across models and UI changes."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Action Admission Loom`（`outputs/2026-11-23_action_admission_loom.html`）は、ポインタ由来の擬似ジェスチャーをscore・鮮度・静止・cooldownで発火判定します。何が動くか: 四つのsliderとポインタで、どの契約が操作を止めたかと発火履歴を見られます。次に足すなら実Gesture Recognizer、指先速度、timestampログです。派生 `Task Cleanup Switchboard`（`outputs/2026-11-23_task_cleanup_switchboard.html`）は、Task切替のsetup/cleanup順序を模擬します。何が動くか: 正常切替とunsafe切替を比べ、残った疑似handleを確認できます。次に足すなら実Task.close、camera track.stop、AbortControllerです。",
+      "bodyEn": "Action Admission Loom exposes four admission contracts; Task Cleanup Switchboard compares explicit cleanup with unsafe switches.",
+      "links": [
+        {
+          "label": "Open Action Admission Loom",
+          "url": "../outputs/2026-11-23_action_admission_loom.html"
+        },
+        {
+          "label": "Open Task Cleanup Switchboard",
+          "url": "../outputs/2026-11-23_task_cleanup_switchboard.html"
+        }
+      ]
+    }
+  ]
+}
