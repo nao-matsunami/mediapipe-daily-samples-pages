@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-24",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "推論結果の来歴を、採用前に照合する",
+  "headlineEn": "Check inference lineage before rendering a result",
+  "summary": "Google AI EdgeとMediaPipeの一次情報を参照し、Web Tasksで入力frame・Task世代・結果年齢を照合する本命と、局所埋め込み近傍の根拠を可視化する派生の自作2本を制作しました。",
+  "summaryEn": "Two original prototypes explore result lineage gates and local embedding-neighborhood evidence for Web ML interactions.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はWeb向けTasks WASMの更新と、JavaScriptの増分TextToSpeech入力を含む。",
+    "MediaPipe v1.1.0はWeb Tasks APIでlandmarkごとのpresence scoreを公開し、WASM embedding呼び出しの重複を防ぐ変更を含む。",
+    "公式mediapipe-samples-webはブラウザ内でon-deviceのvision/audio/text/retrieval Taskをまとめ、ルート変更時に前Taskのcleanupを呼ぶ。",
+    "公式WebサンプルにはUniversal EmbedderとImage Embedderが含まれ、ローカルな近傍探索をUIとして検証できる。"
+  ],
+  "keyTopicsEn": [
+    "v1.2.3 refreshes Tasks Web WASM and adds incremental JavaScript TTS input.",
+    "v1.1.0 exposes per-landmark presence and prevents overlapping Web WASM embedding calls.",
+    "Official Web samples group on-device tasks and clean up the previous task on route changes.",
+    "Official samples include Universal and Image Embedders for local-neighborhood exploration."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Frame Lineage Gate",
+      "url": "../outputs/2026-11-24_frame_lineage_gate.html"
+    },
+    {
+      "label": "Today's derivative: Embedding Neighborhood Lens",
+      "url": "../outputs/2026-11-24_embedding_neighborhood_lens.html"
+    },
+    {
+      "label": "Official MediaPipe v1.2.3 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official web sample router and cleanup",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/main.ts"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式mediapipe-samples-webはvision/audio/text/retrievalをブラウザ内で実行し、route変更時には前のTaskのcleanupを呼びます。v1.1.0のWeb側の重複WASM embedding呼び出し防止、v1.2.3のWASM更新と合わせると、Web MLでは推論の速さだけでなく「どの入力・どのTaskの結果か」をUIに渡る前に判定する設計が重要になります。",
+      "bodyEn": "Official web samples clean up the previous task on route changes. Together with Web overlap prevention and refreshed WASM, result provenance is a first-class UI contract.",
+      "links": [
+        {
+          "label": "Official web sample router",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web/blob/main/src/main.ts"
+        },
+        {
+          "label": "Official v1.1.0 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.1.0"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はcapture→inference→renderを三列に分け、frame ID、Task epoch、年齢、採用/破棄をledgerとして流します。Switch Task Epochを押すと古い世代の待機結果が画面へ届かない様子を見られます。派生は疑似queryを動かし、局所indexの上位近傍だけを採用候補にすることで、似ているという判断を点と線で説明します。",
+      "bodyEn": "The main shows capture, inference, and render as a lineage ledger; the derivative turns local nearest-neighbor admission into a visible spatial relationship."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "frame ID、video timestamp、Task世代、開始/終了時刻、result age、採用理由、類似度、候補IDを小さなイベント列にできます。これをPerformance API、Long Tasks、IndexedDBの容量制限ログ、MediaPipe Universal Embedder/Image Embedder、Web Audioの応答音、XRの選択レイと組み合わせれば、端末差・モデル版・操作結果を同じ軸で比較できます。",
+      "bodyEn": "Frame IDs, timestamps, task epochs, latency, admission reasons, similarity, and candidate IDs can combine with performance logs, bounded storage, embedders, audio, and XR selection rays."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装ではTaskを作るたびにepochを増やし、入力frameにも単調増加IDと時刻を付けます。結果callbackでは現在epochとの一致、許容年齢、より新しい入力がすでにあるかを確認してから描画します。route変更では新規captureを止め、AbortController・timer・video track・Task.close・結果参照を一つのcleanupへ集めます。embedding検索でもscore単独で決めず、入力種別・モデル版・記録時刻をcandidateに残します。",
+      "bodyEn": "Increment task epochs and frame IDs, gate callbacks by epoch/freshness/newer input, centralize cleanup, and retain modality/model/time alongside embedding scores."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "MediaPipe Tasks WebのWASM/API更新、公式Webサンプルのrouterとcleanup、Universal EmbedderとImage Embedderの実装、Web Worker/OffscreenCanvasへの移動、WebGPU/WebGLを長時間動かした際のresult寿命とメモリ計測を追います。",
+      "bodyEn": "Watch Tasks Web updates, official router cleanup, embedder implementations, worker/offscreen migration, and long-session result/memory behavior."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で入力間隔を短く、推論遅延を長くして待機frameを増やし、次にSwitch Task Epochを押して古い世代が破棄される流れを見ます。派生では採用しきい値を上げ下げして、近傍の順位は残っても「採用候補」は変わることを確かめます。",
+      "bodyEn": "Create a backlog then switch epochs in the main; vary the threshold in the derivative to distinguish ranking from admission."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: Google AI Edge/MediaPipeのリリースと公式Webサンプル。設計: 推論結果をframe・epoch・年齢で照合し、近傍検索も根拠つきにする。実装: 外部依存なしの本命・派生を作成。公開: galleryを再生成しPagesへpush、公開URLを確認。",
+      "bodyEn": "Research first-party releases and samples, design provenance contracts, build two dependency-free originals, then publish and verify Pages."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの結果は数値やlandmarkだけではなく、いつ・どの入力・どのTaskが出したのかという来歴を持つ小さなメッセージです。来歴を切り落とすと、滑らかなUIでも古い結果や別画面の結果を操作に使う危険があります。最小のledgerを先に置くと、認識、embedding、音声、XRを後から交換しても安全性の検証軸を保てます。",
+      "bodyEn": "A Web ML result is a message with time, input, and task provenance. A minimal ledger keeps the safety test axis intact across models and modalities."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 `Frame Lineage Gate`（`outputs/2026-11-24_frame_lineage_gate.html`）は、疑似frameをcapture→inference→renderへ流し、Task epoch・年齢・最新入力を照合します。何が動くか: 遅延・入力間隔・鮮度を変え、Task切替で旧世代を破棄するledgerを見られます。次に足すなら実detectForVideo、video timestamp、AbortControllerです。派生 `Embedding Neighborhood Lens`（`outputs/2026-11-24_embedding_neighborhood_lens.html`）は、疑似queryと局所indexの近傍を可視化します。何が動くか: pointerとthresholdで上位候補の採用を比べられます。次に足すなら実Universal/Image Embedder、モデル版・時刻フィルタ、IndexedDBです。",
+      "bodyEn": "Frame Lineage Gate visualizes epoch-aware result admission. Embedding Neighborhood Lens visualizes local nearest-neighbor admission with a threshold.",
+      "links": [
+        {
+          "label": "Open Frame Lineage Gate",
+          "url": "../outputs/2026-11-24_frame_lineage_gate.html"
+        },
+        {
+          "label": "Open Embedding Neighborhood Lens",
+          "url": "../outputs/2026-11-24_embedding_neighborhood_lens.html"
+        }
+      ]
+    }
+  ]
+}
