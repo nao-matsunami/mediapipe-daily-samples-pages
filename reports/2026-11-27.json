@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-27",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "Workerとカテゴリマスクの境界を、UIの契約として描く",
+  "headlineEn": "Make worker and category-mask boundaries visible UI contracts",
+  "summary": "公式MediaPipeの最新Web向け更新を参照し、WorkerへTask assetを渡す本命と、カテゴリマスクをパレットへ写す派生という、自作の最小試作2本を制作しました。",
+  "summaryEn": "Two original prototypes explore worker asset handoff and category-mask palette composition for MediaPipe Web.",
+  "keyTopics": [
+    "MediaPipe v0.10.35はViteのWorkerでMP Taskファイルを使えるようにした。",
+    "同リリースはカテゴリマスクのGPU出力対応を追加し、描画経路の設計余地を広げた。",
+    "公式Webサンプル集は、CPU/GPU加速でブラウザ内完結のVision、Audio、Text Taskを扱う。",
+    "公式リポジトリはTasksを低コードの端末内ML構成要素、Web Demosを検証・プロトタイプ用途として位置づける。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v0.10.35 allows MP Task files in Vite workers.",
+    "The release adds GPU output support for category masks.",
+    "Official web samples run Vision, Audio, and Text Tasks in-browser with CPU/GPU acceleration.",
+    "The primary repository frames Tasks as on-device ML building blocks and Web Demos as prototyping tools."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Worker Asset Relay",
+      "url": "../outputs/2026-11-27_worker_asset_relay.html"
+    },
+    {
+      "label": "Today's derivative: Category Mask Palette Lab",
+      "url": "../outputs/2026-11-27_category_mask_palette_lab.html"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe samples repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples"
+    },
+    {
+      "label": "Official MediaPipe repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v0.10.35のVite WorkerでのMP Taskファイル対応とカテゴリマスクGPU出力は、推論を速くするだけでなく、どこでassetを読み、どの結果を描画に渡すかを明確にする契機です。公式Webサンプルはブラウザ内完結のTaskを広く見せますが、プロダクトでは初期化、フレーム順序、結果寿命をUIにも見せるほど壊れにくくなります。",
+      "bodyEn": "The new worker asset and GPU category-mask capabilities make initialization, frame order, and result lifetime concrete design concerns.",
+      "links": [
+        {
+          "label": "Official MediaPipe v0.10.35 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v0.10.35"
+        },
+        {
+          "label": "Official MediaPipe Web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はWorkerのready前では最新フレームだけを保留し、古いepochの応答を描画しないリレーです。派生はカテゴリ値を意味色へ写し、しきい値と見た目の不透明度を独立に触れるマスク実験です。待ち状態と色付けの判断を、黒箱にしないインタラクションにします。",
+      "bodyEn": "The main keeps only the newest frame before worker readiness; the derivative separates semantic palette policy from threshold and opacity."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "frame ID、worker epoch、asset読込時間、転送サイズ、結果年齢、カテゴリごとの面積と採用しきい値をイベント列として残せます。Performance API、Web Worker、OffscreenCanvas、ImageBitmap、MediaStreamTrack、IndexedDBと結べば、端末別の遅延や描画負荷を比較できます。将来は手・姿勢ランドマークをマスクの意味色に重ね、音やXRの遮蔽にも展開できます。",
+      "bodyEn": "Frame lineage, worker epochs, asset timing, and category area can join performance traces, worker graphics, local history, landmarks, audio, and XR."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装ではTask asset URLをWorkerで解決できるかビルド時に確認し、Taskごとにepochと終了手順を持たせます。VideoFrameやImageBitmapは転送後の所有権を明確にし、描画後は保持しません。カテゴリマスクは推論値、しきい値、配色、合成不透明度を別々の設定にして、GPU/CPU経路とコピー回数を計測します。",
+      "bodyEn": "Resolve task assets in workers at build time, track epochs and cleanup, transfer image ownership explicitly, and separate mask semantics from display policy."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks WebのWorker/Vite利用の公式例、カテゴリ/信頼マスクのGPU出力API、WebGPU・OffscreenCanvasとの相性、画像結果の所有権、main threadとWorker間の転送コスト、最新リリースのWASM URL/hash変更を追います。",
+      "bodyEn": "Watch official Worker/Vite patterns, category-mask GPU APIs, WebGPU and OffscreenCanvas, ownership, transfer cost, and WASM updates."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命でWorkerを起動直後に連続FRAME送信し、ready前には最後の1枚だけが残ること、再起動後に旧epochを描かないことを見ます。派生ではしきい値を上げ下げし、同じマスクでも配色と不透明度が意味の採用条件とは別であることを確かめます。",
+      "bodyEn": "Burst frames before readiness and restart the worker; then vary mask threshold separately from palette opacity."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、公式Webサンプル、公式samples/repository。設計: asset/epochとmask/display policyを分離。実装: Blob Workerで動く本命とcanvas派生を制作。公開: galleryを再生成し、Pagesへpushして公開URLを確認。",
+      "bodyEn": "Research primary sources, separate worker lineage and display policy, build two originals, then publish and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLの体験差は、モデルが返す値そのものより、結果がいつ・どの文脈で画面へ採用されるかに現れます。Worker、asset、GPU出力を導入するときほど、入力の所有、結果の新しさ、色の意味を小さな契約として可視化する価値があります。",
+      "bodyEn": "Web ML quality depends on when and in which context results are accepted; workers and GPU paths need visible ownership, freshness, and semantic contracts."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 Worker Asset Relay（outputs/2026-11-27_worker_asset_relay.html）は、実際のBlob Workerでready待ちの最新フレーム保持、epochによる古い応答の破棄、再起動を動かします。次に足すならViteの.task assetと実Task、VideoFrame転送、Task.closeです。派生 Category Mask Palette Lab（outputs/2026-11-27_category_mask_palette_lab.html）は、疑似カテゴリマスクをしきい値と見た目のパレットに分離して描きます。次に足すならImage Segmenterの実マスク、GPU経路、コピー/メモリ計測です。",
+      "bodyEn": "Worker Asset Relay shows real blob-worker message ordering; Category Mask Palette Lab separates synthetic mask threshold from palette policy.",
+      "links": [
+        {
+          "label": "Open Worker Asset Relay",
+          "url": "../outputs/2026-11-27_worker_asset_relay.html"
+        },
+        {
+          "label": "Open Category Mask Palette Lab",
+          "url": "../outputs/2026-11-27_category_mask_palette_lab.html"
+        }
+      ]
+    }
+  ]
+}

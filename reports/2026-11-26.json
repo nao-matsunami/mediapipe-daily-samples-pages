@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-26",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "複数モダリティを、推論前の予算と区間で整える",
+  "headlineEn": "Shape multimodal input with budgets and windows",
+  "summary": "Google AI Edge / MediaPipeの一次情報を参照し、Web GenAI入力の待機予算を扱う本命と、音声を確定する区間条件を試す派生の自作2本を制作しました。",
+  "summaryEn": "Two original prototypes explore multimodal turn budgets and audio-window commitment for on-device web inference.",
+  "keyTopics": [
+    "MediaPipe v0.10.26はMediaPipe TasksのLLM Inference APIに音声モダリティ対応を追加した。",
+    "公式Tasks GenAI Web READMEは、入力処理が端末上で行われ、Web用モデルはGPUバックエンドを使うと説明する。",
+    "公式Tasks Web Vision READMEはFilesetResolverとモデルを分けてTaskを初期化する流れを示す。",
+    "公式MediaPipeリポジトリのWeb関連更新は、入力型が増えても待機、所有権、取消をUI契約として設計する必要を示す。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v0.10.26 adds audio modality support to LLM Inference.",
+    "The official GenAI Web README describes on-device input processing and a GPU backend requirement.",
+    "The Vision README separates FilesetResolver and model initialization.",
+    "Growing Web input types make waiting, ownership, and cancellation first-class UI contracts."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Multimodal Budget Orbit",
+      "url": "../outputs/2026-11-26_multimodal_budget_orbit.html"
+    },
+    {
+      "label": "Today's derivative: Audio Window Commit",
+      "url": "../outputs/2026-11-26_audio_window_commit.html"
+    },
+    {
+      "label": "Official MediaPipe v0.10.26 release",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v0.10.26"
+    },
+    {
+      "label": "Official Tasks GenAI Web README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/genai/README.md"
+    },
+    {
+      "label": "Official Tasks Web Vision README",
+      "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/vision/README.md"
+    },
+    {
+      "label": "Official MediaPipe repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "公式Tasks GenAI Web READMEは、テキストだけでなく画像・音声を扱えるLLM Inferenceと、入力データが端末で処理される設計を示します。v0.10.26では音声モダリティも追加されました。入力を増やすと精度以前に、どの入力を今の応答に採用し、いつ中断できるかが操作感を決めます。",
+      "bodyEn": "Official GenAI sources make multimodal, on-device input possible; selecting and cancelling input becomes part of interaction design.",
+      "links": [
+        {
+          "label": "Official GenAI Web README",
+          "url": "https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/web/genai/README.md"
+        },
+        {
+          "label": "Official v0.10.26 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v0.10.26"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命はTEXT / IMAGE / AUDIOを惑星として1 turnの待機予算へ置き、入り切らないものを保留にします。派生は音声ブロックを描き、最短長と静かな終端が揃った時だけ確定します。複数モダリティを「全部送る」のでなく、入力の意図と境界を触って調整する構成です。",
+      "bodyEn": "The main budgets a local turn; the derivative commits audio only at a quiet, sufficiently long boundary."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "各turnの入力種別、推定サイズ、前処理時間、採用/保留理由、取消、確定区間をイベント列にできます。Web AudioのVAD、MediaStreamTrack、Performance API、IndexedDBのローカル履歴、字幕、XRの視線/画像入力と組み合わせれば、応答の遅さを一つの指標で説明できます。",
+      "bodyEn": "Turn inputs, sizes, timings, admission, cancellation, and committed windows can connect to VAD, performance, local history, captions, and XR."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実装ではFilesetResolver、モデル取得、Task作成を別々に計測し、入力ごとにAbortControllerとturn IDを持たせます。画像・音声は無制限に蓄積せず、解像度、区間長、保持数、用途を明示します。音声は固定秒数だけで切らず、VADや語境界、ユーザーの停止操作を確定条件に重ねます。",
+      "bodyEn": "Measure bootstrap separately, give each input an AbortController and turn ID, and bound image/audio retention."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks GenAIのWeb API・モデル対応、音声/画像入力の実測待機時間、GPU初期化失敗時のフォールバック、Web AudioとTask間の取消、公式Webサンプルでの入力所有権とcleanupを追います。",
+      "bodyEn": "Watch GenAI Web APIs, modality latency, GPU fallback, cancellation, and ownership cleanup."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で画像解像度と音声区間を上げ、同じ待機予算に何が入らなくなるかを見ます。派生では短いノイズ、音声フレーズ、静音の順に押し、長さだけではなく終端の静かさが確定に必要なことを確かめます。",
+      "bodyEn": "Raise image and audio cost in the main; in the derivative test noise, phrase, then silence."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、Tasks GenAI / Vision README、主リポジトリ。設計: 1 turn予算と音声区間を分離。実装: 外部依存なしの本命・派生を作成。公開: gallery再生成、Pagesへpush、公開URLを確認。",
+      "bodyEn": "Research primary sources, separate turn budget and audio window, build two originals, publish and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "ローカルAIの複数モダリティ化は、入力を増やす競争ではなく、いま必要な信号だけを期限付きで預かる設計に近いです。予算、終端、取消を明示すると、遅い端末でも結果が遅れて勝手に行動する感覚を減らせます。",
+      "bodyEn": "Multimodal local AI benefits from bounded, expiring signals with visible budgets, boundaries, and cancellation."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 Multimodal Budget Orbit（outputs/2026-11-26_multimodal_budget_orbit.html）は、疑似TEXT / IMAGE / AUDIOを1 turnの待機予算に採用・保留します。次に足すなら実Tasks GenAIの入力計測、AbortController、許諾表示です。派生 Audio Window Commit（outputs/2026-11-26_audio_window_commit.html）は、最短区間と静音終端の両方で音声を確定します。次に足すならVAD、Audio Classifier/LLM入力、字幕、取消です。",
+      "bodyEn": "Multimodal Budget Orbit schedules synthetic modalities; Audio Window Commit requires a quiet end and minimum window.",
+      "links": [
+        {
+          "label": "Open Multimodal Budget Orbit",
+          "url": "../outputs/2026-11-26_multimodal_budget_orbit.html"
+        },
+        {
+          "label": "Open Audio Window Commit",
+          "url": "../outputs/2026-11-26_audio_window_commit.html"
+        }
+      ]
+    }
+  ]
+}
