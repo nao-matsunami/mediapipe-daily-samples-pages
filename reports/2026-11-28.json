@@ -1,0 +1,122 @@
+{
+  "date": "2026-11-28",
+  "category": "MediaPipe / Google AI Edge / MediaPipe Tasks / Web ML",
+  "headline": "推論結果を、採用理由まで含めてUIへ渡す",
+  "headlineEn": "Carry inference results to the UI with their admission reasons",
+  "summary": "MediaPipeの公式Web情報を参照し、スコア・鮮度・ポリシーを理由付きでcommitする本命と、近さと根拠の鮮度を分ける派生の自作ミニ試作2本を制作しました。",
+  "summaryEn": "Two original prototypes make result admission and retrieval evidence freshness visible for MediaPipe Web experiences.",
+  "keyTopics": [
+    "MediaPipe v1.2.3はJavaScriptで増分TextToSpeechストリーム入力をサポートし、Web Tasks WASMも更新した。",
+    "公式WebサンプルはVision、Audio、Text、Decision、RetrievalをCPU/GPU加速でブラウザ内完結として提示している。",
+    "公式samplesリポジトリは、Tasksを端末内MLの低コード構成要素、Web Demosを検証・プロトタイプ・配布の場として説明している。",
+    "実装品質では、モデルの数値だけでなく、いつ・どの規則でUIに採用したかを追えることが重要になる。"
+  ],
+  "keyTopicsEn": [
+    "MediaPipe v1.2.3 supports incremental TextToSpeech stream input and updates Web Tasks WASM.",
+    "Official web samples cover in-browser Vision, Audio, Text, Decision, and Retrieval with CPU/GPU acceleration.",
+    "Official samples describe Tasks as on-device ML building blocks and Web Demos as a prototyping and deployment surface.",
+    "Production quality depends on tracing when and why a model value reaches the UI."
+  ],
+  "links": [
+    {
+      "label": "Today's main sample: Decision Trace Commit",
+      "url": "../outputs/2026-11-28_decision_trace_commit.html"
+    },
+    {
+      "label": "Today's derivative: Evidence Neighbor Shelf",
+      "url": "../outputs/2026-11-28_evidence_neighbor_shelf.html"
+    },
+    {
+      "label": "Official MediaPipe releases",
+      "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+    },
+    {
+      "label": "Official MediaPipe Web samples",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+    },
+    {
+      "label": "Official MediaPipe samples repository",
+      "url": "https://github.com/google-ai-edge/mediapipe-samples"
+    },
+    {
+      "label": "Official MediaPipe repository",
+      "url": "https://github.com/google-ai-edge/mediapipe"
+    }
+  ],
+  "sections": [
+    {
+      "title": "注目事例と何が面白いか",
+      "titleEn": "Notable example and why it matters",
+      "body": "v1.2.3のWeb向け増分TTSとWASM更新、そして公式WebサンプルのDecision/Retrievalまで含む広いTask構成は、推論を『値を返す部品』から『途中状態をもつ対話』へ広げます。ストリームや検索候補を実装するほど、数値の良し悪しだけでなく、どの版の規則で、どれだけ新しい結果を採用したかが体験の信頼性になります。",
+      "bodyEn": "Incremental Web TTS, refreshed WASM, and broad official task demos turn inference into an interaction with state and provenance.",
+      "links": [
+        {
+          "label": "Official MediaPipe v1.2.3 release",
+          "url": "https://github.com/google-ai-edge/mediapipe/releases/tag/v1.2.3"
+        },
+        {
+          "label": "Official MediaPipe Web samples",
+          "url": "https://github.com/google-ai-edge/mediapipe-samples-web"
+        }
+      ]
+    },
+    {
+      "title": "表現・インタラクションのアイデア",
+      "titleEn": "Expression and interaction idea",
+      "body": "本命は候補スコア、結果年齢、しきい値、ポリシー版を一つの判定として色と履歴で出します。派生は近い候補でも根拠が古ければ黄色に留め、距離と引用可能性を混ぜない棚にします。待つ・保留する・採用するという状態遷移を、利用者にも読める表現にします。",
+      "bodyEn": "The main records score, age, threshold, and policy version; the derivative separates similarity from evidence readiness."
+    },
+    {
+      "title": "サンプルデータの可能性と組み合わせ",
+      "titleEn": "Possibilities unlocked by sample data and combinations",
+      "body": "判定ID、入力timestamp、score、result age、ポリシー版、保留理由、候補ベクトル距離、根拠生成日をイベントとして蓄積できます。Gesture RecognizerやHand Landmarkerの時系列、Semantic Retriever/Universal Embedderのベクトル、Web Speech/Web Audio、IndexedDB、Performance APIと結べば、誤操作・遅延・根拠の劣化を後から比べられます。XRの注釈やLLMの回答にも『なぜ今これを採ったか』を渡せます。",
+      "bodyEn": "Decision IDs, timestamps, scores, ages, policy versions, reasons, vectors, and evidence age can join tasks, local storage, performance traces, audio, XR, and LLM responses."
+    },
+    {
+      "title": "制作に使えそうな技術メモ",
+      "titleEn": "Production note",
+      "body": "実Task接続では、Taskの結果timestampをrender timeと別に保持し、UI採用時に最大年齢とモデル/ポリシー版を確認します。ストリーミングTTSは再生済み区間と取消し可能な末尾を分け、検索結果は類似度、フィルタ、引用範囲、更新日を別フィールドにします。ログには原画像や音声を残さず、必要な集計値と同意状態だけを持たせます。",
+      "bodyEn": "Keep task timestamps separate from render time, gate by maximum age and policy version, and separate streaming playback, retrieval similarity, filters, citations, and update date."
+    },
+    {
+      "title": "明日以降ウォッチする対象",
+      "titleEn": "Watch next",
+      "body": "Tasks Webの増分TTS APIとサンプル実装、Decision MakerのWeb API、Semantic RetrieverとUniversal Embedderのローカル永続化、WASM URL/hashの更新、WebGPU対応、キャンセルとTask.closeのライフサイクルを追います。",
+      "bodyEn": "Watch Web TTS, Decision Maker APIs, local retrieval persistence, WASM updates, WebGPU, cancellation, and task cleanup."
+    },
+    {
+      "title": "試すならこれ",
+      "titleEn": "If you try one thing",
+      "body": "本命で結果年齢を481ms以上にして、高スコアでもSTALEで保留されることを見ます。次にポリシーを更新してから同じ候補を評価し、判定履歴へ版が残ることを確かめます。派生ではクエリを動かし、近い候補でも古い根拠は採用色にならないことを見ます。",
+      "bodyEn": "Make a high-scoring result stale, update the policy, then move the query to see similarity and evidence freshness remain independent."
+    },
+    {
+      "title": "進行マップ",
+      "titleEn": "Progress map",
+      "body": "調査: 公式リリース、公式Webサンプル、公式samples/repository。設計: 結果値と採用理由、類似度と根拠鮮度を分離。実装: 本命のcommit台帳と派生の検索棚を自作。公開: 日付ページとindexを再生成しPagesへpush、公開URLを検証する流れです。",
+      "bodyEn": "Research primary sources, separate values from admission reasons, build two originals, then rebuild, publish, and verify."
+    },
+    {
+      "title": "俯瞰メモ",
+      "titleEn": "Bird's-eye memo",
+      "body": "Web MLでは正しい推論であっても、遅すぎる、別の規則で出た、根拠が古いなら、いまの画面に採用すべきとは限りません。推論値の横に時間・版・理由を添える小さな契約は、Taskを増やすほど効く設計の芯になります。",
+      "bodyEn": "A correct inference may still be too old, from the wrong rule, or backed by stale evidence; small provenance contracts scale with more tasks."
+    },
+    {
+      "title": "今日のミニ試作候補",
+      "titleEn": "Today's mini prototype candidate",
+      "body": "本命 Decision Trace Commit（outputs/2026-11-28_decision_trace_commit.html）は、疑似Task候補をscore、result age、policy versionで評価し、採用/保留理由を台帳に残します。次に足すなら実Gesture/Decision結果、同意、cooldown、IndexedDBです。派生 Evidence Neighbor Shelf（outputs/2026-11-28_evidence_neighbor_shelf.html）は、ポインタで動かすqueryに対し、類似度と根拠の新しさを独立に可視化します。次に足すならUniversal Embedder/Semantic Retrieverの実ベクトル、引用範囲、ローカル保存です。",
+      "bodyEn": "Decision Trace Commit records synthetic admission reasons; Evidence Neighbor Shelf separates synthetic similarity from evidence freshness.",
+      "links": [
+        {
+          "label": "Open Decision Trace Commit",
+          "url": "../outputs/2026-11-28_decision_trace_commit.html"
+        },
+        {
+          "label": "Open Evidence Neighbor Shelf",
+          "url": "../outputs/2026-11-28_evidence_neighbor_shelf.html"
+        }
+      ]
+    }
+  ]
+}
